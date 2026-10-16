@@ -1,0 +1,6 @@
+{
+  "name": "Labe College of Nursing Sciences, Gboko - 4-Year ND/HND Nursing Sciences ERP",
+  "description": "Official Institutional Portal and ERP for Labe College of Nursing Sciences (LCNS), Gboko. Offering exclusively the accredited 4-Year Uninterrupted ND/HND in Nursing Sciences.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
