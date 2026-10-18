@@ -1,5 +1,6 @@
 import {
   User,
+  UserRole,
   Applicant,
   Student,
   Course,
@@ -31,42 +32,48 @@ const STORAGE_KEYS = {
   CBT_SUBMISSIONS: 'lcns_erp_cbt_submissions',
 };
 
-const INITIAL_USERS: (User & { password?: string })[] = [
+const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
   {
-    id: 'usr-admin-1',
+    id: 'LCNS/2026/AD/001',
     email: 'info@lcns.edu.ng',
     password: 'admin123',
+    pin: '849201',
     role: 'ADMIN',
     fullName: 'Director of ICT / Admin',
     status: 'ACTIVE',
     phone: '08126799565',
+    department: 'ICT & Systems Unit',
     createdAt: '2026-01-10',
   },
   {
-    id: 'usr-admin-2',
+    id: 'LCNS/2026/AD/002',
     email: 'lcns.ict@gmail.com',
     password: 'admin123',
+    pin: '849202',
     role: 'ADMIN',
     fullName: 'Central ICT Desk',
     status: 'ACTIVE',
     phone: '08126799565',
+    department: 'ICT & Systems Unit',
     createdAt: '2026-01-10',
   },
   {
-    id: 'usr-provost',
+    id: 'LCNS/2026/PV/001',
     email: 'provost@lcns.edu.ng',
     password: 'admin123',
+    pin: '739104',
     role: 'PROVOST',
-    fullName: 'Prof. Gabriel T. Labe',
+    fullName: 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN',
     department: 'Office of the Provost',
     status: 'ACTIVE',
     phone: '08034567891',
     createdAt: '2026-01-10',
   },
   {
-    id: 'usr-reg',
+    id: 'LCNS/2026/RG/001',
     email: 'registrar@lcns.edu.ng',
     password: 'admin123',
+    pin: '628491',
     role: 'REGISTRAR',
     fullName: 'Barr. Timothy J. Iorbee',
     department: 'Academic Registry',
@@ -75,9 +82,10 @@ const INITIAL_USERS: (User & { password?: string })[] = [
     createdAt: '2026-01-11',
   },
   {
-    id: 'usr-adm',
+    id: 'LCNS/2026/AO/001',
     email: 'admission@lcns.edu.ng',
     password: 'admin123',
+    pin: '519283',
     role: 'ADMISSION_OFFICER',
     fullName: 'Mrs. Bridget N. Terfa',
     department: 'Admissions Unit',
@@ -86,9 +94,10 @@ const INITIAL_USERS: (User & { password?: string })[] = [
     createdAt: '2026-01-12',
   },
   {
-    id: 'usr-exam',
+    id: 'LCNS/2026/EO/001',
     email: 'exam@lcns.edu.ng',
     password: 'admin123',
+    pin: '492817',
     role: 'EXAM_OFFICER',
     fullName: 'Dr. Emmanuel O. Agada',
     department: 'Examination & Records',
@@ -97,9 +106,10 @@ const INITIAL_USERS: (User & { password?: string })[] = [
     createdAt: '2026-01-12',
   },
   {
-    id: 'usr-hod',
+    id: 'LCNS/2026/HD/001',
     email: 'hod.nursing@lcns.edu.ng',
     password: 'admin123',
+    pin: '394821',
     role: 'HOD',
     fullName: 'Dr. (Mrs) Rebecca M. Chia',
     department: 'Department of Nursing Sciences',
@@ -108,9 +118,10 @@ const INITIAL_USERS: (User & { password?: string })[] = [
     createdAt: '2026-01-12',
   },
   {
-    id: 'usr-lec',
+    id: 'LCNS/2026/LC/001',
     email: 'lecturer@lcns.edu.ng',
     password: 'admin123',
+    pin: '284910',
     role: 'LECTURER',
     fullName: 'Nurse Emmanuel Gbaorun (FWACN)',
     department: 'Department of Nursing Sciences',
@@ -119,9 +130,10 @@ const INITIAL_USERS: (User & { password?: string })[] = [
     createdAt: '2026-01-15',
   },
   {
-    id: 'usr-bur',
+    id: 'LCNS/2026/BS/001',
     email: 'bursar@lcns.edu.ng',
     password: 'admin123',
+    pin: '194827',
     role: 'BURSAR',
     fullName: 'Mr. Simon T. Tyavyar (FCA)',
     department: 'College Bursary Department',
@@ -130,11 +142,13 @@ const INITIAL_USERS: (User & { password?: string })[] = [
     createdAt: '2026-01-15',
   },
   {
-    id: 'usr-stu-1',
+    id: 'LCNS/2026/ND/001',
     email: 'student@lcns.edu.ng',
-    matricNo: 'LCNS/2026/ND/014',
+    matricNo: 'LCNS/ND/2026/0001',
     password: 'admin123',
+    pin: '458921',
     role: 'STUDENT',
+    level: 'ND1',
     fullName: 'Deborah Vershima',
     department: 'Department of Nursing Sciences',
     status: 'ACTIVE',
@@ -142,9 +156,11 @@ const INITIAL_USERS: (User & { password?: string })[] = [
     createdAt: '2026-02-01',
   },
   {
-    id: 'usr-app-1',
+    id: 'LCNS/2026/APP/001',
     email: 'applicant@lcns.edu.ng',
+    matricNo: 'LCNS/APP/2026/001',
     password: 'admin123',
+    pin: '392019',
     role: 'APPLICANT',
     fullName: 'Terwase Moses',
     department: 'Admissions Pool',
@@ -166,9 +182,17 @@ const INITIAL_APPLICANTS: Applicant[] = [
     stateOfOrigin: 'Benue',
     lga: 'Gboko',
     address: 'No 14 Captain Downes Road, Gboko, Benue State',
+    courseChoice1: 'ND Nursing Sciences (Years 1 & 2)',
+    courseChoice2: 'HND Nursing Sciences (Years 3 & 4)',
     program: 'ND/HND Nursing Sciences (4 Years)',
     jambRegNo: '202640239104EF',
     jambScore: 218,
+    passportPhotoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400',
+    paymentReceiptPdfUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=800',
+    paymentReceiptName: 'Remita_RRR_Receipt_014.pdf',
+    bursarStatus: 'CLEARED',
+    bursarClearedDate: '2026-02-02',
+    bursarClearedBy: 'Mr. Simon T. Tyavyar (Bursar)',
     olevelExamType: 'WAEC',
     olevelExamYear: '2025',
     olevelGrades: {
@@ -198,9 +222,15 @@ const INITIAL_APPLICANTS: Applicant[] = [
     stateOfOrigin: 'Benue',
     lga: 'Vandeikya',
     address: 'Opposite General Hospital, Vandeikya',
+    courseChoice1: 'ND Nursing Sciences (Years 1 & 2)',
+    courseChoice2: 'HND Nursing Sciences (Years 3 & 4)',
     program: 'ND/HND Nursing Sciences (4 Years)',
     jambRegNo: '202639104821GA',
     jambScore: 204,
+    passportPhotoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400',
+    paymentReceiptPdfUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=800',
+    paymentReceiptName: 'Bank_Deposit_Teller_089.pdf',
+    bursarStatus: 'PENDING_BURSAR',
     olevelExamType: 'WAEC',
     olevelExamYear: '2025',
     olevelGrades: {
@@ -212,7 +242,7 @@ const INITIAL_APPLICANTS: Applicant[] = [
     },
     sponsorName: 'Elder Moses Terwase',
     sponsorPhone: '08067891234',
-    status: 'ADMITTED',
+    status: 'PENDING_BURSAR',
     screeningScore: 78,
     screeningDate: '2026-02-18',
     acceptanceFeePaid: false,
@@ -229,9 +259,17 @@ const INITIAL_APPLICANTS: Applicant[] = [
     stateOfOrigin: 'Benue',
     lga: 'Konshisha',
     address: 'GRA Extension, Gboko',
+    courseChoice1: 'ND Nursing Sciences (Years 1 & 2)',
+    courseChoice2: 'HND Nursing Sciences (Years 3 & 4)',
     program: 'ND/HND Nursing Sciences (4 Years)',
     jambRegNo: '202691823741AB',
     jambScore: 196,
+    passportPhotoUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
+    paymentReceiptPdfUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=800',
+    paymentReceiptName: 'Remita_Electronic_Receipt_102.pdf',
+    bursarStatus: 'CLEARED',
+    bursarClearedDate: '2026-02-12',
+    bursarClearedBy: 'Mr. Simon T. Tyavyar (Bursar)',
     olevelExamType: 'NECO',
     olevelExamYear: '2025',
     olevelGrades: {
@@ -243,11 +281,10 @@ const INITIAL_APPLICANTS: Applicant[] = [
     },
     sponsorName: 'Hon. Aondo Patrick',
     sponsorPhone: '08023456781',
-    status: 'ADMITTED',
+    status: 'BURSAR_CLEARED',
     screeningScore: 80,
     screeningDate: '2026-02-18',
-    acceptanceFeePaid: true,
-    acceptanceReceiptNo: 'LCNS-ACC-2026-8812',
+    acceptanceFeePaid: false,
     createdAt: '2026-02-12',
   },
   {
@@ -848,7 +885,7 @@ const INITIAL_AUDIT_LOGS: AuditLog[] = [
 const INITIAL_CMS: CMSConfig = {
   logoUrl: '/assets/lcns-logo-original.jpg',
   provostPhotoUrl: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=600',
-  provostName: 'Prof. Gabriel Terungwa Labe',
+  provostName: 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN',
   provostTitle: 'Provost, Labe College of Nursing Sciences',
   provostMessage: 'At LCNS Gboko, our solemn oath is to train nurses who embody compassion, scientific rigor, and unflinching integrity. Through our accredited 4-Year ND/HND collegiate curriculum, we raise globally competitive lifesavers for Benue, Nigeria, and the international healthcare community.',
   bishopPhotoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=600',
@@ -858,7 +895,7 @@ const INITIAL_CMS: CMSConfig = {
   governorPhotoUrl: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&q=80&w=600',
   governorName: 'H.E. Rev. Fr. Dr. Hyacinth Iormem Alia',
   governorTitle: 'Executive Governor of Benue State',
-  governorMessage: 'Establishing Labe College of Nursing Sciences by Benue State Law is our covenant to transform healthcare delivery, empower youth with collegiate qualifications, and position Gboko as a beacon of medical training in Nigeria.',
+  governorMessage: 'Establishing Labe College of Nursing Sciences by Benue State Law is our covenant to transform healthcare delivery and educate world-class nursing professionals rooted in clinical excellence and the fear of God.',
   gallery: [
     {
       id: 'gal-1',
@@ -1159,8 +1196,197 @@ function setStorage<T>(key: string, val: T): void {
 }
 
 export const StorageService = {
-  getUsers: (): (User & { password?: string })[] => getStorage(STORAGE_KEYS.USERS, INITIAL_USERS),
-  saveUsers: (users: (User & { password?: string })[]) => setStorage(STORAGE_KEYS.USERS, users),
+  getUsers: (): (User & { password?: string; pin?: string })[] => {
+    const users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
+    const deletedUserIds: string[] = getStorage('lcns_deleted_user_ids', []);
+    return users.filter((u) => !deletedUserIds.includes(u.id) && !deletedUserIds.includes(u.email));
+  },
+  saveUsers: (users: (User & { password?: string; pin?: string })[]) => setStorage(STORAGE_KEYS.USERS, users),
+
+  deleteUser: (userId: string): (User & { password?: string; pin?: string })[] => {
+    const users = StorageService.getUsers();
+    const targetUser = users.find((u) => u.id === userId || u.email === userId);
+    const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
+    const newDeleted = [...deletedIds];
+    if (userId && !newDeleted.includes(userId)) newDeleted.push(userId);
+    if (targetUser?.id && !newDeleted.includes(targetUser.id)) newDeleted.push(targetUser.id);
+    if (targetUser?.email && !newDeleted.includes(targetUser.email)) newDeleted.push(targetUser.email);
+    setStorage('lcns_deleted_user_ids', newDeleted);
+
+    const updated = users.filter((u) => u.id !== userId && u.email !== userId);
+    setStorage(STORAGE_KEYS.USERS, updated);
+
+    // If current logged in user was deleted, clear session
+    const current = StorageService.getCurrentUser();
+    if (current && (current.id === userId || current.email === userId)) {
+      StorageService.setCurrentUser(null);
+    }
+
+    StorageService.logAction(
+      'admin@lcns.edu.ng',
+      'ADMIN',
+      'DELETE_USER',
+      `Permanently deleted user: ${targetUser?.fullName || userId} (${userId})`
+    );
+    return updated;
+  },
+
+  toggleUserStatus: (userId: string): User | null => {
+    const users = StorageService.getUsers();
+    let updatedUser: User | null = null;
+    const updated = users.map((u) => {
+      if (u.id === userId) {
+        updatedUser = {
+          ...u,
+          status: (u.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE') as 'ACTIVE' | 'INACTIVE',
+        };
+        return updatedUser;
+      }
+      return u;
+    });
+    StorageService.saveUsers(updated);
+    return updatedUser;
+  },
+
+  updateUserProfilePhoto: (userIdOrEmail: string, photoUrl: string): User | null => {
+    const users = StorageService.getUsers();
+    let updatedUser: User | null = null;
+    const updated = users.map((u) => {
+      if (u.id === userIdOrEmail || u.email.toLowerCase() === userIdOrEmail.toLowerCase()) {
+        updatedUser = { ...u, photoUrl };
+        return updatedUser;
+      }
+      return u;
+    });
+    StorageService.saveUsers(updated);
+
+    // Also update student records if applicable
+    const students = StorageService.getStudents();
+    const updatedStudents = students.map((s) => {
+      if (s.email.toLowerCase() === userIdOrEmail.toLowerCase() || s.matricNo === userIdOrEmail) {
+        return { ...s, photoUrl };
+      }
+      return s;
+    });
+    StorageService.saveStudents(updatedStudents);
+
+    // Also update applicants if matching
+    const applicants = StorageService.getApplicants();
+    const updatedApplicants = applicants.map((a) => {
+      if (a.email.toLowerCase() === userIdOrEmail.toLowerCase() || a.formNo === userIdOrEmail) {
+        return { ...a, photoUrl };
+      }
+      return a;
+    });
+    StorageService.saveApplicants(updatedApplicants);
+
+    // Also update current active session if it matches
+    const cur = StorageService.getCurrentUser();
+    if (cur && (cur.id === userIdOrEmail || cur.email.toLowerCase() === userIdOrEmail.toLowerCase())) {
+      const refreshedCur = { ...cur, photoUrl };
+      StorageService.setCurrentUser(refreshedCur);
+    }
+    return updatedUser;
+  },
+
+  generatePin: (): string => {
+    return String(Math.floor(100000 + Math.random() * 900000));
+  },
+
+  generateUserId: (role: UserRole, level?: string): string => {
+    const year = new Date().getFullYear();
+    const users = StorageService.getUsers();
+    if (role === 'STUDENT') {
+      const lvl = (level || 'ND1').toUpperCase();
+      const sub = lvl.includes('HND') ? 'HND' : 'ND';
+      const count = users.filter((u) => u.role === 'STUDENT' && u.id.includes(sub)).length + 1;
+      return `LCNS/${year}/${sub}/${String(count).padStart(3, '0')}`;
+    } else if (role === 'LECTURER') {
+      const count = users.filter((u) => u.role === 'LECTURER').length + 1;
+      return `LCNS/${year}/LC/${String(count).padStart(3, '0')}`;
+    } else if (role === 'ADMIN') {
+      const count = users.filter((u) => u.role === 'ADMIN').length + 1;
+      return `LCNS/${year}/AD/${String(count).padStart(3, '0')}`;
+    } else if (role === 'REGISTRAR') {
+      const count = users.filter((u) => u.role === 'REGISTRAR').length + 1;
+      return `LCNS/${year}/RG/${String(count).padStart(3, '0')}`;
+    } else if (role === 'BURSAR') {
+      const count = users.filter((u) => u.role === 'BURSAR').length + 1;
+      return `LCNS/${year}/BS/${String(count).padStart(3, '0')}`;
+    } else if (role === 'PROVOST') {
+      const count = users.filter((u) => u.role === 'PROVOST').length + 1;
+      return `LCNS/${year}/PV/${String(count).padStart(3, '0')}`;
+    } else if (role === 'ADMISSION_OFFICER') {
+      const count = users.filter((u) => u.role === 'ADMISSION_OFFICER').length + 1;
+      return `LCNS/${year}/AO/${String(count).padStart(3, '0')}`;
+    } else if (role === 'EXAM_OFFICER') {
+      const count = users.filter((u) => u.role === 'EXAM_OFFICER').length + 1;
+      return `LCNS/${year}/EO/${String(count).padStart(3, '0')}`;
+    } else if (role === 'HOD') {
+      const count = users.filter((u) => u.role === 'HOD').length + 1;
+      return `LCNS/${year}/HD/${String(count).padStart(3, '0')}`;
+    } else {
+      const count = users.filter((u) => u.role === role).length + 1;
+      return `LCNS/${year}/USR/${String(count).padStart(3, '0')}`;
+    }
+  },
+
+  generateMatricNumber: (level?: string): string => {
+    const year = new Date().getFullYear();
+    const students = StorageService.getStudents();
+    const lvl = (level || 'ND1').toUpperCase();
+    const sub = lvl.includes('HND') ? 'HND' : 'ND';
+    const count = students.length + 1;
+    return `LCNS/${sub}/${year}/${String(count).padStart(4, '0')}`;
+  },
+
+  clearApplicantByBursar: (applicantId: string, remarks?: string): Applicant[] => {
+    const applicants = StorageService.getApplicants();
+    const updated = applicants.map((a) => {
+      if (a.id === applicantId || a.formNo === applicantId) {
+        return {
+          ...a,
+          bursarStatus: 'CLEARED' as const,
+          bursarRemarks: remarks || 'Bank payment proof verified & cleared.',
+          bursarClearedDate: new Date().toISOString().split('T')[0],
+          status: 'BURSAR_CLEARED' as const,
+        };
+      }
+      return a;
+    });
+    StorageService.saveApplicants(updated);
+    StorageService.logAction(
+      'bursar@lcns.edu.ng',
+      'BURSAR',
+      'BURSAR_CLEARANCE',
+      `Cleared applicant ${applicantId} after payment verification`
+    );
+    return updated;
+  },
+
+  rejectApplicantByBursar: (applicantId: string, remarks: string): Applicant[] => {
+    const applicants = StorageService.getApplicants();
+    const updated = applicants.map((a) => {
+      if (a.id === applicantId || a.formNo === applicantId) {
+        return {
+          ...a,
+          bursarStatus: 'REJECTED' as const,
+          bursarRemarks: remarks,
+          bursarClearedDate: new Date().toISOString().split('T')[0],
+          status: 'REJECTED' as const,
+        };
+      }
+      return a;
+    });
+    StorageService.saveApplicants(updated);
+    StorageService.logAction(
+      'bursar@lcns.edu.ng',
+      'BURSAR',
+      'BURSAR_REJECTION',
+      `Rejected applicant ${applicantId} payment clearance. Reason: ${remarks}`
+    );
+    return updated;
+  },
 
   getApplicants: (): Applicant[] => getStorage(STORAGE_KEYS.APPLICANTS, INITIAL_APPLICANTS),
   saveApplicants: (applicants: Applicant[]) => setStorage(STORAGE_KEYS.APPLICANTS, applicants),
@@ -1201,18 +1427,25 @@ export const StorageService = {
 
   getCMSConfig: (): CMSConfig => {
     const config = getStorage(STORAGE_KEYS.CMS, INITIAL_CMS);
+    const deletedIds: string[] = getStorage('lcns_deleted_gallery_ids', []);
     if (!config.logoUrl) {
       config.logoUrl = '/assets/lcns-logo-original.jpg';
     }
     if (!config.gallery || !Array.isArray(config.gallery)) {
       config.gallery = INITIAL_CMS.gallery;
-      setStorage(STORAGE_KEYS.CMS, config);
+    }
+    if (deletedIds.length > 0 && Array.isArray(config.gallery)) {
+      config.gallery = config.gallery.filter((g) => !deletedIds.includes(g.id));
     }
     return config;
   },
   saveCMSConfig: (cms: CMSConfig) => setStorage(STORAGE_KEYS.CMS, cms),
 
   deleteGalleryItem: (id: string): CMSConfig => {
+    const deletedIds: string[] = getStorage('lcns_deleted_gallery_ids', []);
+    if (!deletedIds.includes(id)) {
+      setStorage('lcns_deleted_gallery_ids', [...deletedIds, id]);
+    }
     const config = StorageService.getCMSConfig();
     const updatedGallery = (config.gallery || []).filter((g) => g.id !== id);
     const updatedConfig: CMSConfig = {
@@ -1253,26 +1486,6 @@ export const StorageService = {
     StorageService.saveAuditLogs([newLog, ...logs]);
   },
 
-  deleteUser: (userId: string): (User & { password?: string })[] => {
-    const users = StorageService.getUsers();
-    const targetUser = users.find((u) => u.id === userId || u.email === userId);
-    const updated = users.filter((u) => u.id !== userId && u.email !== userId);
-    setStorage(STORAGE_KEYS.USERS, updated);
-
-    // If current logged in user was deleted, clear session
-    const current = StorageService.getCurrentUser();
-    if (current && (current.id === userId || current.email === userId)) {
-      StorageService.setCurrentUser(null);
-    }
-
-    StorageService.logAction(
-      'admin@lcns.edu.ng',
-      'ADMIN',
-      'DELETE_USER',
-      `Permanently deleted user: ${targetUser?.fullName || userId} (${targetUser?.email || userId})`
-    );
-    return updated;
-  },
 
   updateUser: (updatedUser: Partial<User> & { id: string }): (User & { password?: string })[] => {
     const users = StorageService.getUsers();

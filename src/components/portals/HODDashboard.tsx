@@ -129,30 +129,6 @@ export const HODDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* CLINICAL POSTINGS ROSTER */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-        <h3 className="font-bold text-slate-900 text-base uppercase font-serif-crest flex items-center gap-2">
-          <Stethoscope className="w-5 h-5 text-emerald-700" />
-          <span>Hospital Clinical Postings &amp; Practicum Schedule</span>
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
-            <span className="font-bold text-emerald-950 text-sm block">General Hospital, Gboko</span>
-            <p className="text-slate-600">Postings: Medical &amp; Surgical Nursing Ward, Emergency Casualty Unit.</p>
-            <div className="text-[11px] font-semibold text-emerald-800">Coordinator: Nurse Emmanuel Gbaorun</div>
-          </div>
-          <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-2">
-            <span className="font-bold text-blue-950 text-sm block">BSUTH Makurdi</span>
-            <p className="text-slate-600">Postings: Pediatric Intensive Care (PICU) &amp; Psychiatric Healthcare Unit.</p>
-            <div className="text-[11px] font-semibold text-blue-800">Coordinator: Dr. Mrs. Rebecca Chia</div>
-          </div>
-          <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-2">
-            <span className="font-bold text-amber-950 text-sm block">NKST Hospital, Mkar</span>
-            <p className="text-slate-600">Postings: Maternal Labor Ward, Antenatal Clinic &amp; Neonatology.</p>
-            <div className="text-[11px] font-semibold text-amber-800">Coordinator: Matron Joy Ushahemba</div>
-          </div>
-        </div>
-      </div>
 
       {/* ADD COURSE MODAL */}
       {showAddCourse && (

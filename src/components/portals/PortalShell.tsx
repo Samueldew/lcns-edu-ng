@@ -25,17 +25,19 @@ interface PortalShellProps {
   currentUser: User;
   onLogout: () => void;
   onBackToWebsite: () => void;
+  adminInitialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system';
 }
 
 export const PortalShell: React.FC<PortalShellProps> = ({
   currentUser,
   onLogout,
   onBackToWebsite,
+  adminInitialTab,
 }) => {
   const renderDashboardByRole = () => {
     switch (currentUser.role) {
       case 'ADMIN':
-        return <AdminDashboard />;
+        return <AdminDashboard initialTab={adminInitialTab} />;
       case 'PROVOST':
         return <ProvostDashboard />;
       case 'REGISTRAR':

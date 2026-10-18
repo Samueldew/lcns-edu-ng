@@ -21,8 +21,18 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { AdminCMS } from './AdminCMS';
+import { AdminUsersManagement } from './AdminUsersManagement';
+import { AdminSettings } from './AdminSettings';
+import { AdminManagement } from './AdminManagement';
+import { AdminGallery } from './AdminGallery';
+import { CBTExamManager } from '../cbt/CBTExamManager';
+import { Sliders, Camera, Award, UserCheck } from 'lucide-react';
 
-export const AdminDashboard: React.FC = () => {
+interface AdminDashboardProps {
+  initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms';
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) => {
   const [users, setUsers] = useState(StorageService.getUsers());
   const [auditLogs, setAuditLogs] = useState(StorageService.getAuditLogs());
   const [backendStatus, setBackendStatus] = useState<{
@@ -37,7 +47,15 @@ export const AdminDashboard: React.FC = () => {
     message: 'Pending connection check',
   });
   const [testingConnection, setTestingConnection] = useState(false);
-  const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'cms'>('system');
+  const [activeAdminTab, setActiveAdminTab] = useState<
+    'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms'
+  >(initialTab || 'settings');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveAdminTab(initialTab);
+    }
+  }, [initialTab]);
 
   // New User Form State
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -189,36 +207,105 @@ export const AdminDashboard: React.FC = () => {
       {/* Admin Sub Navigation Tabs */}
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
         <button
+          onClick={() => setActiveAdminTab('settings')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeAdminTab === 'settings'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Sliders className="w-4 h-4 text-[#ca8a04]" />
+          <span>Logo &amp; School Settings (/admin/settings)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('management')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeAdminTab === 'management'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Users className="w-4 h-4 text-emerald-400" />
+          <span>Management Team (/admin/management)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('gallery')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeAdminTab === 'gallery'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Camera className="w-4 h-4 text-amber-400" />
+          <span>Photo Gallery (/admin/gallery)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('users')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeAdminTab === 'users'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <UserCheck className="w-4 h-4 text-emerald-400" />
+          <span>Users &amp; Roles (/admin/users)</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white font-bold">
+            {users.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveAdminTab('cbt')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeAdminTab === 'cbt'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Award className="w-4 h-4 text-amber-400" />
+          <span>CBT Tests &amp; Scores</span>
+        </button>
+
+        <button
           onClick={() => setActiveAdminTab('system')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeAdminTab === 'system'
-              ? 'bg-emerald-900 text-white shadow-sm'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
           }`}
         >
           <Database className="w-4 h-4 text-emerald-400" />
-          <span>ERP System, Sync &amp; Users</span>
-        </button>
-
-        <button
-          onClick={() => setActiveAdminTab('cms')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeAdminTab === 'cms'
-              ? 'bg-emerald-900 text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <ImageIcon className="w-4 h-4 text-amber-400" />
-          <span>Website Media CMS (Logo, Provost, Bishop, Gallery)</span>
-          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
-            CMS
-          </span>
+          <span>Sync &amp; Database Health</span>
         </button>
       </div>
 
-      {activeAdminTab === 'cms' ? (
-        <AdminCMS />
-      ) : (
+      {activeAdminTab === 'settings' && <AdminSettings />}
+
+      {activeAdminTab === 'management' && <AdminManagement />}
+
+      {activeAdminTab === 'gallery' && <AdminGallery />}
+
+      {activeAdminTab === 'users' && <AdminUsersManagement />}
+
+      {activeAdminTab === 'cbt' && (
+        <CBTExamManager
+          currentUser={
+            StorageService.getCurrentUser() || {
+              id: 'LCNS/2026/AD/001',
+              email: 'info@lcns.edu.ng',
+              role: 'ADMIN',
+              fullName: 'Director of ICT / Admin',
+              status: 'ACTIVE',
+            }
+          }
+          allowedTypes={['APPLICANT_SCREENING', 'COURSE_TEST']}
+        />
+      )}
+
+      {activeAdminTab === 'system' && (
         <>
           {/* QUICK SYSTEM UTILITIES */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

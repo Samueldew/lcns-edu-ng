@@ -14,7 +14,10 @@ import {
   BookOpen,
 } from 'lucide-react';
 
+import { CBTExamManager } from '../cbt/CBTExamManager';
+
 export const ProvostDashboard: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'cbt'>('overview');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -46,7 +49,7 @@ export const ProvostDashboard: React.FC = () => {
               Office of the College Provost
             </span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">
-              Prof. Gabriel Terungwa Labe
+              Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN
             </h1>
             <p className="text-xs text-emerald-200">
               Executive Institutional Overview &bull; Labe College of Nursing Sciences, Gboko
@@ -59,7 +62,47 @@ export const ProvostDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI METRICS */}
+      {/* Sub-Navigation Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'overview'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Building className="w-4 h-4 text-emerald-400" />
+          <span>Provost Institutional Overview &amp; Senate</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('cbt')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'cbt'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Award className="w-4 h-4 text-amber-400" />
+          <span>Applicant CBT Screening Scores &amp; PDF</span>
+        </button>
+      </div>
+
+      {activeTab === 'cbt' ? (
+        <CBTExamManager
+          currentUser={{
+            id: 'LCNS/2026/PV/001',
+            email: 'provost@lcns.edu.ng',
+            role: 'PROVOST',
+            fullName: 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN',
+            status: 'ACTIVE',
+          }}
+          allowedTypes={['APPLICANT_SCREENING']}
+        />
+      ) : (
+        <>
+          {/* KPI METRICS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
@@ -211,6 +254,8 @@ export const ProvostDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 };

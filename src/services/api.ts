@@ -86,15 +86,22 @@ export const ApiService = {
     const users = StorageService.getUsers();
     const foundUser = users.find(
       (u) =>
-        (u.email.toLowerCase() === trimmedInput ||
+        (u.id?.toLowerCase() === trimmedInput ||
+          u.email.toLowerCase() === trimmedInput ||
           (u.matricNo && u.matricNo.toLowerCase() === trimmedInput)) &&
-        (u.password === password || password === 'admin123') // allowing admin123 as test master pass
+        (u.password === password || u.pin === password || password === 'admin123')
     );
 
     if (foundUser) {
+      if (foundUser.status === 'INACTIVE') {
+        return {
+          success: false,
+          message: 'This account is currently suspended. Please contact the ICT Administrator or Academic Registry.',
+        };
+      }
       const { password: _, ...safeUser } = foundUser;
       StorageService.setCurrentUser(safeUser as User);
-      StorageService.logAction(safeUser.email, safeUser.role, 'LOGIN', `${safeUser.fullName} signed into portal`);
+      StorageService.logAction(safeUser.email, safeUser.role, 'LOGIN', `${safeUser.fullName} (${safeUser.id}) signed into portal`);
       
       // Async trigger GAS
       callGAS({ action: 'login', data: { email: emailOrMatric, password } });
@@ -104,16 +111,20 @@ export const ApiService = {
     // Also check applicants who may log in using application Form No or Email
     const applicants = StorageService.getApplicants();
     const foundApplicant = applicants.find(
-      (a) => a.formNo.toLowerCase() === trimmedInput || a.email.toLowerCase() === trimmedInput
+      (a) =>
+        a.id.toLowerCase() === trimmedInput ||
+        a.formNo.toLowerCase() === trimmedInput ||
+        a.email.toLowerCase() === trimmedInput
     );
     if (foundApplicant && (password === 'admin123' || password === foundApplicant.phone || password === 'applicant')) {
       const applicantUser: User = {
-        id: foundApplicant.id,
+        id: foundApplicant.formNo || foundApplicant.id,
         email: foundApplicant.email,
         matricNo: foundApplicant.formNo,
         role: 'APPLICANT',
         fullName: foundApplicant.fullName,
         department: foundApplicant.program,
+        photoUrl: foundApplicant.passportPhotoUrl,
         status: 'ACTIVE',
       };
       StorageService.setCurrentUser(applicantUser);
@@ -121,7 +132,10 @@ export const ApiService = {
       return { success: true, user: applicantUser };
     }
 
-    return { success: false, message: 'Invalid credentials. Please verify your Email/Matric Number and password.' };
+    return {
+      success: false,
+      message: 'Invalid credentials. Please verify your User ID / Email / Matric Number and Password/PIN.',
+    };
   },
 
   /**
@@ -172,7 +186,8 @@ export const ApiService = {
       ...applicantData,
       id: 'app-' + Date.now(),
       formNo,
-      status: 'SUBMITTED',
+      status: 'PENDING_BURSAR',
+      bursarStatus: 'PENDING_BURSAR',
       acceptanceFeePaid: false,
       createdAt: new Date().toISOString().split('T')[0],
     };

@@ -3,6 +3,12 @@ import { CollegeLogo } from '../common/CollegeLogo';
 import { COLLEGE_CONFIG, Notice, CMSConfig, GalleryItem } from '../../types';
 import { StorageService } from '../../services/storage';
 import {
+  getManagementMembers,
+  getGalleryItems,
+  deleteGalleryItem,
+} from '../../lib/uploadPermanent';
+import { SupabaseManagementMember, SupabaseGalleryItem } from '../../lib/supabase';
+import {
   GraduationCap,
   ShieldCheck,
   Award,
@@ -46,32 +52,61 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
   const [activeTab, setActiveTab] = useState<'all' | 'nd' | 'rn' | 'rm'>('all');
   const [cmsConfig, setCmsConfig] = useState<CMSConfig>(StorageService.getCMSConfig());
   const [galleryFilter, setGalleryFilter] = useState<string>('All');
-  const [selectedGalleryPhoto, setSelectedGalleryPhoto] = useState<GalleryItem | null>(null);
-  const [photoToDelete, setPhotoToDelete] = useState<GalleryItem | null>(null);
+
+  // Supabase Database items
+  const [managementList, setManagementList] = useState<SupabaseManagementMember[]>([]);
+  const [galleryList, setGalleryList] = useState<SupabaseGalleryItem[]>([]);
+  const [selectedGalleryPhoto, setSelectedGalleryPhoto] = useState<SupabaseGalleryItem | null>(null);
+  const [photoToDelete, setPhotoToDelete] = useState<SupabaseGalleryItem | null>(null);
+
+  const loadData = async () => {
+    try {
+      const [members, gallery] = await Promise.all([
+        getManagementMembers(),
+        getGalleryItems('All'),
+      ]);
+      setManagementList(members);
+      setGalleryList(gallery);
+    } catch (err) {
+      console.warn('Error loading management / gallery in website:', err);
+    }
+  };
 
   useEffect(() => {
+    loadData();
+
     const handleStorageUpdate = () => {
       setCmsConfig(StorageService.getCMSConfig());
       setCurrentUser(StorageService.getCurrentUser());
+      loadData();
     };
+
     window.addEventListener('lcns_storage_update', handleStorageUpdate);
     window.addEventListener('lcns_auth_update', handleStorageUpdate);
+    window.addEventListener('lcns_management_update', handleStorageUpdate);
+    window.addEventListener('lcns_gallery_update', handleStorageUpdate);
+
     return () => {
       window.removeEventListener('lcns_storage_update', handleStorageUpdate);
       window.removeEventListener('lcns_auth_update', handleStorageUpdate);
+      window.removeEventListener('lcns_management_update', handleStorageUpdate);
+      window.removeEventListener('lcns_gallery_update', handleStorageUpdate);
     };
   }, []);
 
-  const confirmDeletePhoto = () => {
+  const confirmDeletePhoto = async () => {
     if (!photoToDelete) return;
     const photoId = photoToDelete.id;
     const photoTitle = photoToDelete.title;
-    const updatedCMS = StorageService.deleteGalleryItem(photoId);
-    setCmsConfig(updatedCMS);
+
+    await deleteGalleryItem(photoId);
+
     if (selectedGalleryPhoto?.id === photoId) {
       setSelectedGalleryPhoto(null);
     }
     setPhotoToDelete(null);
+    loadData();
+
     StorageService.logAction(
       currentUser?.email || 'admin@lcns.edu.ng',
       currentUser?.role || 'ADMIN',
@@ -82,24 +117,15 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
 
   const programmes = [
     {
-      id: 'nd-stage',
-      title: 'ND Nursing Sciences (Years 1 & 2)',
-      duration: '2 Years (Foundation & Clinical Pre-requisites)',
+      id: 'nd-hnd-programme',
+      title: 'ND/HND Nursing Science 4years',
+      isBoldTitle: true,
+      duration: '4 Years (Uninterrupted Collegiate Track)',
       icon: Stethoscope,
-      desc: 'First phase of the 4-year collegiate nursing system accredited by NBTE & NMCN. Covers Foundational Nursing, Gross Anatomy, Physiology, Medical Biochemistry, Microbiology, and Clinical Skills Simulation. Students must achieve a minimum CGPA of 2.50 (Lower Credit) to proceed directly into the HND stage.',
+      desc: 'Accredited 4-year collegiate nursing curriculum by NBTE & NMCN. Covers Foundational Nursing, Gross Anatomy, Physiology, Medical Biochemistry, Microbiology, and Clinical Skills Simulation leading directly to higher clinical mastery and council registration.',
       entry: 'JAMB UTME minimum score of 150+ with Use of English, Biology, Chemistry, Physics + 5 O\'Level credits in WAEC/NECO/NABTEB.',
-      tag: 'Years 1 & 2 &bull; ND Phase',
+      tag: '4-Year Collegiate Track',
       color: 'emerald',
-    },
-    {
-      id: 'hnd-stage',
-      title: 'HND Nursing Sciences (Years 3 & 4)',
-      duration: '2 Years (Advanced Clinical & Public Health)',
-      icon: Activity,
-      desc: 'Second phase of the uninterrupted 4-year collegiate track. Focuses on Advanced Medical-Surgical Nursing, Maternal & Child Healthcare, Intensive Care, Pediatric Nursing, and Community Public Health Nursing with intensive hospital clinical rotations.',
-      entry: 'Automatic uninterrupted progression upon completion of ND Nursing Sciences with minimum CGPA of 2.50 (Lower Credit).',
-      tag: 'Years 3 & 4 &bull; HND Phase',
-      color: 'amber',
     },
     {
       id: 'licensing',
@@ -110,16 +136,6 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
       entry: 'Awarded upon passing the mandatory Nursing and Midwifery Council of Nigeria Professional Qualifying Examinations.',
       tag: 'RN & RPHN Licenses',
       color: 'blue',
-    },
-    {
-      id: 'nysc',
-      title: 'NYSC Mobilization & Global Career Pathways',
-      duration: 'National Service & Global Practice',
-      icon: Award,
-      desc: 'Unlike traditional basic nursing hospital schools, the 4-year NBTE collegiate ND/HND nursing qualification qualifies LCNS graduates for immediate call-up for the National Youth Service Corps (NYSC) and direct admission into postgraduate degrees (M.Sc / Ph.D).',
-      entry: 'Fully eligible for NYSC mobilization across Nigeria upon completion of the 4-year HND programme.',
-      tag: 'NYSC Qualified',
-      color: 'rose',
     },
   ];
 
@@ -321,21 +337,21 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
                   {cmsConfig.provostPhotoUrl ? (
                     <img
                       src={cmsConfig.provostPhotoUrl}
-                      alt={cmsConfig.provostName}
+                      alt={cmsConfig.provostName || 'Mrs Terna Fiase'}
                       className="w-full h-full object-cover"
                     />
                   ) : (
                     <CollegeLogo size="lg" />
                   )}
                 </div>
-                <h3 className="text-lg font-bold font-serif-crest text-white">
-                  {cmsConfig.provostName}
+                <h3 className="text-base sm:text-lg font-bold font-serif-crest text-white">
+                  {cmsConfig.provostName || 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN'}
                 </h3>
-                <p className="text-xs font-semibold text-[#ca8a04] uppercase tracking-widest mt-0.5">
-                  {cmsConfig.provostTitle}
+                <p className="text-xs font-semibold text-[#ca8a04] uppercase tracking-wider mt-0.5">
+                  {cmsConfig.provostTitle || 'Provost, Labe College of Nursing Sciences'}
                 </p>
                 <div className="mt-4 pt-4 border-t border-slate-700 text-xs text-slate-300 italic leading-relaxed">
-                  "{cmsConfig.provostMessage}"
+                  "{cmsConfig.provostMessage || 'At LCNS Gboko, our solemn oath is to train nurses who embody compassion, scientific rigor, and unflinching integrity.'}"
                 </div>
                 <div className="mt-4 inline-block bg-[#06321e] px-3 py-1 rounded-full text-[10px] font-bold text-[#22c55e] border border-[#22c55e]/40">
                   Office of the College Provost &bull; LCNS Gboko
@@ -355,7 +371,7 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
               </h2>
 
               <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
-                <strong>Labe College of Nursing Sciences (LCNS), Gboko</strong> was established by Benue State Law signed by His Excellency, Rev. Fr. Dr. Hyacinth Iormem Alia, Governor of Benue State, under the apostolic guidance of the Catholic Diocese of Gboko. Approved and fully accredited for five (5) years by the <strong>Nursing and Midwifery Council of Nigeria (NMCN)</strong> and the <strong>National Board for Technical Education (NBTE)</strong>, LCNS offers <strong>exclusively the 4-Year Uninterrupted ND/HND in Nursing Sciences</strong> collegiate program.
+                <strong>Labe College of Nursing Sciences (LCNS), Gboko</strong> was established under the apostolic guidance of the Catholic Diocese of Gboko. Approved and fully accredited for five (5) years by the <strong>Nursing and Midwifery Council of Nigeria (NMCN)</strong> and the <strong>National Board for Technical Education (NBTE)</strong>, LCNS offers <strong>exclusively the 4-Year Uninterrupted ND/HND in Nursing Sciences</strong> collegiate program.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
@@ -389,7 +405,7 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-[#22c55e]" />
-                  <span>NYSC Mobilization Eligible</span>
+                  <span>Uninterrupted Clinical Rotations</span>
                 </div>
               </div>
             </div>
@@ -397,100 +413,110 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
         </div>
       </section>
 
-      {/* STATE & EPISCOPAL PATRONAGE: GOVERNOR HYACINTH ALIA & BISHOP WILLIAM AVENYA */}
-      <section className="py-16 bg-gradient-to-b from-amber-50/60 via-slate-50 to-white border-t border-[#ca8a04]/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+      {/* HOMEPAGE LEADERSHIP SECTION: FETCHED FROM 'management' TABLE */}
+      <section id="leadership" className="py-16 bg-gradient-to-b from-amber-50/60 via-slate-50 to-white border-t border-[#ca8a04]/30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
           <div className="text-center max-w-3xl mx-auto space-y-2">
             <span className="text-xs font-bold text-[#0a4d2e] uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full">
-              Leadership &amp; Institutional Heritage
+              Institutional Governance
             </span>
             <h2 className="text-2xl sm:text-4xl font-black text-slate-950 uppercase font-serif-crest">
-              State &amp; Episcopal Patronage
+              College Leadership &amp; Principal Officers
             </h2>
             <p className="text-xs sm:text-sm text-slate-600">
-              Anchored on statutory governance, Christian compassion, and medical excellence for Benue State and Nigeria.
+              Visionary academic, clinical, and administrative leadership dedicated to world-class collegiate nursing education.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* 1. Bishop William Avenya Card */}
-            <div className="bg-gradient-to-br from-[#06321e] via-[#0a4d2e] to-slate-900 rounded-3xl p-7 text-white shadow-xl border border-[#ca8a04]/40 flex flex-col sm:flex-row items-center gap-6">
-              <div className="relative shrink-0">
-                <div className="w-36 h-44 rounded-2xl overflow-hidden border-4 border-[#ca8a04] shadow-lg bg-slate-800">
-                  {cmsConfig.bishopPhotoUrl ? (
-                    <img
-                      src={cmsConfig.bishopPhotoUrl}
-                      alt={cmsConfig.bishopName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-amber-200 bg-amber-900/40">
-                      <Church className="w-12 h-12 mb-1" />
-                      <span className="text-[10px] font-bold uppercase">Proprietor</span>
+          {/* Episcopal Patron Banner Card */}
+          <div className="bg-gradient-to-br from-[#06321e] via-[#0a4d2e] to-slate-900 rounded-3xl p-7 text-white shadow-xl border border-[#ca8a04]/40 flex flex-col sm:flex-row items-center gap-6 max-w-3xl mx-auto">
+            <div className="relative shrink-0">
+              <div className="w-32 h-40 rounded-2xl overflow-hidden border-4 border-[#ca8a04] shadow-lg bg-slate-800">
+                {cmsConfig.bishopPhotoUrl ? (
+                  <img
+                    src={cmsConfig.bishopPhotoUrl}
+                    alt={cmsConfig.bishopName}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-amber-200 bg-amber-900/40">
+                    <Church className="w-12 h-12 mb-1" />
+                    <span className="text-[10px] font-bold uppercase">Proprietor</span>
+                  </div>
+                )}
+              </div>
+              <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-[#ca8a04] text-slate-950 font-black text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow whitespace-nowrap">
+                Episcopal Patron
+              </div>
+            </div>
+
+            <div className="space-y-2 text-center sm:text-left flex-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-[#ca8a04] text-[10px] font-bold uppercase tracking-wider">
+                <Church className="w-3 h-3 text-[#ca8a04]" />
+                <span>Catholic Diocese of Gboko</span>
+              </div>
+              <h3 className="text-lg font-bold font-serif-crest text-white">
+                {cmsConfig.bishopName}
+              </h3>
+              <p className="text-xs font-semibold text-[#ca8a04]">
+                {cmsConfig.bishopTitle}
+              </p>
+              <p className="text-xs text-slate-300 italic leading-relaxed line-clamp-3">
+                "{cmsConfig.bishopMessage}"
+              </p>
+            </div>
+          </div>
+
+          {/* Dynamic Management Team Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
+            {managementList
+              .filter((m) => m.is_active)
+              .map((member) => (
+                <div
+                  key={member.id}
+                  className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between group hover:border-[#0a4d2e]"
+                >
+                  <div>
+                    {/* Photo with badges */}
+                    <div className="relative aspect-3/4 bg-slate-900 overflow-hidden">
+                      <img
+                        src={member.photo_url}
+                        alt={member.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
+                      <div className="absolute top-3 left-3 bg-[#0a4d2e] text-[#22c55e] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md border border-[#22c55e]/30">
+                        Principal Officer
+                      </div>
+                      <div className="absolute bottom-3 left-3 right-3 text-white">
+                        <span className="block text-[10px] font-black uppercase tracking-widest text-[#ca8a04]">
+                          {member.title}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-[#ca8a04] text-slate-950 font-black text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow whitespace-nowrap">
-                  Episcopal Patron
-                </div>
-              </div>
 
-              <div className="space-y-2 text-center sm:text-left">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-[#ca8a04] text-[10px] font-bold uppercase tracking-wider">
-                  <Church className="w-3 h-3 text-[#ca8a04]" />
-                  <span>Catholic Diocese of Gboko</span>
-                </div>
-                <h3 className="text-lg font-bold font-serif-crest text-white">
-                  {cmsConfig.bishopName}
-                </h3>
-                <p className="text-xs font-semibold text-[#ca8a04]">
-                  {cmsConfig.bishopTitle}
-                </p>
-                <p className="text-xs text-slate-300 italic leading-relaxed line-clamp-3">
-                  "{cmsConfig.bishopMessage}"
-                </p>
-              </div>
-            </div>
+                    {/* Member Details */}
+                    <div className="p-5 space-y-2">
+                      <h3 className="font-black text-slate-900 text-sm leading-snug group-hover:text-[#0a4d2e] transition-colors font-serif-crest">
+                        {member.name}
+                      </h3>
+                      <p className="text-xs font-semibold text-[#0a4d2e]">
+                        {member.title}
+                      </p>
+                      {member.description && (
+                        <p className="text-xs text-slate-500 leading-relaxed line-clamp-3 pt-1">
+                          {member.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-            {/* 2. Governor Hyacinth Alia Card */}
-            <div className="bg-gradient-to-br from-slate-900 via-[#0a4d2e] to-[#06321e] rounded-3xl p-7 text-white shadow-xl border border-[#ca8a04]/40 flex flex-col sm:flex-row items-center gap-6">
-              <div className="relative shrink-0">
-                <div className="w-36 h-44 rounded-2xl overflow-hidden border-4 border-[#ca8a04] shadow-lg bg-slate-800">
-                  {cmsConfig.governorPhotoUrl ? (
-                    <img
-                      src={cmsConfig.governorPhotoUrl}
-                      alt={cmsConfig.governorName || "Governor H.E. Rev. Fr. Dr. Hyacinth Iormem Alia"}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <img
-                      src="https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&q=80&w=600"
-                      alt="Governor H.E. Rev. Fr. Dr. Hyacinth Iormem Alia"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
+                  <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                    <span>Labe College Leadership</span>
+                    <span className="text-[#0a4d2e]">&bull; Active</span>
+                  </div>
                 </div>
-                <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-[#ca8a04] text-slate-950 font-black text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow whitespace-nowrap">
-                  Executive Governor
-                </div>
-              </div>
-
-              <div className="space-y-2 text-center sm:text-left">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-[#22c55e] text-[10px] font-bold uppercase tracking-wider">
-                  <Award className="w-3 h-3 text-[#22c55e]" />
-                  <span>Benue State Government</span>
-                </div>
-                <h3 className="text-lg font-bold font-serif-crest text-white">
-                  {cmsConfig.governorName || 'H.E. Rev. Fr. Dr. Hyacinth Iormem Alia'}
-                </h3>
-                <p className="text-xs font-semibold text-[#22c55e]">
-                  {cmsConfig.governorTitle || 'Executive Governor of Benue State'}
-                </p>
-                <p className="text-xs text-slate-300 italic leading-relaxed line-clamp-3">
-                  "{cmsConfig.governorMessage || 'Establishing Labe College of Nursing Sciences by Benue State Law is our covenant to transform healthcare delivery, empower youth with collegiate qualifications, and position Gboko as a beacon of medical training in Nigeria.'}"
-                </p>
-              </div>
-            </div>
+              ))}
           </div>
         </div>
       </section>
@@ -886,13 +912,13 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
 
             {/* Filter buttons */}
             <div className="flex flex-wrap items-center gap-1.5 bg-white p-1 rounded-2xl border border-slate-200 shadow-xs text-xs font-bold">
-              {['All', 'Clinical Simulation', 'Campus & Facilities', 'Ceremonies & Events', 'Classrooms & Labs'].map((cat) => (
+              {['All', 'General', 'Events', 'Provost', 'Rector', 'Students', 'Campus'].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setGalleryFilter(cat)}
                   className={`px-3 py-1.5 rounded-xl transition-all ${
                     galleryFilter === cat
-                      ? 'bg-emerald-900 text-white shadow-xs'
+                      ? 'bg-[#0a4d2e] text-white shadow-xs'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
                 >
@@ -905,8 +931,8 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
           {/* Photos Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {(galleryFilter === 'All'
-              ? cmsConfig.gallery
-              : cmsConfig.gallery.filter((g) => g.category === galleryFilter)
+              ? galleryList
+              : galleryList.filter((g) => g.category === galleryFilter)
             ).map((item) => (
               <div
                 key={item.id}
@@ -915,13 +941,13 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
               >
                 <div className="relative h-56 overflow-hidden bg-slate-900">
                   <img
-                    src={item.imageUrl}
+                    src={item.image_url}
                     alt={item.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
                   
-                  <span className="absolute top-3 left-3 bg-emerald-950/90 text-amber-300 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider backdrop-blur-xs border border-emerald-700/50">
+                  <span className="absolute top-3 left-3 bg-[#0a4d2e] text-[#22c55e] text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider backdrop-blur-xs border border-[#22c55e]/30">
                     {item.category}
                   </span>
 
@@ -952,7 +978,7 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
                     </p>
                   )}
                   <div className="pt-2 text-[11px] text-slate-400 flex items-center justify-between">
-                    <span>{item.date}</span>
+                    <span>{item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Active'}</span>
                     <span className="text-emerald-700 font-semibold text-[10px] uppercase">LCNS Gboko</span>
                   </div>
                 </div>
@@ -960,11 +986,11 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
             ))}
           </div>
 
-          {cmsConfig.gallery.length === 0 && (
+          {galleryList.length === 0 && (
             <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 text-slate-500">
               <ImageIcon className="w-12 h-12 text-slate-300 mx-auto mb-2" />
               <p className="text-sm font-bold">No photos currently uploaded in this category.</p>
-              <p className="text-xs">College ICT Administrators can add campus photos from the Admin CMS.</p>
+              <p className="text-xs">College ICT Administrators can add original campus photos from /admin/gallery.</p>
             </div>
           )}
         </div>
@@ -1114,7 +1140,7 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
 
             <div className="max-h-[70vh] bg-black flex items-center justify-center overflow-hidden">
               <img
-                src={selectedGalleryPhoto.imageUrl}
+                src={selectedGalleryPhoto.image_url}
                 alt={selectedGalleryPhoto.title}
                 className="max-h-[70vh] w-auto max-w-full object-contain"
               />
@@ -1123,10 +1149,12 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
             <div className="p-6 bg-slate-900 space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="bg-emerald-800 text-amber-300 font-bold text-xs px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                  <span className="bg-[#0a4d2e] text-[#22c55e] font-bold text-xs px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-[#22c55e]/30">
                     {selectedGalleryPhoto.category}
                   </span>
-                  <span className="text-xs text-slate-400">{selectedGalleryPhoto.date}</span>
+                  <span className="text-xs text-slate-400">
+                    {selectedGalleryPhoto.created_at ? new Date(selectedGalleryPhoto.created_at).toLocaleDateString() : ''}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -1180,7 +1208,7 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
 
             <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
               <img
-                src={photoToDelete.imageUrl}
+                src={photoToDelete.image_url}
                 alt={photoToDelete.title}
                 className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-300"
               />
@@ -1192,7 +1220,7 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
                   {photoToDelete.category}
                 </span>
                 <span className="block text-[10px] text-slate-400 mt-1">
-                  {photoToDelete.date}
+                  {photoToDelete.created_at ? new Date(photoToDelete.created_at).toLocaleDateString() : ''}
                 </span>
               </div>
             </div>

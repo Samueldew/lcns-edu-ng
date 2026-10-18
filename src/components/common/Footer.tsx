@@ -53,17 +53,9 @@ export const Footer: React.FC<FooterProps> = ({
               Academic Curricula (4 Years)
             </h4>
             <ul className="space-y-2 text-xs text-slate-400">
-              <li className="text-emerald-300 font-semibold flex items-center gap-1.5">
+              <li className="text-emerald-300 font-bold flex items-center gap-1.5">
                 <span className="text-amber-400 font-bold">&bull;</span>
-                ND/HND Nursing Sciences (4 Years)
-              </li>
-              <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
-                <span className="text-emerald-500 font-bold">&bull;</span>
-                Year 1 &amp; 2: National Diploma (ND) Phase
-              </li>
-              <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
-                <span className="text-emerald-500 font-bold">&bull;</span>
-                Year 3 &amp; 4: Higher National Diploma (HND) Phase
+                <strong className="text-white font-black">ND/HND Nursing Science 4years</strong>
               </li>
               <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
                 <span className="text-emerald-500 font-bold">&bull;</span>
@@ -75,7 +67,7 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
                 <span className="text-emerald-500 font-bold">&bull;</span>
-                NYSC Direct Call-Up Mobilization
+                Clinical Skills Simulation &amp; Laboratory Excellence
               </li>
             </ul>
           </div>

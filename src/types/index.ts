@@ -11,12 +11,15 @@ export type UserRole =
   | 'APPLICANT';
 
 export interface User {
-  id: string;
+  id: string; // e.g. LCNS/2026/ND/001, LCNS/2026/LC/001, LCNS/2026/AD/001
   email: string;
   matricNo?: string;
+  pin?: string; // 6-digit random login PIN
+  password?: string;
   role: UserRole;
   fullName: string;
   department?: string;
+  level?: 'N1' | 'ND1' | 'ND2' | 'HND1' | 'HND2';
   phone?: string;
   photoUrl?: string;
   status: 'ACTIVE' | 'INACTIVE';
@@ -34,9 +37,18 @@ export interface Applicant {
   stateOfOrigin: string;
   lga: string;
   address: string;
-  program: 'ND/HND Nursing Sciences (4 Years)';
+  courseChoice1?: string;
+  courseChoice2?: string;
+  program: 'ND/HND Nursing Sciences (4 Years)' | string;
   jambRegNo: string;
   jambScore: number;
+  passportPhotoUrl?: string; // Required passport photograph
+  paymentReceiptPdfUrl?: string; // Required proof of bank payment
+  paymentReceiptName?: string;
+  bursarStatus?: 'PENDING_BURSAR' | 'CLEARED' | 'REJECTED';
+  bursarRemarks?: string;
+  bursarClearedDate?: string;
+  bursarClearedBy?: string;
   olevelExamType: 'WAEC' | 'NECO' | 'NABTEB';
   olevelExamYear: string;
   olevelGrades: {
@@ -48,7 +60,7 @@ export interface Applicant {
   };
   sponsorName: string;
   sponsorPhone: string;
-  status: 'SUBMITTED' | 'SCREENED' | 'ADMITTED' | 'REJECTED';
+  status: 'PENDING_BURSAR' | 'BURSAR_CLEARED' | 'SUBMITTED' | 'SCREENED' | 'ADMITTED' | 'REJECTED';
   screeningScore?: number;
   screeningDate?: string;
   acceptanceFeePaid: boolean;
@@ -225,6 +237,7 @@ export interface CBTSubmission {
   userEmail: string;
   userRole: 'APPLICANT' | 'STUDENT';
   score: number;
+  totalMarks?: number;
   totalQuestions: number;
   percentage: number;
   answers: { [questionId: string]: number };

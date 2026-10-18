@@ -396,6 +396,52 @@ export const AdmissionCheckerModal: React.FC<AdmissionCheckerModalProps> = ({
                     </div>
                   )}
 
+                  {/* Status: PENDING_BURSAR */}
+                  {(applicant.status === 'PENDING_BURSAR' || applicant.bursarStatus === 'PENDING_BURSAR') && (
+                    <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
+                        <Clock className="w-5 h-5 text-amber-700" />
+                        <span className="uppercase tracking-wide font-black">Awaiting Bursar Clearance</span>
+                      </div>
+                      <p className="text-xs text-amber-900 leading-relaxed">
+                        Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}).
+                        <br />
+                        Your online application and uploaded bank proof of payment are undergoing bursary verification.
+                        Under college regulations, <strong>applicant cannot download application printout if not cleared</strong>.
+                        Please check back after 12-24 hours.
+                      </p>
+                      <div className="pt-1">
+                        <span className="inline-block px-3 py-1 bg-amber-200 text-amber-950 rounded-full text-[11px] font-bold uppercase">
+                          Clearance Status: Awaiting Bursar Clearance
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Status: BURSAR_CLEARED */}
+                  {(applicant.status === 'BURSAR_CLEARED' || applicant.bursarStatus === 'CLEARED') && applicant.status !== 'ADMITTED' && (
+                    <div className="p-5 bg-emerald-50 border-2 border-emerald-500 rounded-2xl space-y-3">
+                      <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
+                        <CheckCircle2 className="w-5 h-5 text-[#22c55e]" />
+                        <span className="uppercase tracking-wide font-black">Payment Audited &amp; Bursar Cleared</span>
+                      </div>
+                      <p className="text-xs text-emerald-900 leading-relaxed">
+                        Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}).
+                        <br />
+                        Payment verified by the College Bursar on <strong>{applicant.bursarClearedDate || new Date().toISOString().split('T')[0]}</strong>. You are cleared for aptitude screening examination and credential verification.
+                      </p>
+                      <div className="pt-2 flex items-center gap-2">
+                        <button
+                          onClick={handlePrint}
+                          className="px-4 py-2 bg-[#0a4d2e] hover:bg-[#06321e] text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
+                        >
+                          <Printer className="w-4 h-4 text-amber-300" />
+                          <span>Print Cleared Registration Slip</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Status: SUBMITTED */}
                   {applicant.status === 'SUBMITTED' && (
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">

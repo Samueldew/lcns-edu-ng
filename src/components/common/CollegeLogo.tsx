@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storage';
+import { getSchoolSetting, getLocalSettings } from '../../lib/uploadPermanent';
 
 interface CollegeLogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   showText?: boolean;
   overrideLogoUrl?: string;
+  variant?: 'main' | 'white';
 }
 
 export const CollegeLogo: React.FC<CollegeLogoProps> = ({
@@ -13,25 +15,48 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
   size = 'md',
   showText = false,
   overrideLogoUrl,
+  variant = 'main',
 }) => {
-  const [logoUrl, setLogoUrl] = useState<string | undefined>(
-    overrideLogoUrl || StorageService.getCMSConfig().logoUrl || '/assets/lcns-logo-original.jpg'
-  );
+  const settingKey = variant === 'white' ? 'school_logo_white' : 'school_logo';
+  const initialLogo = overrideLogoUrl || getLocalSettings()[settingKey] || StorageService.getCMSConfig().logoUrl || '/assets/lcns-logo-original.jpg';
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(initialLogo);
   const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     if (overrideLogoUrl !== undefined) {
       setLogoUrl(overrideLogoUrl);
       setImgError(false);
-    } else {
-      const handleStorageUpdate = () => {
-        setLogoUrl(StorageService.getCMSConfig().logoUrl || '/assets/lcns-logo-original.jpg');
-        setImgError(false);
-      };
-      window.addEventListener('lcns_storage_update', handleStorageUpdate);
-      return () => window.removeEventListener('lcns_storage_update', handleStorageUpdate);
+      return;
     }
-  }, [overrideLogoUrl]);
+
+    // Fetch from Supabase / school_settings table
+    const loadFromDb = async () => {
+      const url = await getSchoolSetting(settingKey);
+      if (url) {
+        setLogoUrl(url);
+        setImgError(false);
+      }
+    };
+    loadFromDb();
+
+    // Listen to real-time events
+    const handleSettingsUpdate = (e: any) => {
+      if (!e.detail || e.detail.key === settingKey) {
+        loadFromDb();
+      }
+    };
+    const handleStorageUpdate = () => {
+      loadFromDb();
+    };
+
+    window.addEventListener('lcns_school_settings_update', handleSettingsUpdate);
+    window.addEventListener('lcns_storage_update', handleStorageUpdate);
+
+    return () => {
+      window.removeEventListener('lcns_school_settings_update', handleSettingsUpdate);
+      window.removeEventListener('lcns_storage_update', handleStorageUpdate);
+    };
+  }, [overrideLogoUrl, settingKey]);
 
   const sizeMap = {
     sm: 'w-10 h-10',

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storage';
 import { ApiService } from '../../services/api';
-import { Student, Course, ResultScore, PaymentRecord, COLLEGE_CONFIG } from '../../types';
+import { Student, Course, ResultScore, PaymentRecord, CBTExam, CBTSubmission, COLLEGE_CONFIG } from '../../types';
 import { CollegeLogo } from '../common/CollegeLogo';
 import {
   User,
@@ -19,18 +19,52 @@ import {
   FileText,
   Clock,
   Sparkles,
+  Camera,
+  Upload,
+  Play,
+  RotateCw,
 } from 'lucide-react';
+import { CBTExamSession } from '../cbt/CBTExamSession';
+import { UserProfilePhotoModal } from '../common/UserProfilePhotoModal';
 
 export const StudentPortal: React.FC = () => {
-  const currentStudentMatric = 'LCNS/2026/ND/014';
+  const currentUser = StorageService.getCurrentUser();
   const students = StorageService.getStudents();
-  const student = students.find((s) => s.matricNo === currentStudentMatric) || students[0];
+  const student =
+    students.find(
+      (s) =>
+        s.matricNo === currentUser?.matricNo ||
+        s.email?.toLowerCase() === currentUser?.email?.toLowerCase() ||
+        s.matricNo === currentUser?.id
+    ) || students[0];
 
   const allCourses = StorageService.getCourses();
   const allResults = StorageService.getResults();
   const allPayments = StorageService.getPayments();
 
-  const [activeTab, setActiveTab] = useState<'courses' | 'results' | 'fees' | 'idcard'>('results');
+  const [activeTab, setActiveTab] = useState<'results' | 'cbt' | 'courses' | 'fees' | 'idcard' | 'profile'>('results');
+  const [studentPhoto, setStudentPhoto] = useState<string>(
+    currentUser?.photoUrl || student.photoUrl || ''
+  );
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [activeCbtExam, setActiveCbtExam] = useState<CBTExam | null>(null);
+  const [cbtExams, setCbtExams] = useState<CBTExam[]>(StorageService.getCBTExams());
+  const [cbtSubmissions, setCbtSubmissions] = useState<CBTSubmission[]>(
+    StorageService.getCBTSubmissions()
+  );
+
+  useEffect(() => {
+    const handleStorageUpdate = () => {
+      const refreshedUser = StorageService.getCurrentUser();
+      if (refreshedUser?.photoUrl) {
+        setStudentPhoto(refreshedUser.photoUrl);
+      }
+      setCbtExams(StorageService.getCBTExams());
+      setCbtSubmissions(StorageService.getCBTSubmissions());
+    };
+    window.addEventListener('lcns_storage_update', handleStorageUpdate);
+    return () => window.removeEventListener('lcns_storage_update', handleStorageUpdate);
+  }, []);
 
   // Student's results
   const studentResults = allResults.filter((r) => r.matricNo === student.matricNo);
@@ -49,8 +83,19 @@ export const StudentPortal: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-800 border-2 border-amber-400 flex items-center justify-center text-white shrink-0 shadow-md">
-              <User className="w-8 h-8" />
+            <div className="relative group w-16 h-16 rounded-2xl bg-emerald-800 border-2 border-amber-400 overflow-hidden flex items-center justify-center text-white shrink-0 shadow-md">
+              {studentPhoto ? (
+                <img src={studentPhoto} alt={student.fullName} className="w-full h-full object-cover" />
+              ) : (
+                <User className="w-8 h-8" />
+              )}
+              <button
+                onClick={() => setShowPhotoModal(true)}
+                title="Upload Photo from Gallery"
+                className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity"
+              >
+                <Camera className="w-4 h-4" />
+              </button>
             </div>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">
@@ -85,7 +130,19 @@ export const StudentPortal: React.FC = () => {
             }`}
           >
             <Award className="w-3.5 h-3.5" />
-            <span>Semester Examination Results</span>
+            <span>Semester Results</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('cbt')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'cbt'
+                ? 'bg-amber-500 text-slate-950 shadow-md'
+                : 'bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Course CBT Tests</span>
           </button>
 
           <button
@@ -109,7 +166,7 @@ export const StudentPortal: React.FC = () => {
             }`}
           >
             <CreditCard className="w-3.5 h-3.5" />
-            <span>Tuition &amp; Payment Receipts</span>
+            <span>Tuition &amp; Fees</span>
           </button>
 
           <button
@@ -121,7 +178,19 @@ export const StudentPortal: React.FC = () => {
             }`}
           >
             <QrCode className="w-3.5 h-3.5" />
-            <span>Digital Student ID Card</span>
+            <span>Digital ID Card</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+              activeTab === 'profile'
+                ? 'bg-amber-500 text-slate-950 shadow-md'
+                : 'bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100'
+            }`}
+          >
+            <User className="w-3.5 h-3.5" />
+            <span>My Profile &amp; Photo</span>
           </button>
         </div>
       </div>

@@ -199,14 +199,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveView('portal')}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg border transition-all ${
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
                     activeView === 'portal'
                       ? 'bg-[#0a4d2e] text-white border-[#06321e] shadow-sm'
                       : 'bg-white text-[#0a4d2e] border-[#0a4d2e]/30 hover:bg-emerald-50'
                   }`}
                 >
-                  <LayoutDashboard className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">ERP Portal</span>
+                  {currentUser.photoUrl ? (
+                    <img
+                      src={currentUser.photoUrl}
+                      alt={currentUser.fullName}
+                      className="w-6 h-6 rounded-full object-cover border border-emerald-400"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-[#0a4d2e] flex items-center justify-center font-bold text-[10px]">
+                      {currentUser.fullName.charAt(0)}
+                    </div>
+                  )}
+                  <span className="hidden md:inline font-bold">Portal</span>
                   <span className="text-[10px] bg-[#ca8a04] text-[#0a4d2e] font-black px-1.5 py-0.5 rounded uppercase">
                     {currentUser.role.replace('_', ' ')}
                   </span>

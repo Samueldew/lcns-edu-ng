@@ -13,8 +13,11 @@ import {
   UserCheck,
 } from 'lucide-react';
 
+import { CBTExamManager } from '../cbt/CBTExamManager';
+
 export const RegistrarDashboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>(StorageService.getStudents());
+  const [activeTab, setActiveTab] = useState<'students' | 'cbt'>('students');
   const [searchTerm, setSearchTerm] = useState('');
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [selectedStudentForLetter, setSelectedStudentForLetter] = useState<Student | null>(null);
@@ -46,7 +49,7 @@ export const RegistrarDashboard: React.FC = () => {
               Barr. Timothy J. Iorbee
             </h1>
             <p className="text-xs text-emerald-200">
-              Student Records, Matriculation Roll, and Official Attestation Unit
+              Student Records, Matriculation Roll, and CBT Screening Examination Office
             </p>
           </div>
           <div className="bg-emerald-950/80 p-3 rounded-2xl border border-emerald-800 text-center">
@@ -56,8 +59,48 @@ export const RegistrarDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* SEARCH & FILTERS */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+      {/* Navigation Sub-Tabs */}
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
+        <button
+          onClick={() => setActiveTab('students')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'students'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Users className="w-4 h-4 text-emerald-400" />
+          <span>Matriculated Students &amp; Attestations</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('cbt')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'cbt'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Award className="w-4 h-4 text-amber-400" />
+          <span>Applicant CBT Screening Tests &amp; Result PDF</span>
+        </button>
+      </div>
+
+      {activeTab === 'cbt' ? (
+        <CBTExamManager
+          currentUser={{
+            id: 'LCNS/2026/RG/001',
+            email: 'registrar@lcns.edu.ng',
+            role: 'REGISTRAR',
+            fullName: 'Barr. Timothy J. Iorbee',
+            status: 'ACTIVE',
+          }}
+          allowedTypes={['APPLICANT_SCREENING']}
+        />
+      ) : (
+        <>
+          {/* SEARCH & FILTERS */}
+          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -221,6 +264,8 @@ export const RegistrarDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
