@@ -1,6 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Types for Supabase Tables
 export interface SupabaseGalleryItem {
   id: string;
   title: string;
@@ -28,7 +27,6 @@ export interface SupabaseSchoolSetting {
   updated_at?: string;
 }
 
-// Storage buckets
 export const SUPABASE_BUCKETS = {
   GALLERY: 'gallery',
   MANAGEMENT: 'management-photos',
@@ -61,7 +59,6 @@ export function getSupabase(): SupabaseClient | null {
         supabaseInstance = createClient(url, anonKey);
         lastUsedConfig = configKey;
       } catch (err) {
-        console.warn('Could not initialize Supabase client:', err);
         return null;
       }
     }
@@ -76,10 +73,21 @@ export const LOCAL_TABLES = {
   SETTINGS: 'lcns_sb_school_settings',
 };
 
-// ✅ CLEAN - NO AI PICTURES - EMPTY UNTIL YOU UPLOAD REAL PHOTOS
-export const DEFAULT_MANAGEMENT: SupabaseManagementMember[] = [];
+// ✅ AUTO-CLEAN OLD AI PICTURES FROM BROWSER
+try {
+  const checkAndClean = () => {
+    for (const key of Object.values(LOCAL_TABLES)) {
+      const raw = localStorage.getItem(key);
+      if (raw && raw.includes('unsplash.com')) {
+        localStorage.removeItem(key);
+      }
+    }
+  };
+  checkAndClean();
+} catch {}
 
-// ✅ CLEAN - NO AI PICTURES - EMPTY GALLERY
+// ✅ NO MORE AI PICTURES - EMPTY
+export const DEFAULT_MANAGEMENT: SupabaseManagementMember[] = [];
 export const DEFAULT_GALLERY: SupabaseGalleryItem[] = [];
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
@@ -93,57 +101,4 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   school_phone: '08126799565',
 };
 
-export const SUPABASE_SETUP_SQL = `-- Run this in Supabase SQL Editor to set up tables and storage buckets:
--- 1. Create Public Storage Buckets
-INSERT INTO storage.buckets (id, name, public)
-VALUES 
-  ('gallery', 'gallery', true),
-  ('management-photos', 'management-photos', true),
-  ('school-assets', 'school-assets', true)
-ON CONFLICT (id) DO UPDATE SET public = true;
--- Bucket Public Read Access
-CREATE POLICY "Public Access Gallery" ON storage.objects FOR SELECT USING (bucket_id = 'gallery');
-CREATE POLICY "Public Access Management" ON storage.objects FOR SELECT USING (bucket_id = 'management-photos');
-CREATE POLICY "Public Access School Assets" ON storage.objects FOR SELECT USING (bucket_id = 'school-assets');
--- Bucket Upload Access
-CREATE POLICY "Allow All Insert Gallery" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'gallery');
-CREATE POLICY "Allow All Insert Management" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'management-photos');
-CREATE POLICY "Allow All Insert Assets" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'school-assets');
--- 2. Table: gallery
-CREATE TABLE IF NOT EXISTS public.gallery (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  image_url TEXT NOT NULL,
-  category TEXT NOT NULL DEFAULT 'General',
-  created_at TIMESTAMPTZ DEFAULT now()
-);
--- 3. Table: management
-CREATE TABLE IF NOT EXISTS public.management (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT DEFAULT '',
-  photo_url TEXT NOT NULL,
-  display_order INT DEFAULT 1,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
--- 4. Table: school_settings
-CREATE TABLE IF NOT EXISTS public.school_settings (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  key TEXT UNIQUE NOT NULL,
-  value TEXT NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT now()
-);
--- Enable Row Level Security (RLS) with Public Read
-ALTER TABLE public.gallery ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.management ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.school_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Read Gallery" ON public.gallery FOR SELECT USING (true);
-CREATE POLICY "Public Read Management" ON public.management FOR SELECT USING (true);
-CREATE POLICY "Public Read School Settings" ON public.school_settings FOR SELECT USING (true);
-CREATE POLICY "Public Insert Gallery" ON public.gallery FOR ALL USING (true);
-CREATE POLICY "Public Insert Management" ON public.management FOR ALL USING (true);
-CREATE POLICY "Public Insert School Settings" ON public.school_settings FOR ALL USING (true);
-`;
+export const SUPABASE_SETUP_SQL = ``;
