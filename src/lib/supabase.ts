@@ -73,7 +73,6 @@ export const LOCAL_TABLES = {
   SETTINGS: 'lcns_sb_school_settings',
 };
 
-// ✅ AUTO-CLEAN OLD AI PICTURES FROM BROWSER
 try {
   const checkAndClean = () => {
     for (const key of Object.values(LOCAL_TABLES)) {
@@ -86,17 +85,16 @@ try {
   checkAndClean();
 } catch {}
 
-// ✅ NO MORE AI PICTURES - EMPTY
 export const DEFAULT_MANAGEMENT: SupabaseManagementMember[] = [];
 export const DEFAULT_GALLERY: SupabaseGalleryItem[] = [];
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
-  school_logo: '',
-  school_logo_white: '',
-  favicon: '/favicon.ico',
-  school_name: 'Labe College of Nursing Sciences, Gboko',
-  school_motto: 'Learn, Serve & Save',
-  school_address: 'Off Gboko Hill, Along Agbile Road, Gboko, Benue State, Nigeria',
+  school_logo: '/lcns-logo.png',
+  school_logo_white: '/lcns-logo.png',
+  favicon: '/lcns-logo.png',
+  school_name: 'Lagos College of Nursing Sciences',
+  school_motto: 'Learn, Serve & Save Lives',
+  school_address: 'Lagos, Nigeria',
   school_email: 'info@lcns.edu.ng',
   school_phone: '08126799565',
 };
