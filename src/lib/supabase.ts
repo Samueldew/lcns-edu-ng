@@ -89,9 +89,9 @@ export const DEFAULT_MANAGEMENT: SupabaseManagementMember[] = [];
 export const DEFAULT_GALLERY: SupabaseGalleryItem[] = [];
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
-  school_logo: '/lcns-logo.png',
-  school_logo_white: '/lcns-logo.png',
-  favicon: '/lcns-logo.png',
+  school_logo: 'https://raw.githubusercontent.com/Samueldew/lcns-edu-ng/main/lcns-logo.png.jpg',
+  school_logo_white: 'https://raw.githubusercontent.com/Samueldew/lcns-edu-ng/main/lcns-logo.png.jpg',
+  favicon: 'https://raw.githubusercontent.com/Samueldew/lcns-edu-ng/main/lcns-logo.png.jpg',
   school_name: 'Lagos College of Nursing Sciences',
   school_motto: 'Learn, Serve & Save Lives',
   school_address: 'Lagos, Nigeria',
