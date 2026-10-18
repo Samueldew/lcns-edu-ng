@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { StorageService } from '../../services/storage';
 import { getSchoolSetting, getLocalSettings } from '../../lib/uploadPermanent';
 
 interface CollegeLogoProps {
@@ -18,7 +17,7 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
   variant = 'main',
 }) => {
   const settingKey = variant === 'white' ? 'school_logo_white' : 'school_logo';
-  const initialLogo = overrideLogoUrl || getLocalSettings()[settingKey] || StorageService.getCMSConfig().logoUrl;
+  const initialLogo = overrideLogoUrl || getLocalSettings()[settingKey] || undefined;
   const [logoUrl, setLogoUrl] = useState<string | undefined>(initialLogo);
   const [imgError, setImgError] = useState(false);
 
