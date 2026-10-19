@@ -1,8 +1,7 @@
-import { supabase } from './supabaseClient';
+import { supabase } from './supabase';
 
-// Legacy exports to prevent build break
-export const LOCAL_TABLES = {};
-export const DEFAULT_SETTINGS = {};
+export const LOCAL_TABLES = {} as any;
+export const DEFAULT_SETTINGS = {} as any;
 export const DEFAULT_MANAGEMENT: any[] = [];
 export const DEFAULT_GALLERY: any[] = [];
 export type SupabaseGalleryItem = any;
@@ -47,6 +46,3 @@ export async function uploadPermanent(file: File, folder: string = 'general'): P
   const { data } = supabase.storage.from('school-files').getPublicUrl(fileName);
   return data.publicUrl;
 }
-
-// For compatibility with old imports
-export const getSchoolSet = getSchoolSettings;
