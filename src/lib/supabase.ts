@@ -43,3 +43,11 @@ export const supabase: any = new Proxy({} as any, {
     return typeof val === 'function' ? val.bind(client) : val;
   },
 });
+
+// FIX FOR BUILD - THESE 2 WERE MISSING
+export function getSupabaseConfig() {
+  return { url: supabaseUrl, bucket: SUPABASE_BUCKET, configured: isSupabaseConfigured() };
+}
+export const SUPABASE_SETUP_SQL = `-- Run this in Supabase SQL editor
+CREATE BUCKET IF NOT EXISTS ${SUPABASE_BUCKET};
+`;
