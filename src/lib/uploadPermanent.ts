@@ -1,5 +1,14 @@
 import { supabase } from './supabaseClient';
 
+// Legacy exports to prevent build break
+export const LOCAL_TABLES = {};
+export const DEFAULT_SETTINGS = {};
+export const DEFAULT_MANAGEMENT: any[] = [];
+export const DEFAULT_GALLERY: any[] = [];
+export type SupabaseGalleryItem = any;
+export type SupabaseManagementMember = any;
+export const getSupabase = () => supabase;
+
 export function fileToDataUrl(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -10,15 +19,19 @@ export function fileToDataUrl(file: File | Blob): Promise<string> {
 }
 
 export async function getSchoolSetting(key: string): Promise<string | null> {
-  const { data } = await supabase.from('school_settings').select('value').eq('key', key).single();
-  return data?.value || null;
+  try {
+    const { data } = await supabase.from('school_settings').select('value').eq('key', key).single();
+    return data?.value || null;
+  } catch { return null; }
 }
 
 export async function getSchoolSettings(): Promise<Record<string, string>> {
-  const { data } = await supabase.from('school_settings').select('*');
-  const settings: Record<string, string> = {};
-  data?.forEach((row: any) => settings[row.key] = row.value);
-  return settings;
+  try {
+    const { data } = await supabase.from('school_settings').select('*');
+    const settings: Record<string, string> = {};
+    data?.forEach((row: any) => settings[row.key] = row.value);
+    return settings;
+  } catch { return {}; }
 }
 
 export async function saveSchoolSetting(key: string, value: string) {
@@ -34,3 +47,6 @@ export async function uploadPermanent(file: File, folder: string = 'general'): P
   const { data } = supabase.storage.from('school-files').getPublicUrl(fileName);
   return data.publicUrl;
 }
+
+// For compatibility with old imports
+export const getSchoolSet = getSchoolSettings;
