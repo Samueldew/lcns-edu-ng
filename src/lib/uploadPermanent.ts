@@ -46,3 +46,22 @@ export async function uploadPermanent(file: File, folder: string = 'general'): P
   const { data } = supabase.storage.from('school-files').getPublicUrl(fileName);
   return data.publicUrl;
 }
+
+export async function getManagementMembers(): Promise<any[]> {
+  try {
+    const { data } = await supabase.from('management_members').select('*').order('id');
+    return data || [];
+  } catch { return []; }
+}
+
+export async function getGalleryItems(): Promise<any[]> {
+  try {
+    const { data } = await supabase.from('gallery_items').select('*').order('id');
+    return data || [];
+  } catch { return []; }
+}
+
+// Extra compatibility exports to prevent other missing export errors
+export async function getAllSettings() { return getSchoolSettings(); }
+export const uploadFile = uploadPermanent;
+export const getSettings = getSchoolSettings;
