@@ -42,13 +42,11 @@ export default function App() {
     'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system'
   >('settings');
 
-  // Modals state
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
   const [isAdmissionCheckerOpen, setIsAdmissionCheckerOpen] = useState(false);
   const [checkerDefaultFormNo, setCheckerDefaultFormNo] = useState<string | undefined>(undefined);
 
-  // Fallback admin login form state (for direct /admin access)
   const [adminEmail, setAdminEmail] = useState('info@lcns.edu.ng');
   const [adminPassword, setAdminPassword] = useState('admin123');
   const [adminLoginLoading, setAdminLoginLoading] = useState(false);
@@ -112,7 +110,7 @@ export default function App() {
 
     setCustomView(null);
 
-    if (pathname.startsWith('/admin') || pageParam === 'admin') {
+    if (pathname.startsWith('/admin')) {
       if (pathname.includes('/settings')) {
         setAdminInitialTab('settings');
       } else if (pathname.includes('/management')) {
@@ -121,17 +119,21 @@ export default function App() {
         setAdminInitialTab('gallery');
       } else if (pathname.includes('/users')) {
         setAdminInitialTab('users');
+      } else if (pathname.includes('/cbt')) {
+        setAdminInitialTab('cbt');
       } else {
         setAdminInitialTab('settings');
       }
-
       const cur = StorageService.getCurrentUser();
       if (cur) {
         setActiveView('portal');
       } else {
-        setIsLoginOpen(true);
+        setActiveView('website');
       }
-    } else if (
+      return;
+    }
+
+    if (
       pageParam === 'portal' ||
       pageParam === 'provost' ||
       pageParam === 'registrar' ||
@@ -146,12 +148,17 @@ export default function App() {
       } else {
         setIsLoginOpen(true);
       }
-    } else if (pathname === '/gallery' || window.location.hash === '#gallery') {
+      return;
+    }
+
+    if (pathname === '/gallery' || window.location.hash === '#gallery') {
       setActiveView('website');
       setTimeout(() => {
         const el = document.getElementById('gallery');
         if (el) el.scrollIntoView({ behavior: 'smooth' });
       }, 300);
+    } else {
+      setActiveView('website');
     }
   };
 
@@ -202,15 +209,17 @@ export default function App() {
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     setActiveView('portal');
+    if (user.role.toLowerCase().includes('admin')) {
+      window.history.pushState({}, '', '/admin');
+      setAdminInitialTab('settings');
+    }
   };
 
   const handleLogout = () => {
     StorageService.setCurrentUser(null);
     setCurrentUser(null);
     setActiveView('website');
-    if (window.location.pathname.startsWith('/admin')) {
-      window.history.pushState({}, '', '/');
-    }
+    window.history.pushState({}, '', '/');
   };
 
   const handleOpenAdmissionCheckerWithForm = (formNo?: string) => {
@@ -238,7 +247,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-[#0a4d2e] selection:text-white">
-      {/* Top Moving Marquee Banner on All Pages */}
       <div
         className="marquee-top no-print"
         style={{
@@ -258,7 +266,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Primary Sticky Header */}
       <Navbar
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
@@ -271,7 +278,6 @@ export default function App() {
         setActiveView={setActiveView}
       />
 
-      {/* Main View Area */}
       <div className="flex-1">
         {customView === 'applicant-printout' ? (
           <ApplicantPrintoutPage />
@@ -343,7 +349,6 @@ export default function App() {
             adminInitialTab={adminInitialTab}
           />
         ) : isDirectAdminUrl && !currentUser ? (
-          /* Dedicated Non-Blank Admin Login Page */
           <div className="min-h-[80vh] flex items-center justify-center p-4 bg-gradient-to-b from-slate-900 via-[#0a4d2e] to-slate-950 py-12">
             <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-700/40">
               <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-7 text-center">
@@ -454,7 +459,6 @@ export default function App() {
         )}
       </div>
 
-      {/* Institutional Footer (rendered on public website) */}
       {activeView === 'website' && !isDirectAdminUrl && (!customView || customView === 'check-admission') && (
         <Footer
           onOpenLogin={() => setIsLoginOpen(true)}
@@ -467,21 +471,18 @@ export default function App() {
         />
       )}
 
-      {/* Authentication Modal */}
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onLoginSuccess={handleLoginSuccess}
       />
 
-      {/* Online Application Form Modal */}
       <ApplicationFormModal
         isOpen={isApplicationOpen}
         onClose={() => setIsApplicationOpen(false)}
         onOpenAdmissionChecker={handleOpenAdmissionCheckerWithForm}
       />
 
-      {/* Admission Status Checker Modal */}
       <AdmissionCheckerModal
         isOpen={isAdmissionCheckerOpen}
         onClose={() => setIsAdmissionCheckerOpen(false)}
