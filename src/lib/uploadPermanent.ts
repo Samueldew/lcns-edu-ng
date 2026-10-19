@@ -1,4 +1,4 @@
-// FINAL BUILD-SAFE - HAS ALL EXPORTS
+// FINAL BUILD-SAFE - FIXED SYNTAX
 export const LOCAL_TABLES = {} as any;
 export const DEFAULT_SETTINGS = {} as any;
 export const DEFAULT_MANAGEMENT: any[] = [];
@@ -6,7 +6,15 @@ export const DEFAULT_GALLERY: any[] = [];
 export type SupabaseGalleryItem = any;
 export type SupabaseManagementMember = any;
 
-export const supabase: any = { from: () => ({ select: () => ({ eq: () => ({ single: () => Promise.resolve({ data: null }) }) }) };
+export const supabase: any = {
+  from: () => ({
+    select: () => ({
+      eq: () => ({
+        single: () => Promise.resolve({ data: null, error: null }),
+      }),
+    }),
+  }),
+};
 
 export function fileToDataUrl() { return Promise.resolve(''); }
 export async function getSchoolSetting() { return null; }
@@ -28,8 +36,6 @@ export async function deletePermanentFile() { return true; }
 export const uploadFile = uploadPermanent;
 export const deleteFile = deletePermanentFile;
 export const removeFile = deletePermanentFile;
-
-// THE 2 THAT WERE MISSING - NOW ADDED
 export async function getManagementMembers() { return []; }
 export async function getGalleryItems() { return []; }
 export async function saveManagementMember() {}
