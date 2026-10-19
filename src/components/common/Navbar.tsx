@@ -16,6 +16,8 @@ import {
   FileText,
   User as UserIcon,
   Sparkles,
+  Menu,
+  X,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -36,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveView,
 }) => {
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleRoleQuickSwitch = (role: UserRole) => {
     const users = StorageService.getUsers();
@@ -45,12 +48,31 @@ export const Navbar: React.FC<NavbarProps> = ({
       StorageService.setCurrentUser(safeUser as User);
       setActiveView('portal');
       setShowRoleMenu(false);
+      setMobileOpen(false);
     }
   };
 
   const handleLogout = () => {
     StorageService.setCurrentUser(null);
     setActiveView('website');
+    window.history.pushState({}, '', '/');
+  };
+
+  // FIXED SCROLL FUNCTION - makes About, Program, Values, Hostel, Gallery clickable
+  const scrollToId = (id: string) => {
+    setMobileOpen(false);
+    setActiveView('website');
+    // Wait for website view
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        window.history.pushState({}, '', `/#${id}`);
+      } else {
+        // fallback - try hash
+        window.location.hash = id;
+      }
+    }, 100);
   };
 
   const rolesList: { role: UserRole; label: string; desc: string }[] = [
@@ -68,7 +90,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-50 bg-[#0a4d2e] text-white shadow-md border-b border-[#06321e] no-print">
-      {/* Top Institutional Notification Bar */}
       <div className="bg-[#06321e] text-emerald-100 text-xs px-4 py-1.5 flex flex-wrap items-center justify-between border-b border-[#042114]">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5 font-medium">
@@ -82,19 +103,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Phone className="w-3.5 h-3.5 text-[#22c55e]" />
             <span>Support: {COLLEGE_CONFIG.SUPPORT_PHONE}</span>
           </span>
-          <span className="hidden md:inline text-emerald-400/50">&bull;</span>
-          <span className="hidden md:flex items-center gap-1 text-emerald-200">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#ca8a04]" />
-            <span>Accredited by NMCN &amp; NBTE</span>
-          </span>
         </div>
 
-        {/* Quick Demo Switcher Button in Header */}
         <div className="relative ml-auto flex items-center gap-2">
           <button
             onClick={() => setShowRoleMenu(!showRoleMenu)}
             className="flex items-center gap-1.5 bg-[#06321e] hover:bg-[#042114] text-white px-2.5 py-0.5 rounded text-[11px] font-semibold tracking-wide border border-[#22c55e]/30 transition-colors"
-            title="Switch demo roles to preview all ERP portals"
           >
             <Sparkles className="w-3 h-3 text-[#ca8a04] animate-pulse" />
             <span>Switch Role</span>
@@ -128,16 +142,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
-      {/* Main Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          {/* Logo & College Identity */}
           <button
-            onClick={() => setActiveView('website')}
+            onClick={() => {
+              setActiveView('website');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+              window.history.pushState({}, '', '/');
+              setMobileOpen(false);
+            }}
             className="flex items-center gap-3 text-left group focus:outline-none"
           >
             <CollegeLogo size="md" />
-            <div>
+            <div className="hidden sm:block">
               <span className="block font-black text-white text-base sm:text-lg leading-tight uppercase font-serif-crest tracking-tight group-hover:text-amber-300 transition-colors">
                 Labe College of Nursing Sciences
               </span>
@@ -147,113 +164,90 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </button>
 
-          {/* Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-white/90">
-            <button
-              onClick={() => setActiveView('website')}
-              className={`transition-colors hover:text-amber-300 ${
-                activeView === 'website' ? 'text-amber-300 font-bold' : ''
-              }`}
-            >
-              Public Portal
+          {/* DESKTOP MENU - FIXED */}
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-white/90">
+            <button onClick={() => { setActiveView('website'); window.scrollTo({top:0, behavior:'smooth'}); }} className="hover:text-amber-300 transition-colors">
+              Home
             </button>
-            <a href="#about" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
+            <button onClick={() => scrollToId('about')} className="hover:text-amber-300 transition-colors">
               About
-            </a>
-            <a href="#programmes" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
+            </button>
+            <button onClick={() => scrollToId('programmes')} className="hover:text-amber-300 transition-colors">
               Programmes
-            </a>
-            <a href="#values-philosophy" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
-              Values &amp; Philosophy
-            </a>
-            <a href="/check-admission" className="hover:text-amber-300 transition-colors">
-              Admission Status
-            </a>
-            <a href="/applicant/dashboard" className="hover:text-amber-300 transition-colors">
-              Candidate Portal
-            </a>
-            <a href="/bursar/applicants" className="hover:text-amber-300 transition-colors">
-              Bursary
-            </a>
-            <a href="/admissions" className="hover:text-amber-300 transition-colors">
-              Admissions Desk
-            </a>
-            <a href="#hostel" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
+            </button>
+            <button onClick={() => scrollToId('values-philosophy')} className="hover:text-amber-300 transition-colors">
+              Values & Philosophy
+            </button>
+            <button onClick={() => scrollToId('hostel')} className="hover:text-amber-300 transition-colors">
               Hostel
-            </a>
-            <a href="#gallery" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
+            </button>
+            <button onClick={() => scrollToId('gallery')} className="hover:text-amber-300 transition-colors font-bold text-amber-300">
               Gallery
-            </a>
+            </button>
           </nav>
 
-          {/* Action CTAs */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Admission Status Checker Quick Button */}
             <button
               onClick={onOpenAdmissionChecker}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors shadow-xs"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors"
             >
               <FileText className="w-3.5 h-3.5 text-amber-300" />
-              <span>Check Admission</span>
+              <span>Check Admission / Candidate</span>
             </button>
 
-            {/* Apply Now CTA */}
             <button
               onClick={onOpenApplication}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#F59E0B] hover:bg-amber-400 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 active:translate-y-0 font-black"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#F59E0B] hover:bg-amber-400 rounded-lg shadow-sm"
             >
               <GraduationCap className="w-4 h-4 text-slate-950" />
-              <span>Apply Now</span>
+              <span>Apply</span>
             </button>
 
-            {/* Portal Dashboard / Login Button */}
             {currentUser ? (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveView('portal')}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
-                    activeView === 'portal'
-                      ? 'bg-[#0a4d2e] text-white border-[#06321e] shadow-sm'
-                      : 'bg-white text-[#0a4d2e] border-[#0a4d2e]/30 hover:bg-emerald-50'
-                  }`}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border bg-white text-[#0a4d2e] border-[#0a4d2e]/30"
                 >
-                  {currentUser.photoUrl ? (
-                    <img
-                      src={currentUser.photoUrl}
-                      alt={currentUser.fullName}
-                      className="w-6 h-6 rounded-full object-cover border border-emerald-400"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-emerald-100 text-[#0a4d2e] flex items-center justify-center font-bold text-[10px]">
-                      {currentUser.fullName.charAt(0)}
-                    </div>
-                  )}
-                  <span className="hidden md:inline font-bold">Portal</span>
-                  <span className="text-[10px] bg-[#ca8a04] text-[#0a4d2e] font-black px-1.5 py-0.5 rounded uppercase">
-                    {currentUser.role.replace('_', ' ')}
-                  </span>
+                  <LayoutDashboard className="w-3 h-3" />
+                  <span className="hidden md:inline">Portal</span>
                 </button>
-
-                <button
-                  onClick={handleLogout}
-                  title="Sign out of portal"
-                  className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
+                <button onClick={handleLogout} className="p-2 text-white/70 hover:text-red-300">
                   <LogOut className="w-4 h-4" />
                 </button>
               </div>
             ) : (
               <button
                 onClick={onOpenLogin}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition-colors"
+                title="All logins: Admin, Bursar, Lecturer, Student, Registrar"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg"
               >
                 <LogIn className="w-3.5 h-3.5 text-slate-600" />
-                <span>Login</span>
+                <span>Portal Login</span>
               </button>
             )}
+
+            <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden p-2 bg-white/10 rounded-lg">
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
       </div>
+
+      {mobileOpen && (
+        <div className="lg:hidden bg-[#06321e] border-t border-[#042114] px-4 py-4 space-y-1">
+          <button onClick={() => { setActiveView('website'); window.scrollTo({top:0, behavior:'smooth'}); setMobileOpen(false); }} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Home</button>
+          <button onClick={() => scrollToId('about')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">About</button>
+          <button onClick={() => scrollToId('programmes')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Programmes</button>
+          <button onClick={() => scrollToId('values-philosophy')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Values & Philosophy</button>
+          <button onClick={() => scrollToId('hostel')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Hostel</button>
+          <button onClick={() => scrollToId('gallery')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase bg-amber-500/20 text-amber-300 rounded-lg">Gallery</button>
+          <div className="pt-3 border-t border-white/10 space-y-2">
+            <button onClick={() => { setMobileOpen(false); onOpenAdmissionChecker(); }} className="w-full py-3 text-xs font-bold uppercase bg-white/10 rounded-lg">Check Admission + Candidate Portal</button>
+            <button onClick={() => { setMobileOpen(false); onOpenLogin(); }} className="w-full py-3 text-xs font-bold uppercase bg-white text-[#0a4d2e] rounded-lg">Portal Login (Admin/Bursary/All)</button>
+          </div>
+        </div>
+      )}
     </header>
   );
 };
