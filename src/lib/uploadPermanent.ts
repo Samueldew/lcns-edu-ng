@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 
-// Compatibility constants
 export const LOCAL_TABLES = {} as any;
 export const DEFAULT_SETTINGS = {} as any;
 export const DEFAULT_MANAGEMENT: any[] = [];
@@ -9,7 +8,6 @@ export type SupabaseGalleryItem = any;
 export type SupabaseManagementMember = any;
 export const getSupabase = () => supabase;
 
-// Core helpers
 export function fileToDataUrl(file: File | Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -41,6 +39,10 @@ export async function saveSchoolSetting(key: string, value: string) {
   return true;
 }
 
+export async function setSchoolSetting(key: string, value: string) {
+  return saveSchoolSetting(key, value);
+}
+
 export async function uploadPermanent(file: File, folder: string = 'general'): Promise<string> {
   const fileName = `${folder}/${Date.now()}-${file.name}`;
   const { error } = await supabase.storage.from('school-files').upload(fileName, file);
@@ -49,7 +51,14 @@ export async function uploadPermanent(file: File, folder: string = 'general'): P
   return data.publicUrl;
 }
 
-// The missing ones from your error
+export async function deletePermanentFile(path: string) {
+  try {
+    const { error } = await supabase.storage.from('school-files').remove([path]);
+    if (error) throw error;
+    return true;
+  } catch { return false; }
+}
+
 export async function getManagementMembers(): Promise<any[]> {
   try { const { data } = await supabase.from('management_members').select('*'); return data || []; } catch { return []; }
 }
@@ -58,7 +67,6 @@ export async function getGalleryItems(): Promise<any[]> {
   try { const { data } = await supabase.from('gallery_items').select('*'); return data || []; } catch { return []; }
 }
 
-// Add all other likely needed exports so build never fails again
 export async function saveManagementMember(d: any) { 
   const { error } = await supabase.from('management_members').upsert(d); if(error) throw error; 
 }
@@ -73,9 +81,6 @@ export async function deleteGalleryItem(id: string) {
 }
 export async function getDashboardStats() { return { management: 0, gallery: 0, settings: 0 }; }
 
-// Aliases
 export const uploadFile = uploadPermanent;
 export const getSettings = getSchoolSettings;
 export const getAllSettings = getSchoolSettings;
-export const saveManagement = saveManagementMember;
-export const saveGallery = saveGalleryItem;
