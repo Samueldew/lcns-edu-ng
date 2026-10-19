@@ -17,6 +17,8 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
   variant = 'main',
 }) => {
   const settingKey = variant === 'white' ? 'school_logo_white' : 'school_logo';
+  const FALLBACK_LOGO = '/lcns-logo.png.jpg'; // Your GitHub uploaded file
+  
   const initialLogo = overrideLogoUrl || getLocalSettings()[settingKey] || undefined;
   const [logoUrl, setLogoUrl] = useState<string | undefined>(initialLogo);
   const [imgError, setImgError] = useState(false);
@@ -32,6 +34,9 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
       if (url) {
         setLogoUrl(url);
         setImgError(false);
+      } else if (!logoUrl) {
+        // Fallback to GitHub logo if DB has nothing
+        setLogoUrl(FALLBACK_LOGO);
       }
     };
     loadFromDb();
@@ -63,13 +68,23 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
           <img
             src={logoUrl}
             alt="Labe College of Nursing Sciences Emblem"
-            onError={() => setImgError(true)}
+            onError={() => {
+              // If Supabase logo fails, use GitHub logo
+              if (logoUrl !== FALLBACK_LOGO) {
+                setLogoUrl(FALLBACK_LOGO);
+              } else {
+                setImgError(true);
+              }
+            }}
             className="w-full h-full object-contain rounded-full bg-white"
           />
         ) : (
-          <div className={`w-full h-full rounded-full bg-[#0a4d2e] flex items-center justify-center text-white font-black ${textClass} border-2 border-white shadow-md`}>
-            LCNS
-          </div>
+          <img
+            src={FALLBACK_LOGO}
+            alt="LCNS"
+            className="w-full h-full object-contain rounded-full bg-white p-1"
+            onError={() => setImgError(true)}
+          />
         )}
       </div>
 
