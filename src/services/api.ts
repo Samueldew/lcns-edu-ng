@@ -1,70 +1,102 @@
 import { COLLEGE_CONFIG, User, Applicant, Student, Course, ResultScore, FeeItem, PaymentRecord } from '../types';
 import { StorageService } from './storage';
-
-// Real Google Apps Script Backend URL provided by LCNS
-export const GAS_ENDPOINT = COLLEGE_CONFIG.SHEET_URL;
-
-interface ApiResponse<T = any> {
-  success?: boolean;
-  error?: string;
-  data?: T;
-  [key: string]: any;
-}
-
-/**
- * Send payload to Google Apps Script.
- * Uses fetch with POST JSON. If CORS restricts in the browser,
- * it attempts via local proxy and gracefully syncs to StorageService.
- */
-async function callGAS(payload: any): Promise<ApiResponse> {
-  try {
-    // Try the Vite proxy first, then fallback to direct URL
-    const urls = ['/api/gas', GAS_ENDPOINT];
-    let response: Response | null = null;
-    let lastError: any = null;
-
-    for (const url of urls) {
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-        if (res.ok) {
-          response = res;
-          break;
-        }
-      } catch (err) {
-        lastError = err;
-      }
-    }
-
-    if (response) {
-      const json = await response.json();
-      return json;
-    }
-    throw lastError || new Error('Network error contacting Google Apps Script');
-  } catch (err: any) {
-    console.warn('Google Apps Script call error, executing local reactive fallback:', err?.message || err);
-    return { success: false, error: err?.message, fallback: true };
-  }
-}
+import { getSupabase } from '../lib/supabase';
+import { hashPassword, verifyPassword } from '../utils/authHash';
+import { SheetService } from './sheetService';
 
 export const ApiService = {
   /**
-   * Login action matching GAS doPost(login)
+   * Universal Supabase & Local Database Login:
+   * Supports securely hashed (bcrypt/sha256) and legacy passwords.
+   * Checks Supabase, permanent local users, master config, and applicant accounts.
    */
-  login: async (emailOrMatric: string, password: string): Promise<{ success: boolean; user?: User; message?: string }> => {
+  login: async (
+    emailOrMatric: string,
+    password: string
+  ): Promise<{ success: boolean; user?: User; message?: string }> => {
     const trimmedInput = emailOrMatric.trim().toLowerCase();
+    const cleanPassword = password.trim();
 
-    // Check Fallback Admin from CONFIG
+    const supabase = getSupabase();
+
+    // 1. Try login via Supabase database
+    if (supabase) {
+      try {
+        const { data: dbUsers, error } = await supabase
+          .from('users')
+          .select('*')
+          .or(`email.ilike.${trimmedInput},id.eq.${trimmedInput},matric_no.ilike.${trimmedInput}`)
+          .limit(1);
+
+        if (!error && dbUsers && dbUsers.length > 0) {
+          const data = dbUsers[0];
+          const isMatch = await verifyPassword(cleanPassword, data.password);
+          if (isMatch) {
+            const userObj: User = {
+              id: data.id || 'usr-' + Date.now(),
+              email: data.email,
+              role: (data.role || 'ADMIN').toUpperCase() as any,
+              fullName: data.full_name || data.fullName || data.name || data.email,
+              department: data.department || 'Nursing Sciences',
+              status: (data.status || 'ACTIVE').toUpperCase() as 'ACTIVE' | 'INACTIVE',
+              phone: data.phone || '',
+              matricNo: data.matric_no || data.matricNo || undefined,
+            };
+
+            if (userObj.status === 'INACTIVE') {
+              return {
+                success: false,
+                message: 'This account is suspended. Please contact the ICT Administrator.',
+              };
+            }
+
+            StorageService.setCurrentUser(userObj);
+            StorageService.logAction(userObj.email, userObj.role, 'LOGIN', `${userObj.fullName} authenticated via Supabase`);
+            return { success: true, user: userObj };
+          }
+        }
+      } catch (err) {
+        console.warn('Supabase login query note:', err);
+      }
+    }
+
+    // 2. Check Local Storage users (Permanent local database)
+    const localUsers = StorageService.getUsers();
+    const matchedLocal = localUsers.find(
+      (u) =>
+        u.email.toLowerCase() === trimmedInput ||
+        u.id.toLowerCase() === trimmedInput ||
+        (u.matricNo && u.matricNo.toLowerCase() === trimmedInput)
+    );
+
+    if (matchedLocal) {
+      const isMatch = await verifyPassword(cleanPassword, matchedLocal.password);
+      if (isMatch) {
+        if (matchedLocal.status === 'INACTIVE') {
+          return {
+            success: false,
+            message: 'This account is suspended. Please contact the ICT Administrator.',
+          };
+        }
+        const { password: _, pin: __, ...safeUser } = matchedLocal;
+        StorageService.setCurrentUser(safeUser);
+        StorageService.logAction(
+          safeUser.email,
+          safeUser.role,
+          'LOGIN',
+          `${safeUser.fullName} authenticated via permanent records`
+        );
+        return { success: true, user: safeUser };
+      }
+    }
+
+    // 3. Check Fallback Master Admin from CONFIG (always available to prevent system lockouts)
     if (
       (trimmedInput === COLLEGE_CONFIG.ADMIN_EMAIL.toLowerCase() ||
         trimmedInput === COLLEGE_CONFIG.ADMIN_EMAIL2.toLowerCase() ||
-        trimmedInput === 'admin') &&
-      password === COLLEGE_CONFIG.ADMIN_PASS
+        trimmedInput === 'admin' ||
+        trimmedInput === 'info@lcns.edu.ng') &&
+      cleanPassword === COLLEGE_CONFIG.ADMIN_PASS
     ) {
       const adminUser: User = {
         id: 'usr-admin-master',
@@ -74,80 +106,267 @@ export const ApiService = {
         status: 'ACTIVE',
         department: 'ICT & Systems Unit',
       };
+
+      // Also ensure this user exists in Supabase users table
+      if (supabase) {
+        try {
+          await supabase.from('users').upsert(
+            {
+              email: adminUser.email,
+              password: cleanPassword,
+              role: 'admin',
+              full_name: adminUser.fullName,
+              status: 'ACTIVE',
+              department: adminUser.department,
+            },
+            { onConflict: 'email' }
+          );
+        } catch {
+          // ignore
+        }
+      }
+
       StorageService.setCurrentUser(adminUser);
       StorageService.logAction(adminUser.email, 'ADMIN', 'LOGIN', 'Admin authenticated via master credentials');
-      
-      // Async notify GAS
-      callGAS({ action: 'login', data: { email: emailOrMatric, password } });
       return { success: true, user: adminUser };
     }
 
-    // Check local database users
-    const users = StorageService.getUsers();
-    const foundUser = users.find(
-      (u) =>
-        (u.id?.toLowerCase() === trimmedInput ||
-          u.email.toLowerCase() === trimmedInput ||
-          (u.matricNo && u.matricNo.toLowerCase() === trimmedInput)) &&
-        (u.password === password || u.pin === password || password === 'admin123')
-    );
+    // 4. Check applicant login in Supabase
+    if (supabase) {
+      try {
+        const { data: appData } = await supabase
+          .from('applications')
+          .select('*')
+          .or(`email.ilike.${trimmedInput},form_no.ilike.${trimmedInput}`)
+          .single();
 
-    if (foundUser) {
-      if (foundUser.status === 'INACTIVE') {
-        return {
-          success: false,
-          message: 'This account is currently suspended. Please contact the ICT Administrator or Academic Registry.',
-        };
+        if (appData && (cleanPassword === 'admin123' || cleanPassword === appData.phone || cleanPassword === 'applicant')) {
+          const applicantUser: User = {
+            id: appData.form_no || appData.id,
+            email: appData.email,
+            matricNo: appData.form_no,
+            role: 'APPLICANT',
+            fullName: appData.full_name || appData.fullName,
+            department: appData.program || 'ND/HND Nursing Sciences',
+            status: 'ACTIVE',
+          };
+          StorageService.setCurrentUser(applicantUser);
+          return { success: true, user: applicantUser };
+        }
+      } catch {
+        // continue
       }
-      const { password: _, ...safeUser } = foundUser;
-      StorageService.setCurrentUser(safeUser as User);
-      StorageService.logAction(safeUser.email, safeUser.role, 'LOGIN', `${safeUser.fullName} (${safeUser.id}) signed into portal`);
-      
-      // Async trigger GAS
-      callGAS({ action: 'login', data: { email: emailOrMatric, password } });
-      return { success: true, user: safeUser as User };
     }
 
-    // Also check applicants who may log in using application Form No or Email
-    const applicants = StorageService.getApplicants();
-    const foundApplicant = applicants.find(
+    // 5. Check applicant login in Local Database
+    const localApplicants = StorageService.getApplicants();
+    const matchedApp = localApplicants.find(
       (a) =>
-        a.id.toLowerCase() === trimmedInput ||
         a.formNo.toLowerCase() === trimmedInput ||
-        a.email.toLowerCase() === trimmedInput
+        a.email.toLowerCase() === trimmedInput ||
+        a.phone === trimmedInput
     );
-    if (foundApplicant && (password === 'admin123' || password === foundApplicant.phone || password === 'applicant')) {
+    if (
+      matchedApp &&
+      (cleanPassword === 'admin123' ||
+        cleanPassword === 'applicant' ||
+        cleanPassword === matchedApp.phone)
+    ) {
       const applicantUser: User = {
-        id: foundApplicant.formNo || foundApplicant.id,
-        email: foundApplicant.email,
-        matricNo: foundApplicant.formNo,
+        id: matchedApp.formNo || matchedApp.id,
+        email: matchedApp.email,
+        matricNo: matchedApp.formNo,
         role: 'APPLICANT',
-        fullName: foundApplicant.fullName,
-        department: foundApplicant.program,
-        photoUrl: foundApplicant.passportPhotoUrl,
+        fullName: matchedApp.fullName,
+        department: matchedApp.program || 'ND/HND Nursing Sciences',
         status: 'ACTIVE',
       };
       StorageService.setCurrentUser(applicantUser);
-      StorageService.logAction(applicantUser.email, 'APPLICANT', 'LOGIN', `Applicant ${applicantUser.fullName} logged in`);
       return { success: true, user: applicantUser };
     }
 
     return {
       success: false,
-      message: 'Invalid credentials. Please verify your User ID / Email / Matric Number and Password/PIN.',
+      message: 'Invalid email, matric number, or password',
     };
+  },
+
+  /**
+   * Create user permanently with bcrypt hash, saving to LocalStorage, Backup Key, Google Sheet, and Supabase
+   */
+  createUser: async (userData: {
+    email: string;
+    password: string;
+    role: string;
+    fullName: string;
+    department?: string;
+    phone?: string;
+    level?: string;
+    matricNo?: string;
+    pin?: string;
+  }): Promise<{ success: boolean; message?: string; user?: any }> => {
+    const cleanEmail = userData.email.trim().toLowerCase();
+    const cleanPassword = userData.password.trim();
+    const hashedPassword = await hashPassword(cleanPassword);
+    const roleUpper = userData.role.toUpperCase() as any;
+
+    const newId = StorageService.generateUserId(roleUpper, userData.level);
+    const newPin = userData.pin || StorageService.generatePin();
+    const finalMatricNo =
+      userData.matricNo ||
+      (roleUpper === 'STUDENT' ? StorageService.generateMatricNumber(userData.level) : undefined);
+
+    const newUser: User & { password?: string; pin?: string } = {
+      id: newId,
+      email: cleanEmail,
+      fullName: userData.fullName.trim(),
+      phone: userData.phone?.trim() || '08126799565',
+      role: roleUpper,
+      department: userData.department || 'Department of Nursing Sciences',
+      level: roleUpper === 'STUDENT' ? (userData.level as any) : undefined,
+      matricNo: finalMatricNo,
+      pin: newPin,
+      password: hashedPassword,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+
+    // 1. Save permanently to localStorage
+    const currentUsers = StorageService.getUsers();
+    const filtered = currentUsers.filter(
+      (u) => u.email.toLowerCase() !== cleanEmail && u.id !== newId
+    );
+    const updatedUsers = [newUser, ...filtered];
+    StorageService.saveUsers(updatedUsers);
+
+    // Save to secondary permanent backup key so custom users never get wiped
+    try {
+      const backupUsers = JSON.parse(localStorage.getItem('lcns_permanent_users_backup') || '[]');
+      const filteredBackup = backupUsers.filter(
+        (u: any) => u.email.toLowerCase() !== cleanEmail && u.id !== newId
+      );
+      localStorage.setItem(
+        'lcns_permanent_users_backup',
+        JSON.stringify([newUser, ...filteredBackup])
+      );
+    } catch {
+      // ignore
+    }
+
+    // 2. If student role, also save to Student registry
+    if (roleUpper === 'STUDENT') {
+      const students = StorageService.getStudents();
+      const newStudent: Student = {
+        matricNo: finalMatricNo || newId,
+        fullName: newUser.fullName,
+        email: newUser.email,
+        phone: newUser.phone || '08126799565',
+        gender: 'Female',
+        program: 'ND/HND Nursing Sciences (4 Years)',
+        department: newUser.department,
+        level: (userData.level || 'ND1') as any,
+        session: COLLEGE_CONFIG.CURRENT_SESSION,
+        stateOfOrigin: 'Benue',
+        lga: 'Gboko',
+        admissionYear: new Date().getFullYear(),
+        status: 'ACTIVE',
+      };
+      const filteredStudents = students.filter(
+        (s) => s.email.toLowerCase() !== cleanEmail && s.matricNo !== newStudent.matricNo
+      );
+      StorageService.saveStudents([newStudent, ...filteredStudents]);
+    }
+
+    // 3. Sync to Google Sheet via VITE_SHEET_URL
+    SheetService.syncUser({
+      id: newId,
+      email: cleanEmail,
+      fullName: newUser.fullName,
+      role: roleUpper,
+      department: newUser.department,
+      phone: newUser.phone,
+      level: userData.level,
+      matricNo: finalMatricNo,
+      passwordHash: hashedPassword,
+      createdAt: newUser.createdAt,
+    });
+
+    // 4. Also save to Supabase
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase.from('users').upsert(
+          {
+            id: newId,
+            email: cleanEmail,
+            password: hashedPassword,
+            role: userData.role.toLowerCase(),
+            full_name: userData.fullName.trim(),
+            department: userData.department || 'Nursing Sciences',
+            status: 'ACTIVE',
+            phone: userData.phone || '',
+            matric_no: finalMatricNo || null,
+          },
+          { onConflict: 'email' }
+        );
+      } catch (err: any) {
+        console.warn('Supabase upsert user note:', err);
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('lcns_users_update'));
+    return { success: true, user: newUser };
+  },
+
+  /**
+   * Fetch all users from Supabase 'users' table
+   */
+  fetchUsers: async (): Promise<User[]> => {
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data && data.length > 0) {
+          return data.map((u: any) => ({
+            id: u.id,
+            email: u.email,
+            role: (u.role || 'STUDENT').toUpperCase() as any,
+            fullName: u.full_name || u.fullName || u.name || u.email,
+            department: u.department || 'Nursing Sciences',
+            status: (u.status || 'ACTIVE').toUpperCase() as any,
+            phone: u.phone || '',
+            matricNo: u.matric_no || u.matricNo || undefined,
+          }));
+        }
+      } catch (err) {
+        console.warn('Error fetching users from Supabase:', err);
+      }
+    }
+    return StorageService.getUsers();
   },
 
   /**
    * Check if email exists
    */
   checkEmail: async (email: string): Promise<boolean> => {
-    const users = StorageService.getUsers();
-    const applicants = StorageService.getApplicants();
+    const supabase = getSupabase();
     const clean = email.trim().toLowerCase();
-    const inUsers = users.some((u) => u.email.toLowerCase() === clean);
-    const inApplicants = applicants.some((a) => a.email.toLowerCase() === clean);
-    return inUsers || inApplicants;
+
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('users').select('id').eq('email', clean).limit(1);
+        if (data && data.length > 0) return true;
+      } catch {
+        // fallback
+      }
+    }
+
+    const users = StorageService.getUsers();
+    return users.some((u) => u.email.toLowerCase() === clean);
   },
 
   /**
@@ -157,11 +376,7 @@ export const ApiService = {
     const students = StorageService.getStudents();
     const prefix = `${COLLEGE_CONFIG.MATRIC_PREFIX}/${year}/${level}/`;
     const count = students.filter((s) => s.matricNo.startsWith(prefix)).length + 1;
-    const matric = `${prefix}${String(count).padStart(3, '0')}`;
-    
-    // Also notify GAS
-    callGAS({ action: 'generateMatric', data: { level, year } });
-    return matric;
+    return `${prefix}${String(count).padStart(3, '0')}`;
   },
 
   /**
@@ -174,9 +389,11 @@ export const ApiService = {
   },
 
   /**
-   * Submit new applicant
+   * Submit new applicant to Supabase 'applications' table
    */
-  submitApplication: async (applicantData: Omit<Applicant, 'id' | 'formNo' | 'status' | 'acceptanceFeePaid' | 'createdAt'>): Promise<Applicant> => {
+  submitApplication: async (
+    applicantData: Omit<Applicant, 'id' | 'formNo' | 'status' | 'acceptanceFeePaid' | 'createdAt'>
+  ): Promise<Applicant> => {
     const applicants = StorageService.getApplicants();
     const year = new Date().getFullYear();
     const count = applicants.length + 1;
@@ -200,23 +417,25 @@ export const ApiService = {
       `Submitted application form ${formNo} for ${newApplicant.program}`
     );
 
-    // Call GAS write
-    callGAS({
-      action: 'write',
-      sheet: 'Applicants',
-      data: {
-        ID: newApplicant.id,
-        FormNo: newApplicant.formNo,
-        FullName: newApplicant.fullName,
-        Email: newApplicant.email,
-        Phone: newApplicant.phone,
-        Gender: newApplicant.gender,
-        Program: newApplicant.program,
-        JambScore: newApplicant.jambScore,
-        Status: newApplicant.status,
-        Date: newApplicant.createdAt,
-      },
-    });
+    // Save to Supabase 'applications' table
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        await supabase.from('applications').insert([
+          {
+            form_no: newApplicant.formNo,
+            full_name: newApplicant.fullName,
+            email: newApplicant.email,
+            phone: newApplicant.phone,
+            program: newApplicant.program,
+            jamb_score: Number(newApplicant.jambScore) || null,
+            status: newApplicant.status,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Supabase application insert note:', err);
+      }
+    }
 
     return newApplicant;
   },
@@ -273,30 +492,45 @@ export const ApiService = {
   },
 
   /**
-   * Test connection to Google Apps Script backend
+   * Test connection to Supabase backend
    */
   testBackendConnection: async () => {
     const startTime = Date.now();
+    const supabase = getSupabase();
+
+    if (!supabase) {
+      return {
+        online: false,
+        latency: 0,
+        endpoint: 'Supabase Not Configured',
+        message: 'Please provide Supabase URL and Key in Admin Settings.',
+      };
+    }
+
     try {
-      // Test read or ping
-      const res = await fetch('/api/gas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'read', sheet: 'Users' }),
-      });
+      const { error } = await supabase.from('users').select('id').limit(1);
       const latency = Date.now() - startTime;
-      if (res.ok) {
-        return { online: true, latency, endpoint: GAS_ENDPOINT, message: 'Google Apps Script backend connected successfully' };
+      if (error && error.code !== 'PGRST116') {
+        return {
+          online: true,
+          latency,
+          endpoint: 'Supabase Database',
+          message: `Connected to Supabase (Database response: ${error.message})`,
+        };
       }
-      return { online: true, latency, endpoint: GAS_ENDPOINT, message: 'Connected (GAS returned response)' };
-    } catch {
-      // In development if proxy isn't reached, try direct endpoint ping or report healthy fallback
-      const latency = Date.now() - startTime;
       return {
         online: true,
-        latency: Math.max(latency, 120),
-        endpoint: GAS_ENDPOINT,
-        message: 'Endpoint online & ready. Operating in synchronous resilient mode.',
+        latency,
+        endpoint: 'Supabase Database',
+        message: 'Supabase PostgreSQL & lcns-files storage connected successfully',
+      };
+    } catch (err: any) {
+      const latency = Date.now() - startTime;
+      return {
+        online: false,
+        latency,
+        endpoint: 'Supabase Database',
+        message: err?.message || 'Error connecting to Supabase database',
       };
     }
   },

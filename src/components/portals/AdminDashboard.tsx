@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { User, COLLEGE_CONFIG, AuditLog } from '../../types';
 import { StorageService } from '../../services/storage';
-import { ApiService, GAS_ENDPOINT } from '../../services/api';
+import { ApiService } from '../../services/api';
+import { getSupabaseConfig, SUPABASE_BUCKET } from '../../lib/supabase';
 import {
   Database,
   RefreshCw,
@@ -145,7 +146,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
               Administrator Dashboard
             </h1>
             <p className="text-xs text-emerald-200 mt-1">
-              Google Apps Script Sync Connector &bull; Role Privileges &bull; System Health
+              Supabase PostgreSQL &bull; Bucket: {SUPABASE_BUCKET} &bull; Cross-Device Sync
             </p>
           </div>
 
@@ -156,7 +157,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
               className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border border-emerald-600/50 shadow-md transition-all"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${testingConnection ? 'animate-spin' : ''}`} />
-              <span>{testingConnection ? 'Pinging Google Sheets...' : 'Test Sheets Backend'}</span>
+              <span>{testingConnection ? 'Pinging Supabase...' : 'Test Supabase Database'}</span>
             </button>
 
             <button
@@ -173,7 +174,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
         <div className="mt-6 pt-6 border-t border-emerald-800/80 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
           <div className="bg-emerald-950/70 p-3.5 rounded-2xl border border-emerald-800/60 flex items-center justify-between">
             <div>
-              <span className="text-emerald-400 block text-[10px] uppercase font-bold">Google Script Sync</span>
+              <span className="text-emerald-400 block text-[10px] uppercase font-bold">Supabase Backend</span>
               <span className="font-bold text-white text-sm">
                 {backendStatus.online ? 'CONNECTED / ACTIVE' : 'CONNECTING...'}
               </span>
@@ -189,16 +190,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
           </div>
 
           <div className="bg-emerald-950/70 p-3.5 rounded-2xl border border-emerald-800/60">
-            <span className="text-emerald-400 block text-[10px] uppercase font-bold">Response Latency</span>
+            <span className="text-emerald-400 block text-[10px] uppercase font-bold">Database Latency</span>
             <span className="font-mono-code font-bold text-white text-sm">
               {backendStatus.latency} ms
             </span>
           </div>
 
           <div className="bg-emerald-950/70 p-3.5 rounded-2xl border border-emerald-800/60 truncate">
-            <span className="text-emerald-400 block text-[10px] uppercase font-bold">Target Sheet Endpoint</span>
-            <span className="font-mono-code text-[11px] text-slate-300 truncate block">
-              {GAS_ENDPOINT}
+            <span className="text-emerald-400 block text-[10px] uppercase font-bold">Storage Bucket</span>
+            <span className="font-mono-code text-[11px] text-amber-300 truncate block">
+              {SUPABASE_BUCKET} (Public)
             </span>
           </div>
         </div>

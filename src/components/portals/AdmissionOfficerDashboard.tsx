@@ -128,7 +128,7 @@ export const AdmissionOfficerDashboard: React.FC = () => {
             <span className="text-xl font-black text-amber-300 font-mono-code">{pendingBursarCount} Pending</span>
           </div>
           <div className="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800">
-            <span className="text-blue-300 block text-[10px] font-bold uppercase">Screened / Vetted</span>
+            <span className="text-emerald-300 block text-[10px] font-bold uppercase">Screened / Vetted</span>
             <span className="text-xl font-black text-white font-mono-code">{screenedCount} Candidates</span>
           </div>
         </div>
@@ -272,8 +272,8 @@ export const AdmissionOfficerDashboard: React.FC = () => {
                         </span>
                       )}
                       {a.status === 'SCREENED' && (
-                        <span className="bg-blue-100 text-blue-900 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 w-fit">
-                          <Clock className="w-3 h-3 text-blue-600" /> Screened ({a.screeningScore || 75}%)
+                        <span className="bg-emerald-100 text-[#0a4d2e] text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1 w-fit">
+                          <Clock className="w-3 h-3 text-[#16a34a]" /> Screened ({a.screeningScore || 75}%)
                         </span>
                       )}
                       {a.status === 'SUBMITTED' && (
@@ -292,7 +292,7 @@ export const AdmissionOfficerDashboard: React.FC = () => {
                         {a.status !== 'ADMITTED' && (
                           <button
                             onClick={() => handleUpdateStatus(a.id, 'ADMITTED')}
-                            className="px-2.5 py-1 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-[11px] font-bold shadow-xs"
+                            className="px-2.5 py-1 bg-[#0a4d2e] hover:bg-[#073822] text-white rounded-lg text-[11px] font-bold shadow-xs"
                             title="Grant provisional admission offer"
                           >
                             Admit
@@ -301,7 +301,7 @@ export const AdmissionOfficerDashboard: React.FC = () => {
                         {(a.status === 'BURSAR_CLEARED' || a.status === 'SUBMITTED') && (
                           <button
                             onClick={() => handleUpdateStatus(a.id, 'SCREENED')}
-                            className="px-2.5 py-1 bg-blue-700 hover:bg-blue-800 text-white rounded-lg text-[11px] font-bold"
+                            className="px-2.5 py-1 bg-[#16a34a] hover:bg-[#15803d] text-white rounded-lg text-[11px] font-bold"
                             title="Mark screened"
                           >
                             Screen

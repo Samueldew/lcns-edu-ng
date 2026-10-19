@@ -121,11 +121,12 @@ export const AdminManagement: React.FC = () => {
     try {
       setUploadingPhoto(true);
       const ext = file.name.split('.').pop() || 'jpg';
-      const path = `member-${Date.now()}.${ext}`;
+      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `management/${Date.now()}-${cleanName}`;
 
-      const publicUrl = await uploadPermanent(file, 'management-photos', path);
+      const publicUrl = await uploadPermanent(file, 'lcns-files', path);
       setFormPhotoUrl(publicUrl);
-      showStatus('Picture uploaded to Supabase Storage!');
+      showStatus('Picture uploaded to Supabase Storage (lcns-files)!');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload photo', 'error');
     } finally {

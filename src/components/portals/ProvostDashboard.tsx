@@ -15,9 +15,10 @@ import {
 } from 'lucide-react';
 
 import { CBTExamManager } from '../cbt/CBTExamManager';
+import { AdmissionProcessingView } from './AdmissionProcessingView';
 
 export const ProvostDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'cbt'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'cbt'>('overview');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -77,6 +78,18 @@ export const ProvostDashboard: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('admissions')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'admissions'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4 text-emerald-400" />
+          <span>Admissions Committee (/admissions)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('cbt')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeTab === 'cbt'
@@ -89,7 +102,9 @@ export const ProvostDashboard: React.FC = () => {
         </button>
       </div>
 
-      {activeTab === 'cbt' ? (
+      {activeTab === 'admissions' ? (
+        <AdmissionProcessingView />
+      ) : activeTab === 'cbt' ? (
         <CBTExamManager
           currentUser={{
             id: 'LCNS/2026/PV/001',
@@ -120,12 +135,12 @@ export const ProvostDashboard: React.FC = () => {
         <div className="p-5 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-slate-500">
             <span className="text-xs font-bold uppercase">2026/2027 Applicants</span>
-            <div className="p-2 bg-blue-50 text-blue-700 rounded-xl">
+            <div className="p-2 bg-emerald-50 text-[#0a4d2e] rounded-xl">
               <GraduationCap className="w-5 h-5" />
             </div>
           </div>
           <div className="text-2xl font-black text-slate-900">{applicants.length + 185}</div>
-          <div className="text-[11px] text-blue-600 font-semibold">
+          <div className="text-[11px] text-[#16a34a] font-semibold">
             Merit List Quota: 85% Met
           </div>
         </div>

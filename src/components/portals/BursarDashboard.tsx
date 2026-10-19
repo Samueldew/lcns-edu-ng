@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storage';
-import { PaymentRecord, FeeItem, Applicant, COLLEGE_CONFIG } from '../../types';
+import { PaymentRecord, FeeItem, Applicant, COLLEGE_CONFIG, BursarAccount } from '../../types';
+import { getSupabase } from '../../lib/supabase';
 import { CollegeLogo } from '../common/CollegeLogo';
 import {
   CreditCard,
@@ -23,17 +24,21 @@ import {
   UserCheck,
   UserX,
   Sparkles,
+  Award,
+  Hash,
 } from 'lucide-react';
 
 export const BursarDashboard: React.FC = () => {
-  const [bursarTab, setBursarTab] = useState<'payments' | 'applicants'>('applicants');
+  const [bursarTab, setBursarTab] = useState<'applicants' | 'bursar_accounts' | 'payments'>('applicants');
   const [payments, setPayments] = useState<PaymentRecord[]>(StorageService.getPayments());
   const [applicants, setApplicants] = useState<Applicant[]>(StorageService.getApplicants());
+  const [bursarAccounts, setBursarAccounts] = useState<BursarAccount[]>(StorageService.getBursarAccounts());
   const [searchPayment, setSearchPayment] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
 
   // Applicant Clearance State
   const [applicantSearch, setApplicantSearch] = useState('');
+  const [accountsSearch, setAccountsSearch] = useState('');
   const [applicantStatusFilter, setApplicantStatusFilter] = useState<'ALL' | 'PENDING_BURSAR' | 'BURSAR_CLEARED' | 'REJECTED'>('PENDING_BURSAR');
   const [viewingProofApplicant, setViewingProofApplicant] = useState<Applicant | null>(null);
   const [rejectingApplicant, setRejectingApplicant] = useState<Applicant | null>(null);
@@ -52,6 +57,7 @@ export const BursarDashboard: React.FC = () => {
     const handleStorageUpdate = () => {
       setPayments(StorageService.getPayments());
       setApplicants(StorageService.getApplicants());
+      setBursarAccounts(StorageService.getBursarAccounts());
     };
     window.addEventListener('lcns_storage_update', handleStorageUpdate);
     return () => window.removeEventListener('lcns_storage_update', handleStorageUpdate);
@@ -74,6 +80,8 @@ export const BursarDashboard: React.FC = () => {
     const matchesSearch =
       a.fullName.toLowerCase().includes(applicantSearch.toLowerCase()) ||
       a.formNo.toLowerCase().includes(applicantSearch.toLowerCase()) ||
+      (a.examNumber && a.examNumber.toLowerCase().includes(applicantSearch.toLowerCase())) ||
+      (a.exam_number && a.exam_number.toLowerCase().includes(applicantSearch.toLowerCase())) ||
       a.email.toLowerCase().includes(applicantSearch.toLowerCase()) ||
       a.phone.toLowerCase().includes(applicantSearch.toLowerCase());
 
@@ -93,17 +101,77 @@ export const BursarDashboard: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
 
+  const filteredBursarAccounts = bursarAccounts.filter((acc) => {
+    return (
+      acc.application_number.toLowerCase().includes(accountsSearch.toLowerCase()) ||
+      acc.applicant_name.toLowerCase().includes(accountsSearch.toLowerCase()) ||
+      (acc.exam_number && acc.exam_number.toLowerCase().includes(accountsSearch.toLowerCase()))
+    );
+  });
+
   const totalCollected = payments
     .filter((p) => p.status === 'PAID')
     .reduce((acc, p) => acc + p.amount, 0);
 
   // Clearance Actions
-  const handleClearApplicant = (applicantId: string) => {
+  const handleAssignExamNumber = async (applicantId: string) => {
+    const { applicants: updated, examNumber } = StorageService.assignExamNumber(applicantId);
+    setApplicants(updated);
+
+    // Sync to Supabase applications
+    try {
+      const sb = getSupabase();
+      if (sb) {
+        const target = updated.find((a) => a.id === applicantId || a.formNo === applicantId);
+        if (target) {
+          await sb.from('applications').update({
+            exam_number: examNumber,
+          }).eq('form_no', target.formNo);
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase sync error on assignExamNumber:', err);
+    }
+  };
+
+  const handleClearApplicant = async (applicantId: string) => {
+    const targetBefore = applicants.find((a) => a.id === applicantId || a.formNo === applicantId);
+    const assignedExamNo = targetBefore?.examNumber || targetBefore?.exam_number || StorageService.generateExamNumber(2025);
+
     const updated = StorageService.clearApplicantByBursar(
       applicantId,
-      'Bank payment proof audited, matched with ledger and cleared.'
+      'Bank payment proof audited, matched with ledger and cleared.',
+      assignedExamNo
     );
     setApplicants(updated);
+    setBursarAccounts(StorageService.getBursarAccounts());
+
+    // Sync to Supabase applications and bursar_accounts
+    try {
+      const sb = getSupabase();
+      if (sb && targetBefore) {
+        await sb.from('applications').update({
+          bursar_cleared: true,
+          exam_number: assignedExamNo,
+          bursar_clearance_date: new Date().toISOString(),
+          status: 'BURSAR_CLEARED',
+        }).eq('form_no', targetBefore.formNo);
+
+        await sb.from('bursar_accounts').insert([
+          {
+            application_number: targetBefore.formNo,
+            applicant_name: targetBefore.fullName,
+            amount: 15000,
+            payment_proof_url: targetBefore.paymentReceiptPdfUrl || '',
+            exam_number: assignedExamNo,
+            cleared_date: new Date().toISOString(),
+            status: 'CLEARED',
+          },
+        ]);
+      }
+    } catch (err) {
+      console.warn('Supabase sync error on clearApplicantByBursar:', err);
+    }
   };
 
   const handleOpenReject = (applicant: Applicant) => {
@@ -203,7 +271,7 @@ export const BursarDashboard: React.FC = () => {
             </span>
           </div>
           <div className="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800">
-            <span className="text-blue-300 block text-[10px] font-bold uppercase">Verified Transactions</span>
+            <span className="text-emerald-300 block text-[10px] font-bold uppercase">Verified Transactions</span>
             <span className="text-xl font-black text-white font-mono-code">
               {payments.filter((p) => p.status === 'PAID').length} Payments Logged
             </span>
@@ -228,6 +296,21 @@ export const BursarDashboard: React.FC = () => {
               {pendingApplicantsCount} Pending
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => setBursarTab('bursar_accounts')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            bursarTab === 'bursar_accounts'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <Award className="w-4 h-4 text-emerald-400" />
+          <span>Cleared Accounts Table (bursar_accounts)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white font-bold">
+            {bursarAccounts.length}
+          </span>
         </button>
 
         <button

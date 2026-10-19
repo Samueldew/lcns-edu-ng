@@ -54,7 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const rolesList: { role: UserRole; label: string; desc: string }[] = [
-    { role: 'ADMIN', label: 'ICT Administrator', desc: 'System config & Google Sheets sync' },
+    { role: 'ADMIN', label: 'ICT Administrator', desc: 'System config & Supabase database' },
     { role: 'PROVOST', label: 'College Provost', desc: 'Executive institutional oversight' },
     { role: 'REGISTRAR', label: 'Academic Registrar', desc: 'Student records & matriculation' },
     { role: 'ADMISSION_OFFICER', label: 'Admission Officer', desc: 'Screening & admission list' },
@@ -67,9 +67,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#0a4d2e]/10 shadow-sm no-print">
+    <header className="sticky top-0 z-50 bg-[#0a4d2e] text-white shadow-md border-b border-[#06321e] no-print">
       {/* Top Institutional Notification Bar */}
-      <div className="bg-[#0a4d2e] text-emerald-50 text-xs px-4 py-1.5 flex flex-wrap items-center justify-between border-b border-[#06321e]">
+      <div className="bg-[#06321e] text-emerald-100 text-xs px-4 py-1.5 flex flex-wrap items-center justify-between border-b border-[#042114]">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5 font-medium">
             <Mail className="w-3.5 h-3.5 text-[#22c55e]" />
@@ -138,39 +138,51 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <CollegeLogo size="md" />
             <div>
-              <span className="block font-black text-[#0a4d2e] text-base sm:text-lg leading-tight uppercase font-serif-crest tracking-tight group-hover:text-[#22c55e] transition-colors">
+              <span className="block font-black text-white text-base sm:text-lg leading-tight uppercase font-serif-crest tracking-tight group-hover:text-amber-300 transition-colors">
                 Labe College of Nursing Sciences
               </span>
-              <span className="block text-xs font-semibold text-[#0a4d2e] tracking-wider uppercase">
+              <span className="block text-xs font-semibold text-amber-300 tracking-wider uppercase">
                 Gboko, Benue State &bull; Learn, Serve &amp; Save
               </span>
             </div>
           </button>
 
           {/* Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-slate-700">
+          <nav className="hidden lg:flex items-center gap-6 text-sm font-semibold text-white/90">
             <button
               onClick={() => setActiveView('website')}
-              className={`transition-colors hover:text-[#0a4d2e] ${
-                activeView === 'website' ? 'text-[#0a4d2e] font-bold' : ''
+              className={`transition-colors hover:text-amber-300 ${
+                activeView === 'website' ? 'text-amber-300 font-bold' : ''
               }`}
             >
               Public Portal
             </button>
-            <a href="#about" onClick={() => setActiveView('website')} className="hover:text-[#0a4d2e] transition-colors">
+            <a href="#about" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
               About
             </a>
-            <a href="#programmes" onClick={() => setActiveView('website')} className="hover:text-[#0a4d2e] transition-colors">
+            <a href="#programmes" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
               Programmes
             </a>
-            <a href="#values-philosophy" onClick={() => setActiveView('website')} className="hover:text-[#0a4d2e] transition-colors">
+            <a href="#values-philosophy" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
               Values &amp; Philosophy
             </a>
-            <a href="#gallery" onClick={() => setActiveView('website')} className="hover:text-[#0a4d2e] transition-colors">
-              Gallery
+            <a href="/check-admission" className="hover:text-amber-300 transition-colors">
+              Admission Status
             </a>
-            <a href="#contact" onClick={() => setActiveView('website')} className="hover:text-[#0a4d2e] transition-colors">
-              Contact
+            <a href="/applicant/dashboard" className="hover:text-amber-300 transition-colors">
+              Candidate Portal
+            </a>
+            <a href="/bursar/applicants" className="hover:text-amber-300 transition-colors">
+              Bursary
+            </a>
+            <a href="/admissions" className="hover:text-amber-300 transition-colors">
+              Admissions Desk
+            </a>
+            <a href="#hostel" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
+              Hostel
+            </a>
+            <a href="#gallery" onClick={() => setActiveView('website')} className="hover:text-amber-300 transition-colors">
+              Gallery
             </a>
           </nav>
 
@@ -179,18 +191,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Admission Status Checker Quick Button */}
             <button
               onClick={onOpenAdmissionChecker}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-[#0a4d2e] bg-emerald-50 hover:bg-emerald-100 border border-[#0a4d2e]/30 rounded-lg transition-colors shadow-xs"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors shadow-xs"
             >
-              <FileText className="w-3.5 h-3.5 text-[#0a4d2e]" />
+              <FileText className="w-3.5 h-3.5 text-amber-300" />
               <span>Check Admission</span>
             </button>
 
             {/* Apply Now CTA */}
             <button
               onClick={onOpenApplication}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-[#0a4d2e] hover:bg-[#073822] rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#F59E0B] hover:bg-amber-400 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 active:translate-y-0 font-black"
             >
-              <GraduationCap className="w-4 h-4 text-[#ca8a04]" />
+              <GraduationCap className="w-4 h-4 text-slate-950" />
               <span>Apply Now</span>
             </button>
 

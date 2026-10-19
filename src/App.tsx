@@ -11,10 +11,33 @@ import { PortalShell } from './components/portals/PortalShell';
 import { CollegeLogo } from './components/common/CollegeLogo';
 import { ApiService } from './services/api';
 import { ShieldCheck, Lock, Mail, ArrowRight, UserCheck, AlertCircle } from 'lucide-react';
+import { CheckAdmissionPage } from './components/applicant/CheckAdmissionPage';
+import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
+import { ApplicantPrintoutPage } from './components/applicant/ApplicantPrintoutPage';
+import { ApplicantCBTPage } from './components/applicant/ApplicantCBTPage';
+import { AdmissionProcessingView } from './components/portals/AdmissionProcessingView';
+import { BursarDashboard } from './components/portals/BursarDashboard';
+import { AdminApplicantCBTPage } from './components/admin/AdminApplicantCBTPage';
+import { CourseManagerView } from './components/common/CourseManagerView';
+import { CBTExamManager } from './components/cbt/CBTExamManager';
+import { StudentPortal } from './components/portals/StudentPortal';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(StorageService.getCurrentUser());
   const [activeView, setActiveView] = useState<'website' | 'portal'>('website');
+  const [customView, setCustomView] = useState<
+    | null
+    | 'check-admission'
+    | 'applicant-dashboard'
+    | 'applicant-printout'
+    | 'applicant-cbt'
+    | 'admissions'
+    | 'bursar'
+    | 'admin-applicant-cbt'
+    | 'courses'
+    | 'lecturer-cbt-create'
+    | 'student-cbt'
+  >(null);
   const [adminInitialTab, setAdminInitialTab] = useState<
     'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system'
   >('settings');
@@ -35,6 +58,59 @@ export default function App() {
     const pathname = window.location.pathname.toLowerCase();
     const params = new URLSearchParams(window.location.search);
     const pageParam = params.get('page');
+
+    if (pathname === '/applicant/printout') {
+      setCustomView('applicant-printout');
+      setActiveView('website');
+      return;
+    } else if (pathname === '/applicant/dashboard') {
+      setCustomView('applicant-dashboard');
+      setActiveView('website');
+      return;
+    } else if (pathname === '/check-admission') {
+      setCustomView('check-admission');
+      setActiveView('website');
+      return;
+    } else if (pathname === '/admin/applicant-cbt') {
+      setCustomView('admin-applicant-cbt');
+      setActiveView('website');
+      return;
+    } else if (pathname.startsWith('/applicant/cbt')) {
+      setCustomView('applicant-cbt');
+      setActiveView('website');
+      return;
+    } else if (
+      pathname === '/admin/courses' ||
+      pathname === '/hod/courses' ||
+      pathname === '/registrar/courses'
+    ) {
+      setCustomView('courses');
+      setActiveView('website');
+      return;
+    } else if (pathname.startsWith('/lecturer/cbt')) {
+      setCustomView('lecturer-cbt-create');
+      setActiveView('website');
+      return;
+    } else if (pathname.startsWith('/student/cbt')) {
+      setCustomView('student-cbt');
+      setActiveView('website');
+      return;
+    } else if (pathname === '/admissions') {
+      setCustomView('admissions');
+      setActiveView('website');
+      return;
+    } else if (pathname.startsWith('/bursar/applicants') || pathname === '/bursar') {
+      setCustomView('bursar');
+      setActiveView('website');
+      return;
+    } else if (pathname === '/apply') {
+      setCustomView(null);
+      setActiveView('website');
+      setIsApplicationOpen(true);
+      return;
+    }
+
+    setCustomView(null);
 
     if (pathname.startsWith('/admin') || pageParam === 'admin') {
       if (pathname.includes('/settings')) {
@@ -84,9 +160,34 @@ export default function App() {
       setCurrentUser(StorageService.getCurrentUser());
     };
 
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest('a');
+      if (!target) return;
+      const href = target.getAttribute('href');
+      if (
+        href &&
+        (href.startsWith('/applicant/') ||
+          href.startsWith('/check-admission') ||
+          href.startsWith('/bursar') ||
+          href.startsWith('/admissions') ||
+          href.startsWith('/admin/applicant-cbt') ||
+          href.startsWith('/admin/courses') ||
+          href.startsWith('/hod/courses') ||
+          href.startsWith('/registrar/courses') ||
+          href.startsWith('/lecturer/cbt') ||
+          href.startsWith('/student/cbt') ||
+          href === '/apply')
+      ) {
+        e.preventDefault();
+        window.history.pushState({}, '', href);
+        syncRouteFromUrl();
+      }
+    };
+
     window.addEventListener('lcns_auth_update', handleAuthUpdate);
     window.addEventListener('lcns_storage_update', handleAuthUpdate);
     window.addEventListener('popstate', syncRouteFromUrl);
+    document.addEventListener('click', handleLinkClick);
 
     syncRouteFromUrl();
 
@@ -94,6 +195,7 @@ export default function App() {
       window.removeEventListener('lcns_auth_update', handleAuthUpdate);
       window.removeEventListener('lcns_storage_update', handleAuthUpdate);
       window.removeEventListener('popstate', syncRouteFromUrl);
+      document.removeEventListener('click', handleLinkClick);
     };
   }, []);
 
@@ -171,7 +273,66 @@ export default function App() {
 
       {/* Main View Area */}
       <div className="flex-1">
-        {activeView === 'portal' && currentUser ? (
+        {customView === 'applicant-printout' ? (
+          <ApplicantPrintoutPage />
+        ) : customView === 'applicant-dashboard' ? (
+          <ApplicantDashboard />
+        ) : customView === 'check-admission' ? (
+          <CheckAdmissionPage
+            onOpenLogin={() => setIsLoginOpen(true)}
+            onOpenApplication={() => setIsApplicationOpen(true)}
+          />
+        ) : customView === 'applicant-cbt' ? (
+          <ApplicantCBTPage />
+        ) : customView === 'admissions' ? (
+          <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <AdmissionProcessingView />
+            </div>
+          </div>
+        ) : customView === 'bursar' ? (
+          <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <BursarDashboard />
+            </div>
+          </div>
+        ) : customView === 'admin-applicant-cbt' ? (
+          <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <AdminApplicantCBTPage />
+            </div>
+          </div>
+        ) : customView === 'courses' ? (
+          <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <CourseManagerView portalRole="Academic Staff &amp; Curriculum" />
+            </div>
+          </div>
+        ) : customView === 'lecturer-cbt-create' ? (
+          <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <CBTExamManager
+                currentUser={
+                  currentUser || {
+                    id: 'LCNS/2026/LC/001',
+                    email: 'lecturer@lcns.edu.ng',
+                    role: 'LECTURER',
+                    fullName: 'Nurse Emmanuel Gbaorun (FWACN)',
+                    department: 'Department of Nursing Sciences',
+                    status: 'ACTIVE',
+                  }
+                }
+                allowedTypes={['COURSE_TEST']}
+              />
+            </div>
+          </div>
+        ) : customView === 'student-cbt' ? (
+          <div className="min-h-screen bg-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto space-y-6">
+              <StudentPortal />
+            </div>
+          </div>
+        ) : activeView === 'portal' && currentUser ? (
           <PortalShell
             currentUser={currentUser}
             onLogout={handleLogout}
@@ -294,7 +455,7 @@ export default function App() {
       </div>
 
       {/* Institutional Footer (rendered on public website) */}
-      {activeView === 'website' && !isDirectAdminUrl && (
+      {activeView === 'website' && !isDirectAdminUrl && (!customView || customView === 'check-admission') && (
         <Footer
           onOpenLogin={() => setIsLoginOpen(true)}
           onOpenApplication={() => setIsApplicationOpen(true)}

@@ -1,30 +1,20 @@
-import tailwindcss from '@tailwindcss/vite';
-import react from '@vitejs/plugin-react';
-import path from 'path';
-import {defineConfig} from 'vite';
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import path from 'path'
 
-export default defineConfig(() => {
-  return {
-    plugins: [react(), tailwindcss()],
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      },
-    },
-    server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modify—file watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
-      proxy: {
-        '/api/gas': {
-          target: 'https://script.google.com/macros/s/AKfycbxzjD6Z9ytBYjZtdJoEJHSB6PoXh_uRixcbBhsqTisvrSnoQK9EHImtKeCmMI-9113O/exec',
-          changeOrigin: true,
-          followRedirects: true,
-          rewrite: () => '',
-        },
-      },
-    },
-  };
-});
+export default defineConfig({
+  plugins: [tailwindcss(), react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(import.meta.dirname, './src')
+    }
+  },
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+    hmr: {
+      clientPort: 443
+    }
+  }
+})

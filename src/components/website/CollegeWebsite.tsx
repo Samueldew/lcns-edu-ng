@@ -34,8 +34,8 @@ import {
   Image as ImageIcon,
   X,
   Maximize2,
-  Trash2,
 } from 'lucide-react';
+import { getSupabase, getHostelImageUrl } from '../../lib/supabase';
 
 interface CollegeWebsiteProps {
   onOpenLogin: () => void;
@@ -57,16 +57,46 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
   const [managementList, setManagementList] = useState<SupabaseManagementMember[]>([]);
   const [galleryList, setGalleryList] = useState<SupabaseGalleryItem[]>([]);
   const [selectedGalleryPhoto, setSelectedGalleryPhoto] = useState<SupabaseGalleryItem | null>(null);
-  const [photoToDelete, setPhotoToDelete] = useState<SupabaseGalleryItem | null>(null);
+
+  const hostelItem = galleryList.find(
+    (g) => g.category?.toLowerCase() === 'hostel' || g.title?.toLowerCase().includes('hostel')
+  );
+  const hostelImageUrl = hostelItem?.image_url || getHostelImageUrl();
+  const hostelImage = hostelImageUrl;
 
   const loadData = async () => {
     try {
-      const [members, gallery] = await Promise.all([
-        getManagementMembers(),
-        getGalleryItems('All'),
-      ]);
-      setManagementList(members);
-      setGalleryList(gallery);
+      const sb = getSupabase();
+      if (sb) {
+        const { data: galleryData } = await sb
+          .from('gallery')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (galleryData && galleryData.length > 0) {
+          setGalleryList(galleryData);
+        } else {
+          const fallback = await getGalleryItems('All');
+          setGalleryList(fallback);
+        }
+
+        const { data: mgmtData } = await sb
+          .from('management')
+          .select('*')
+          .order('display_order', { ascending: true });
+        if (mgmtData && mgmtData.length > 0) {
+          setManagementList(mgmtData);
+        } else {
+          const fallbackMgmt = await getManagementMembers();
+          setManagementList(fallbackMgmt);
+        }
+      } else {
+        const [members, gallery] = await Promise.all([
+          getManagementMembers(),
+          getGalleryItems('All'),
+        ]);
+        setManagementList(members);
+        setGalleryList(gallery);
+      }
     } catch (err) {
       console.warn('Error loading management / gallery in website:', err);
     }
@@ -93,27 +123,6 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
       window.removeEventListener('lcns_gallery_update', handleStorageUpdate);
     };
   }, []);
-
-  const confirmDeletePhoto = async () => {
-    if (!photoToDelete) return;
-    const photoId = photoToDelete.id;
-    const photoTitle = photoToDelete.title;
-
-    await deleteGalleryItem(photoId);
-
-    if (selectedGalleryPhoto?.id === photoId) {
-      setSelectedGalleryPhoto(null);
-    }
-    setPhotoToDelete(null);
-    loadData();
-
-    StorageService.logAction(
-      currentUser?.email || 'admin@lcns.edu.ng',
-      currentUser?.role || 'ADMIN',
-      'CMS_GALLERY_DELETE',
-      `Removed gallery image: ${photoTitle} (${photoId})`
-    );
-  };
 
   const programmes = [
     {
@@ -479,11 +488,17 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
                   <div>
                     {/* Photo with badges */}
                     <div className="relative aspect-3/4 bg-slate-900 overflow-hidden">
-                      <img
-                        src={member.photo_url}
-                        alt={member.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
+                      {member.photo_url ? (
+                        <img
+                          src={member.photo_url}
+                          alt={member.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-400 font-bold text-xs uppercase">
+                          LCNS Officer
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent opacity-80 group-hover:opacity-90 transition-opacity"></div>
                       <div className="absolute top-3 left-3 bg-[#0a4d2e] text-[#22c55e] text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full shadow-md border border-[#22c55e]/30">
                         Principal Officer
@@ -744,11 +759,11 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
               {/* Quality */}
               <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm hover:shadow-lg transition-all space-y-3 group hover:border-[#0a4d2e]">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-50 text-blue-700 group-hover:bg-blue-700 group-hover:text-white rounded-xl transition-colors">
+                  <div className="p-3 bg-emerald-50 text-emerald-800 group-hover:bg-[#0a4d2e] group-hover:text-white rounded-xl transition-colors">
                     <Award className="w-6 h-6" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-blue-700">Pillar 4</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-[#0a4d2e]">Pillar 4</span>
                     <h4 className="font-bold text-slate-900 text-base uppercase font-serif-crest">
                       Quality
                     </h4>
@@ -894,6 +909,24 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
         </div>
       </section>
 
+      {/* GIRLS' HOSTEL ACCOMMODATION */}
+      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" id="hostel">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          {hostelImage ? (
+            <img src={hostelImage} alt="LCNS Girls Hostel" className="w-full h-[400px] object-cover rounded-xl shadow-lg" />
+          ) : (
+            <div>No hostel image yet</div>
+          )}
+          <div>
+            <h2 className="text-3xl font-bold mb-4">GIRLS' HOSTEL ACCOMMODATION</h2>
+            <p className="text-gray-700 leading-relaxed mb-4">
+              Labe College of Nursing Sciences, Gboko, provides a safe, comfortable, and conducive hostel environment for female students. The girls' hostel is designed to support students' academic activities, personal well-being, and peaceful campus life. Our goal is to ensure that every female student enjoys a secure and welcoming environment while pursuing her academic and professional dreams in nursing.
+            </p>
+            <p className="font-semibold text-[#0a4d2e]">Learn, Grow, and Excel in a Safe Environment.</p>
+          </div>
+        </div>
+      </section>
+
       {/* CAMPUS MEDIA GALLERY (CMS Dynamic) */}
       <section id="gallery" className="py-16 bg-slate-100/70 border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -940,28 +973,34 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
                 className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 group cursor-pointer flex flex-col justify-between hover:border-emerald-600"
               >
                 <div className="relative h-56 overflow-hidden bg-slate-900">
-                  <img
-                    src={item.image_url}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  {item.image_url ? (
+                    <img
+                      src={item.image_url}
+                      alt={item.title || 'College photo'}
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                        const parent = (e.target as HTMLElement).parentElement;
+                        if (parent) {
+                          const fallback = document.createElement('div');
+                          fallback.className = 'bg-gray-200 h-56 flex items-center justify-center text-slate-500 font-bold text-xs';
+                          fallback.innerText = 'No Image';
+                          parent.appendChild(fallback);
+                        }
+                      }}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="bg-gray-200 h-56 flex items-center justify-center text-slate-500 font-bold text-xs">
+                      No Image
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
                   
-                  <span className="absolute top-3 left-3 bg-[#0a4d2e] text-[#22c55e] text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider backdrop-blur-xs border border-[#22c55e]/30">
-                    {item.category}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPhotoToDelete(item);
-                    }}
-                    className="absolute top-3 right-3 p-2 bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-lg transition-all z-10 hover:scale-105"
-                    title="Delete photo from website"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {item.category && (
+                    <span className="absolute top-3 left-3 bg-[#0a4d2e] text-[#22c55e] text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider backdrop-blur-xs border border-[#22c55e]/30">
+                      {item.category}
+                    </span>
+                  )}
 
                   <div className="absolute bottom-3 right-3 p-2 bg-white/20 text-white rounded-xl backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity">
                     <Maximize2 className="w-4 h-4" />
@@ -1139,35 +1178,25 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
             </button>
 
             <div className="max-h-[70vh] bg-black flex items-center justify-center overflow-hidden">
-              <img
-                src={selectedGalleryPhoto.image_url}
-                alt={selectedGalleryPhoto.title}
-                className="max-h-[70vh] w-auto max-w-full object-contain"
-              />
+              {selectedGalleryPhoto.image_url ? (
+                <img
+                  src={selectedGalleryPhoto.image_url}
+                  alt={selectedGalleryPhoto.title}
+                  className="max-h-[70vh] w-auto max-w-full object-contain"
+                />
+              ) : null}
             </div>
 
             <div className="p-6 bg-slate-900 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {selectedGalleryPhoto.category && (
                   <span className="bg-[#0a4d2e] text-[#22c55e] font-bold text-xs px-2.5 py-0.5 rounded-full uppercase tracking-wider border border-[#22c55e]/30">
                     {selectedGalleryPhoto.category}
                   </span>
-                  <span className="text-xs text-slate-400">
-                    {selectedGalleryPhoto.created_at ? new Date(selectedGalleryPhoto.created_at).toLocaleDateString() : ''}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPhotoToDelete(selectedGalleryPhoto);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all shadow"
-                  title="Delete this photo from website"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Photo</span>
-                </button>
+                )}
+                <span className="text-xs text-slate-400">
+                  {selectedGalleryPhoto.created_at ? new Date(selectedGalleryPhoto.created_at).toLocaleDateString() : 'Active'}
+                </span>
               </div>
               <h3 className="text-lg font-bold text-white font-serif-crest uppercase">
                 {selectedGalleryPhoto.title}
@@ -1177,74 +1206,6 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
                   {selectedGalleryPhoto.description}
                 </p>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Gallery Photo Confirmation Modal */}
-      {photoToDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in"
-          onClick={() => setPhotoToDelete(null)}
-        >
-          <div
-            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 text-slate-800"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-3 bg-red-100 rounded-2xl">
-                <Trash2 className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-base uppercase font-serif-crest">
-                  Delete Gallery Photo?
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Permanently remove this image from the public college website.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-              <img
-                src={photoToDelete.image_url}
-                alt={photoToDelete.title}
-                className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-300"
-              />
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-xs text-slate-900 truncate">
-                  {photoToDelete.title}
-                </h4>
-                <span className="inline-block mt-1 text-[10px] text-emerald-800 bg-emerald-100 font-bold px-2 py-0.5 rounded-full">
-                  {photoToDelete.category}
-                </span>
-                <span className="block text-[10px] text-slate-400 mt-1">
-                  {photoToDelete.created_at ? new Date(photoToDelete.created_at).toLocaleDateString() : ''}
-                </span>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Are you sure you want to permanently delete this photo? It will be removed immediately and will not return back.
-            </p>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setPhotoToDelete(null)}
-                className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDeletePhoto}
-                className="px-5 py-2 text-xs font-bold bg-red-600 hover:bg-red-700 text-white rounded-xl shadow-md transition-colors flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Yes, Delete Photo</span>
-              </button>
             </div>
           </div>
         </div>

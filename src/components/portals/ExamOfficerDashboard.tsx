@@ -172,7 +172,7 @@ export const ExamOfficerDashboard: React.FC = () => {
                         r.grade === 'A'
                           ? 'bg-emerald-100 text-emerald-800'
                           : r.grade === 'B'
-                          ? 'bg-blue-100 text-blue-800'
+                          ? 'bg-teal-100 text-teal-900'
                           : r.grade === 'C'
                           ? 'bg-amber-100 text-amber-800'
                           : r.grade === 'D'

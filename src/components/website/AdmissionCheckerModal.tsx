@@ -383,12 +383,12 @@ export const AdmissionCheckerModal: React.FC<AdmissionCheckerModalProps> = ({
 
                   {/* Status: SCREENED */}
                   {applicant.status === 'SCREENED' && (
-                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
-                      <div className="flex items-center gap-2 text-blue-900 font-bold text-sm">
-                        <Clock className="w-5 h-5 text-blue-600" />
+                    <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2">
+                      <div className="flex items-center gap-2 text-[#0a4d2e] font-bold text-sm">
+                        <Clock className="w-5 h-5 text-[#16a34a]" />
                         <span>Screening Completed - Under Senate Ratification</span>
                       </div>
-                      <p className="text-xs text-blue-800">
+                      <p className="text-xs text-[#0a4d2e]">
                         Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}).
                         Screening score: <strong>{applicant.screeningScore || 70}%</strong>.
                         The admission recommendation is scheduled for release in the upcoming Batch 2 list. Please check back regularly.
@@ -396,50 +396,110 @@ export const AdmissionCheckerModal: React.FC<AdmissionCheckerModalProps> = ({
                     </div>
                   )}
 
-                  {/* Status: PENDING_BURSAR */}
-                  {(applicant.status === 'PENDING_BURSAR' || applicant.bursarStatus === 'PENDING_BURSAR') && (
-                    <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3">
-                      <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
-                        <Clock className="w-5 h-5 text-amber-700" />
-                        <span className="uppercase tracking-wide font-black">Awaiting Bursar Clearance</span>
-                      </div>
-                      <p className="text-xs text-amber-900 leading-relaxed">
-                        Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}).
-                        <br />
-                        Your online application and uploaded bank proof of payment are undergoing bursary verification.
-                        Under college regulations, <strong>applicant cannot download application printout if not cleared</strong>.
-                        Please check back after 12-24 hours.
-                      </p>
-                      <div className="pt-1">
-                        <span className="inline-block px-3 py-1 bg-amber-200 text-amber-950 rounded-full text-[11px] font-bold uppercase">
-                          Clearance Status: Awaiting Bursar Clearance
-                        </span>
-                      </div>
-                    </div>
-                  )}
+                  {/* BURSAR CLEARANCE CHECK: If cleared, show exam_number and CBT test card; if not, show Awaiting Bursar Clearance - Pay Screening Fee */}
+                  {applicant.status !== 'ADMITTED' && (
+                    <>
+                      {/* Check if bursar cleared */}
+                      {(applicant.bursar_cleared || applicant.bursarCleared || applicant.bursarStatus === 'CLEARED' || applicant.status === 'BURSAR_CLEARED') ? (
+                        <div className="space-y-4">
+                          {/* Bursar Cleared & Exam Number Badge */}
+                          <div className="p-5 bg-emerald-50 border-2 border-emerald-500 rounded-2xl space-y-3">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                <span className="uppercase tracking-wide font-black">Bursar Cleared &amp; Examination Number Assigned</span>
+                              </div>
+                              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-xs font-bold font-mono">
+                                Verified
+                              </span>
+                            </div>
 
-                  {/* Status: BURSAR_CLEARED */}
-                  {(applicant.status === 'BURSAR_CLEARED' || applicant.bursarStatus === 'CLEARED') && applicant.status !== 'ADMITTED' && (
-                    <div className="p-5 bg-emerald-50 border-2 border-emerald-500 rounded-2xl space-y-3">
-                      <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
-                        <CheckCircle2 className="w-5 h-5 text-[#22c55e]" />
-                        <span className="uppercase tracking-wide font-black">Payment Audited &amp; Bursar Cleared</span>
-                      </div>
-                      <p className="text-xs text-emerald-900 leading-relaxed">
-                        Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}).
-                        <br />
-                        Payment verified by the College Bursar on <strong>{applicant.bursarClearedDate || new Date().toISOString().split('T')[0]}</strong>. You are cleared for aptitude screening examination and credential verification.
-                      </p>
-                      <div className="pt-2 flex items-center gap-2">
-                        <button
-                          onClick={handlePrint}
-                          className="px-4 py-2 bg-[#0a4d2e] hover:bg-[#06321e] text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
-                        >
-                          <Printer className="w-4 h-4 text-amber-300" />
-                          <span>Print Cleared Registration Slip</span>
-                        </button>
-                      </div>
-                    </div>
+                            <p className="text-xs text-emerald-900 leading-relaxed">
+                              Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}) &bull; Programme: <strong>{applicant.program}</strong>.
+                              <br />
+                              Payment verified by the College Bursar on <strong>{applicant.bursarClearedDate || applicant.bursar_clearance_date?.substring(0, 10) || new Date().toISOString().split('T')[0]}</strong>. You are cleared for the CBT Attitude Test.
+                            </p>
+
+                            {/* Assigned Exam Number Display */}
+                            <div className="p-3 bg-white border border-emerald-300 rounded-xl flex items-center justify-between flex-wrap gap-2">
+                              <div>
+                                <span className="text-[10px] text-slate-500 font-bold uppercase block tracking-wider">Official Examination Number</span>
+                                <span className="text-base font-black font-mono text-[#0a4d2e]">
+                                  {applicant.exam_number || applicant.examNumber || 'LCNS/EXAM/2025/001'}
+                                </span>
+                              </div>
+                              <button
+                                onClick={handlePrint}
+                                className="px-3 py-1.5 bg-[#0a4d2e] hover:bg-[#06321e] text-white rounded-lg text-xs font-bold shadow-xs transition-all flex items-center gap-1.5"
+                              >
+                                <Printer className="w-3.5 h-3.5 text-amber-300" />
+                                <span>Print Clearance Slip</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* CBT Test Card */}
+                          <div className="p-5 bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white rounded-2xl border border-emerald-700 shadow-md space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-amber-400" />
+                                <h4 className="font-bold text-sm text-white uppercase tracking-wide">
+                                  CBT Attitude Test
+                                </h4>
+                              </div>
+                              <span className="px-2.5 py-0.5 bg-emerald-600/60 border border-emerald-400 text-emerald-200 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                                Active &amp; Ready
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-slate-200 leading-relaxed">
+                              You are scheduled for the online CBT Attitude Test (30 Minutes). Your test session will record your score directly into your official admissions dossier.
+                            </p>
+
+                            <div className="flex items-center gap-3 pt-1 flex-wrap">
+                              <a
+                                href={`/applicant/cbt/test-attitude-01?app_no=${encodeURIComponent(applicant.formNo)}`}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md transition-all"
+                              >
+                                <span>Take CBT Attitude Test</span>
+                                <span>&rarr;</span>
+                              </a>
+                              <a
+                                href={`/applicant/dashboard?app_no=${encodeURIComponent(applicant.formNo)}`}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl border border-white/20 transition-all"
+                              >
+                                <span>Open Candidate Dashboard</span>
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Not cleared */
+                        <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3">
+                          <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
+                            <Clock className="w-5 h-5 text-amber-700" />
+                            <span className="uppercase tracking-wide font-black">Awaiting Bursar Clearance - Pay Screening Fee</span>
+                          </div>
+                          <p className="text-xs text-amber-900 leading-relaxed">
+                            Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}).
+                            <br />
+                            Your online application is currently awaiting bursary payment clearance. Under college admissions policy, you must pay the <strong>₦15,000 Screening Fee</strong> and receive Bursar clearance before an Examination Number can be issued and CBT access granted.
+                          </p>
+                          <div className="pt-2 flex items-center justify-between flex-wrap gap-2">
+                            <span className="inline-block px-3 py-1 bg-amber-200 text-amber-950 rounded-full text-[11px] font-bold uppercase">
+                              Status: Awaiting Bursar Clearance - Pay Screening Fee
+                            </span>
+                            <a
+                              href={`/applicant/dashboard?app_no=${encodeURIComponent(applicant.formNo)}`}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0a4d2e] hover:bg-[#073822] text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                            >
+                              <span>View Application Status</span>
+                              <span>&rarr;</span>
+                            </a>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Status: SUBMITTED */}

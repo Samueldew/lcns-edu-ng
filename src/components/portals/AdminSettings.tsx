@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import {
   getSchoolSetting,
   setSchoolSetting,
+  saveSchoolSetting,
   getLocalSettings,
   uploadPermanent,
   deletePermanentFile,
 } from '../../lib/uploadPermanent';
-import { getSupabaseConfig, getSupabase, SUPABASE_SETUP_SQL } from '../../lib/supabase';
+import { getSupabaseConfig, getSupabase, SUPABASE_SETUP_SQL, getHostelImageUrl } from '../../lib/supabase';
 import { CollegeLogo } from '../common/CollegeLogo';
 import {
   ShieldCheck,
@@ -23,6 +24,7 @@ import {
   Key,
   Globe,
   Sliders,
+  Home,
 } from 'lucide-react';
 
 export const AdminSettings: React.FC = () => {
@@ -30,6 +32,7 @@ export const AdminSettings: React.FC = () => {
   const [logoMain, setLogoMain] = useState<string>('');
   const [logoWhite, setLogoWhite] = useState<string>('');
   const [faviconUrl, setFaviconUrl] = useState<string>('');
+  const [hostelPhoto, setHostelPhoto] = useState<string>('');
   const [schoolName, setSchoolName] = useState<string>('');
   const [schoolMotto, setSchoolMotto] = useState<string>('');
   const [schoolAddress, setSchoolAddress] = useState<string>('');
@@ -40,6 +43,7 @@ export const AdminSettings: React.FC = () => {
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingWhite, setUploadingWhite] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [uploadingHostel, setUploadingHostel] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Supabase Configuration
@@ -70,6 +74,7 @@ export const AdminSettings: React.FC = () => {
       setSchoolAddress(await getSchoolSetting('school_address', local.school_address));
       setSchoolEmail(await getSchoolSetting('school_email', local.school_email));
       setSchoolPhone(await getSchoolSetting('school_phone', local.school_phone));
+      setHostelPhoto(await getSchoolSetting('hostel_image_url', getHostelImageUrl()));
     } catch (err) {
       console.warn('Failed to load settings:', err);
     }
@@ -114,22 +119,19 @@ export const AdminSettings: React.FC = () => {
     try {
       setUploadingMain(true);
       const ext = file.name.split('.').pop() || 'png';
-      const path = `logo-main-${Date.now()}.${ext}`;
+      const path = `branding/logo-main-${Date.now()}.${ext}`;
 
       // Delete old logo if needed
-      if (logoMain && logoMain.includes('school-assets/')) {
-        const oldFile = logoMain.split('school-assets/').pop()?.split('?')[0];
-        if (oldFile) await deletePermanentFile('school-assets', oldFile);
+      if (logoMain && (logoMain.includes('lcns-files/') || logoMain.includes('school-assets/'))) {
+        const oldFile = logoMain.split('/lcns-files/').pop()?.split('?')[0] || logoMain.split('school-assets/').pop()?.split('?')[0];
+        if (oldFile) await deletePermanentFile('lcns-files', oldFile);
       }
 
-      // Upload to Supabase bucket "school-assets"
-      const publicUrl = await uploadPermanent(file, 'school-assets', path);
-
-      // Save to school_settings table where key='school_logo' value=URL
-      await setSchoolSetting('school_logo', publicUrl);
+      // Upload to Supabase bucket "lcns-files" and save to school_settings table
+      const publicUrl = await saveSchoolSetting('school_logo', file);
       setLogoMain(publicUrl);
 
-      showStatus('Logo saved permanently to database! Header and website updated everywhere.');
+      showStatus('Logo saved permanently to Supabase! Header and website updated everywhere.');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload logo', 'error');
     } finally {
@@ -145,18 +147,17 @@ export const AdminSettings: React.FC = () => {
     try {
       setUploadingWhite(true);
       const ext = file.name.split('.').pop() || 'png';
-      const path = `logo-white-${Date.now()}.${ext}`;
+      const path = `branding/logo-white-${Date.now()}.${ext}`;
 
-      if (logoWhite && logoWhite.includes('school-assets/')) {
-        const oldFile = logoWhite.split('school-assets/').pop()?.split('?')[0];
-        if (oldFile) await deletePermanentFile('school-assets', oldFile);
+      if (logoWhite && (logoWhite.includes('lcns-files/') || logoWhite.includes('school-assets/'))) {
+        const oldFile = logoWhite.split('/lcns-files/').pop()?.split('?')[0] || logoWhite.split('school-assets/').pop()?.split('?')[0];
+        if (oldFile) await deletePermanentFile('lcns-files', oldFile);
       }
 
-      const publicUrl = await uploadPermanent(file, 'school-assets', path);
-      await setSchoolSetting('school_logo_white', publicUrl);
+      const publicUrl = await saveSchoolSetting('school_logo_white', file);
       setLogoWhite(publicUrl);
 
-      showStatus('White/Contrast logo saved permanently to database!');
+      showStatus('White/Contrast logo saved permanently to Supabase!');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload logo', 'error');
     } finally {
@@ -171,18 +172,14 @@ export const AdminSettings: React.FC = () => {
 
     try {
       setUploadingFavicon(true);
-      const ext = file.name.split('.').pop() || 'ico';
-      const path = `favicon-${Date.now()}.${ext}`;
-
-      const publicUrl = await uploadPermanent(file, 'school-assets', path);
-      await setSchoolSetting('favicon', publicUrl);
+      const publicUrl = await saveSchoolSetting('favicon', file);
       setFaviconUrl(publicUrl);
 
       // Dynamically update browser tab favicon
       const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
       if (link) link.href = publicUrl;
 
-      showStatus('Favicon updated and saved permanently to database!');
+      showStatus('Favicon updated and saved permanently to Supabase!');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload favicon', 'error');
     } finally {
@@ -190,7 +187,53 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  // 4. Save Text Info
+  // 4. Upload Girls Hostel Accommodation Photo (real-school/girls-hostel-accommodation.jpg)
+  const handleUploadHostel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingHostel(true);
+      const supabase = getSupabase();
+      if (!supabase) throw new Error('Supabase is not configured.');
+
+      const path = 'real-school/girls-hostel-accommodation.jpg';
+      const { error: uploadError } = await supabase.storage
+        .from('lcns-files')
+        .upload(path, file, { upsert: true, cacheControl: '3600' });
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('lcns-files')
+        .getPublicUrl(path);
+      const publicUrl = urlData.publicUrl;
+
+      await setSchoolSetting('hostel_image_url', publicUrl);
+      setHostelPhoto(publicUrl);
+
+      // Upsert into gallery table as well
+      await supabase.from('gallery').upsert([
+        {
+          image_url: publicUrl,
+          title: 'Girls Hostel Accommodation',
+          description: 'Safe and comfortable hostel for female students',
+          category: 'hostel',
+          created_at: new Date().toISOString(),
+        },
+      ], { onConflict: 'title' });
+
+      window.dispatchEvent(new CustomEvent('lcns_gallery_update'));
+      window.dispatchEvent(new CustomEvent('lcns_school_settings_update', { detail: { key: 'hostel_image_url' } }));
+
+      showStatus("Girls' Hostel photo uploaded to Supabase lcns-files & saved to gallery table!");
+    } catch (err: any) {
+      showStatus(err?.message || 'Failed to upload hostel photo', 'error');
+    } finally {
+      setUploadingHostel(false);
+    }
+  };
+
+  // 5. Save Text Info
   const handleSaveTextSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -296,8 +339,8 @@ export const AdminSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* 3 Upload Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* 4 Upload Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* 1. Main Logo (For Header & White Backgrounds) */}
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4 flex flex-col justify-between">
             <div>
@@ -441,6 +484,58 @@ export const AdminSettings: React.FC = () => {
               </label>
               <div className="text-[10px] text-center text-slate-400 mt-2 truncate font-mono">
                 key: 'favicon'
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Girls' Hostel Accommodation Photo */}
+          <div className="bg-emerald-50/50 rounded-2xl p-5 border border-emerald-200 space-y-4 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Girls' Hostel Photo
+                </span>
+                <span className="text-[10px] bg-emerald-100 text-[#0a4d2e] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                  real-school
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mb-4">
+                LCNS Girls' Hostel accommodation facility photo. Uploads to Supabase <code className="font-mono">lcns-files/real-school/girls-hostel-accommodation.jpg</code>.
+              </p>
+
+              {/* Hostel Photo Preview */}
+              <div className="w-full h-32 mx-auto bg-white rounded-2xl border-2 border-dashed border-emerald-300 flex items-center justify-center p-1 shadow-inner overflow-hidden">
+                {hostelPhoto ? (
+                  <img
+                    src={hostelPhoto}
+                    alt="Girls Hostel Accommodation"
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                ) : (
+                  <div className="text-center p-2 text-slate-400">
+                    <Home className="w-8 h-8 mx-auto text-emerald-600 mb-1" />
+                    <span className="text-[10px] font-bold">No Hostel Photo</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="block w-full text-center px-4 py-2.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all transform active:scale-95">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleUploadHostel}
+                  disabled={uploadingHostel}
+                  className="hidden"
+                />
+                <span className="inline-flex items-center gap-2">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>{uploadingHostel ? 'Uploading...' : 'Upload Hostel Photo'}</span>
+                </span>
+              </label>
+              <div className="text-[10px] text-center text-slate-400 mt-2 truncate font-mono">
+                girls-hostel-accommodation.jpg
               </div>
             </div>
           </div>

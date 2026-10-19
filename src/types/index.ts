@@ -49,6 +49,16 @@ export interface Applicant {
   bursarRemarks?: string;
   bursarClearedDate?: string;
   bursarClearedBy?: string;
+  examNumber?: string;
+  exam_number?: string;
+  bursarCleared?: boolean;
+  bursar_cleared?: boolean;
+  screeningFeePaid?: boolean;
+  screening_fee_paid?: boolean;
+  screeningFeeProofUrl?: string;
+  screening_fee_proof_url?: string;
+  bursarClearanceDate?: string;
+  bursar_clearance_date?: string;
   olevelExamType: 'WAEC' | 'NECO' | 'NABTEB';
   olevelExamYear: string;
   olevelGrades: {
@@ -60,12 +70,71 @@ export interface Applicant {
   };
   sponsorName: string;
   sponsorPhone: string;
-  status: 'PENDING_BURSAR' | 'BURSAR_CLEARED' | 'SUBMITTED' | 'SCREENED' | 'ADMITTED' | 'REJECTED';
+  status: 'PENDING_BURSAR' | 'BURSAR_CLEARED' | 'SUBMITTED' | 'SCREENED' | 'ADMISSION_IN_PROGRESS' | 'ADMITTED' | 'NOT ADMITTED' | 'REJECTED';
   screeningScore?: number;
   screeningDate?: string;
   acceptanceFeePaid: boolean;
   acceptanceReceiptNo?: string;
   createdAt: string;
+}
+
+export interface CBTTest {
+  id: string;
+  title: string;
+  duration_minutes: number;
+  is_active: boolean;
+  created_at?: string;
+}
+
+export interface CBTQuestionItem {
+  id: string;
+  test_id?: string;
+  question: string;
+  option_a: string;
+  option_b: string;
+  option_c: string;
+  option_d: string;
+  correct_answer: string;
+  marks?: number;
+}
+
+export interface CBTResult {
+  id: string;
+  application_number: string;
+  applicant_name?: string;
+  candidate_photo?: string;
+  course?: string;
+  exam_number?: string;
+  score: number;
+  total: number;
+  percentage?: number;
+  answers_json?: any;
+  is_published: boolean;
+  submitted_at?: string;
+  test_id?: string;
+  test_title?: string;
+}
+
+export interface BursarAccount {
+  id: string;
+  application_number: string;
+  applicant_name: string;
+  amount: number;
+  payment_proof_url?: string;
+  exam_number?: string;
+  cleared_date?: string;
+  status: string;
+}
+
+export interface ScreeningScore {
+  id: string;
+  application_number: string;
+  screening_score: number;
+  interview_score: number;
+  total_score: number;
+  remarks?: string;
+  is_published: boolean;
+  created_at?: string;
 }
 
 export interface Student {
@@ -269,13 +338,12 @@ export const COLLEGE_CONFIG = {
   ACCENT_COLOR: "#ca8a04",
   DIOCESE: "Catholic Diocese of Gboko",
   ESTABLISHMENT_LAW: "Established by Benue State Law 2026",
-  GOVERNOR: "His Excellency, Rev. Fr. Dr. Hyacinth Iormem Alia",
   BISHOP: "Most Rev. William Avenya",
   PROGRAMME_NAME: "ND/HND Nursing Sciences (4-Year Uninterrupted Collegiate Programme)",
   PROGRAMME_DURATION: "4 Years (2 Years ND + 2 Years HND)",
   AWARDS: "ND & HND Nursing Sciences, RN & RPHN Licenses (NMCN), NYSC Mobilization",
   MATRIC_PREFIX: "LCNS",
-  SHEET_URL: "https://script.google.com/macros/s/AKfycbxzjD6Z9ytBYjZtdJoEJHSB6PoXh_uRixcbBhsqTisvrSnoQK9EHImtKeCmMI-9113O/exec",
+  BACKEND_PROVIDER: "Supabase PostgreSQL & Storage",
   CURRENT_SESSION: "2026/2027",
   CURRENT_SEMESTER: "First",
   MIN_JAMB_SCORE: 150,

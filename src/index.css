@@ -1,10 +1,28 @@
 @import "tailwindcss";
+@config "../tailwind.config.js";
+
+@theme {
+  --color-primary: #0a4d2e;
+  --color-secondary: #16a34a;
+  --color-accent: #ca8a04;
+  --color-lcns-green: #16a34a;
+  --color-lcns-deep-green: #0a4d2e;
+  --color-lcns-yellow: #ca8a04;
+}
 
 @layer base {
   body {
+    @apply bg-gray-50 text-slate-900 font-sans;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-    color: #1e293b;
-    background-color: #f8fafc;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary hover:bg-[#06321e] text-white px-6 py-2 rounded-lg font-medium transition;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6;
   }
 }
 

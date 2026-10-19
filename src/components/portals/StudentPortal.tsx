@@ -341,6 +341,91 @@ export const StudentPortal: React.FC = () => {
         </div>
       )}
 
+      {/* TAB: COURSE CBT TESTS */}
+      {activeTab === 'cbt' && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-bold text-slate-900 text-base uppercase font-serif-crest">
+                Continuous Assessment &amp; Course CBT Examinations
+              </h3>
+              <p className="text-xs text-slate-500">
+                Active Computer-Based Tests published for {student.level} &bull; Protected Anti-Cheat &amp; Fullscreen Enforcement.
+              </p>
+            </div>
+            <span className="text-xs font-bold text-[#0a4d2e] bg-emerald-100 px-3 py-1 rounded-full">
+              {cbtExams.filter((e) => e.isPublished).length} Active Tests
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {cbtExams
+              .filter((e) => e.isPublished)
+              .map((exam) => {
+                const pastSub = cbtSubmissions.find(
+                  (s) =>
+                    s.examId === exam.id &&
+                    (s.userId === student.matricNo || s.userEmail === student.email)
+                );
+                return (
+                  <div
+                    key={exam.id}
+                    className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition-all space-y-4 flex flex-col justify-between"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#0a4d2e] bg-emerald-100 px-2.5 py-0.5 rounded-full font-mono-code">
+                          {exam.courseCode || 'GENERAL'}
+                        </span>
+                        <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono-code">
+                          <Clock className="w-3.5 h-3.5 text-amber-500" />
+                          <span>{exam.durationMinutes} Mins</span>
+                        </div>
+                      </div>
+
+                      <h4 className="text-sm font-bold text-slate-900 leading-snug">
+                        {exam.title}
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        {exam.courseTitle || 'Accredited Nursing Sciences Test'} &bull; Total Questions:{' '}
+                        {exam.questions?.length || 0}
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      {pastSub ? (
+                        <div className="flex items-center gap-2">
+                          <span className="px-2.5 py-1 bg-emerald-100 text-[#0a4d2e] rounded-xl text-xs font-black font-mono-code">
+                            Score: {pastSub.score}/{pastSub.totalQuestions} ({pastSub.percentage}%)
+                          </span>
+                          <span className="text-[10px] text-[#16a34a] font-bold">COMPLETED</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-amber-700 font-bold flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>Not Yet Taken</span>
+                        </span>
+                      )}
+
+                      <button
+                        onClick={() => setActiveCbtExam(exam)}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs ${
+                          pastSub
+                            ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                            : 'bg-[#0a4d2e] hover:bg-[#073822] text-white'
+                        }`}
+                      >
+                        <Play className="w-3.5 h-3.5 text-amber-300" />
+                        <span>{pastSub ? 'Review / Retake' : 'Start CBT Exam'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
       {/* TAB 2: COURSE REGISTRATION */}
       {activeTab === 'courses' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
@@ -523,6 +608,26 @@ export const StudentPortal: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Fullscreen & Anti-Cheat CBT Examination Session Modal */}
+      {activeCbtExam && (
+        <CBTExamSession
+          exam={activeCbtExam}
+          currentUser={currentUser || {
+            id: student.matricNo,
+            email: student.email,
+            role: 'STUDENT',
+            fullName: student.fullName,
+            status: 'ACTIVE',
+            matricNo: student.matricNo,
+            photoUrl: studentPhoto,
+          }}
+          onClose={() => setActiveCbtExam(null)}
+          onCompleted={() => {
+            setCbtSubmissions(StorageService.getCBTSubmissions());
+          }}
+        />
       )}
     </div>
   );

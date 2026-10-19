@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { CBTExam, CBTSubmission, User, COLLEGE_CONFIG } from '../../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { CBTExam, CBTSubmission, User } from '../../types';
 import { StorageService } from '../../services/storage';
 import { CollegeLogo } from '../common/CollegeLogo';
 import {
@@ -13,7 +13,9 @@ import {
   X,
   Award,
   Sparkles,
-  HelpCircle,
+  ShieldAlert,
+  Maximize2,
+  AlertOctagon,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -36,7 +38,126 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<CBTSubmission | null>(null);
 
-  // Timer countdown
+  // Anti-Cheat & Fullscreen State
+  const [fullscreenExitCount, setFullscreenExitCount] = useState(0);
+  const [antiCheatToast, setAntiCheatToast] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const toastTimeoutRef = useRef<any>(null);
+
+  const showSecurityWarning = (msg: string) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setAntiCheatToast(msg);
+    toastTimeoutRef.current = setTimeout(() => {
+      setAntiCheatToast(null);
+    }, 4500);
+  };
+
+  // 1. On Start: Request Fullscreen
+  useEffect(() => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {
+          // Browser may require user gesture on some devices
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    return () => {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, []);
+
+  // 2. Anti-Cheat: Fullscreen Change, Visibility, Blur, Right-Click, Copy/Paste
+  useEffect(() => {
+    if (submissionResult) return;
+
+    // Fullscreen detection
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setFullscreenExitCount((prev) => {
+          const next = prev + 1;
+          if (next === 1) {
+            showSecurityWarning(
+              'WARNING (1/2): You exited fullscreen mode! Return immediately or your exam will be auto-submitted.'
+            );
+          } else if (next === 2) {
+            showSecurityWarning(
+              'FINAL WARNING (2/2): You exited fullscreen mode again! A 3rd exit will result in automatic exam submission.'
+            );
+          } else if (next >= 3) {
+            showSecurityWarning(
+              'EXAM TERMINATED: Fullscreen exited 3 times. Automatically submitting examination now...'
+            );
+            handleSubmitExam('Auto-submitted due to repeated exit from fullscreen mode (Rule Violation).');
+          }
+          return next;
+        });
+      }
+    };
+
+    // Tab visibility detection
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        showSecurityWarning(
+          'ANTI-CHEAT ALERT: Tab switching or minimizing detected! All violations are logged.'
+        );
+      }
+    };
+
+    // Window blur detection
+    const handleWindowBlur = () => {
+      showSecurityWarning(
+        'ANTI-CHEAT ALERT: Window focus lost! Please remain inside the examination browser window.'
+      );
+    };
+
+    // Prevent Copy
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      showSecurityWarning('COPY DISABLED: Copying examination content is strictly forbidden.');
+    };
+
+    // Prevent Paste
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      showSecurityWarning('PASTE DISABLED: Pasting content is strictly forbidden.');
+    };
+
+    // Prevent Right Click
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      showSecurityWarning('RIGHT CLICK DISABLED: Context menu is locked during examinations.');
+    };
+
+    // Prevent Selection
+    const handleSelectStart = (e: Event) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('selectstart', handleSelectStart);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('selectstart', handleSelectStart);
+    };
+  }, [submissionResult]);
+
+  // 3. Timer Countdown & Auto-Submit
   useEffect(() => {
     if (submissionResult) return;
 
@@ -44,7 +165,7 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
       setTimeLeftSeconds((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleAutoSubmit();
+          handleSubmitExam('Timer expired - auto submitted.');
           return 0;
         }
         return prev - 1;
@@ -68,13 +189,17 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
     });
   };
 
-  const handleAutoSubmit = () => {
-    handleSubmitExam();
+  const handleRequestFullscreenAgain = () => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
   };
 
-  const handleSubmitExam = () => {
+  // Submit Exam Function
+  const handleSubmitExam = (violationNote?: string) => {
     if (isSubmitting || submissionResult) return;
     setIsSubmitting(true);
+    setShowConfirmModal(false);
 
     const questions = exam.questions || [];
     let correctCount = 0;
@@ -86,7 +211,8 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
     });
 
     const totalQuestions = questions.length;
-    const percentage = Math.round((correctCount / totalQuestions) * 100);
+    const percentage =
+      totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
 
     const submission: CBTSubmission = {
       id: 'sub-' + Date.now(),
@@ -130,23 +256,52 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
   const answeredCount = Object.keys(selectedAnswers).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto animate-fade-in no-print">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md overflow-y-auto animate-fade-in no-print select-none">
       <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full my-6 overflow-hidden border border-slate-200 flex flex-col max-h-[92vh]">
-        {/* Exam Session Header */}
+        {/* Anti-Cheat Floating Toast */}
+        {antiCheatToast && (
+          <div className="bg-red-600 text-white px-5 py-3 text-xs font-bold flex items-center justify-between gap-3 shadow-2xl border-b border-red-700 animate-bounce">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-amber-300 shrink-0" />
+              <span>{antiCheatToast}</span>
+            </div>
+            {!document.fullscreenElement && !submissionResult && (
+              <button
+                type="button"
+                onClick={handleRequestFullscreenAgain}
+                className="px-3 py-1 bg-white text-red-700 text-xs font-black rounded-lg shadow-xs hover:bg-red-50 flex items-center gap-1"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>Return to Fullscreen</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Exam Header */}
         <div className="bg-gradient-to-r from-[#0a4d2e] via-[#073922] to-slate-900 text-white p-4 sm:p-6 flex flex-wrap items-center justify-between gap-4 border-b border-emerald-950">
           <div className="flex items-center gap-3">
             <CollegeLogo size="sm" />
             <div>
               <span className="text-[10px] font-bold text-amber-300 uppercase tracking-widest block">
-                Official Computer-Based Testing Session
+                Official Computer-Based Testing Session &bull; Protected Anti-Cheat
               </span>
               <h2 className="text-base sm:text-lg font-black uppercase font-serif-crest text-white leading-tight">
+                {exam.courseCode ? `${exam.courseCode}: ` : ''}
                 {exam.title}
               </h2>
             </div>
           </div>
 
           <div className="flex items-center gap-4">
+            {/* Fullscreen Warning Indicator */}
+            {!submissionResult && fullscreenExitCount > 0 && (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[11px] font-bold">
+                <AlertOctagon className="w-3.5 h-3.5 text-amber-400" />
+                <span>Exits: {fullscreenExitCount}/3</span>
+              </div>
+            )}
+
             {/* Countdown Clock */}
             {!submissionResult && (
               <div
@@ -196,17 +351,19 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
         {/* Exam Body / Results View */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
           {submissionResult ? (
-            /* RESULT SUMMARY VIEW */
+            /* ======================================================== */
+            /* 5. AFTER SUBMIT: SHOW RESULT INSTANTLY                   */
+            /* ======================================================== */
             <div className="space-y-6 max-w-2xl mx-auto py-4">
               <div className="text-center space-y-2">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-800 rounded-3xl flex items-center justify-center mx-auto shadow-md">
-                  <Award className="w-8 h-8 text-[#22c55e]" />
+                <div className="w-16 h-16 bg-emerald-100 text-[#0a4d2e] rounded-3xl flex items-center justify-center mx-auto shadow-md">
+                  <Award className="w-8 h-8 text-[#16a34a]" />
                 </div>
                 <h3 className="text-2xl font-black uppercase font-serif-crest text-slate-900">
-                  CBT Test Submitted Successfully!
+                  CBT Examination Completed!
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Your answers have been graded and recorded in the academic database.
+                  Your responses have been graded and recorded in your permanent academic transcript.
                 </p>
               </div>
 
@@ -215,17 +372,19 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
                 <span className="text-xs uppercase font-bold text-emerald-300 tracking-widest">
                   Candidate Final Score
                 </span>
-                <div className="text-5xl font-black font-mono-code text-amber-400">
+                <div className="text-5xl font-black font-mono-code text-[#ca8a04]">
                   {submissionResult.score} / {submissionResult.totalQuestions}
                 </div>
                 <div className="text-base font-bold text-emerald-100">
                   Percentage: <strong className="text-white">{submissionResult.percentage}%</strong> &bull;{' '}
                   <span className="text-amber-300">
                     {submissionResult.percentage >= 70
-                      ? 'Distinction (Excellent)'
+                      ? 'Distinction (Grade A)'
+                      : submissionResult.percentage >= 60
+                      ? 'Credit (Grade B)'
                       : submissionResult.percentage >= 50
-                      ? 'Pass Standing'
-                      : 'Needs Improvement'}
+                      ? 'Pass Standing (Grade C)'
+                      : 'Fail / Retake Required'}
                   </span>
                 </div>
               </div>
@@ -233,7 +392,7 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
               {/* Review of Question Answers */}
               <div className="space-y-3">
                 <h4 className="font-bold text-slate-800 text-sm uppercase flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#22c55e]" />
+                  <CheckCircle2 className="w-4 h-4 text-[#16a34a]" />
                   <span>Test Review &amp; Explanations:</span>
                 </h4>
                 <div className="space-y-2.5">
@@ -249,30 +408,30 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
                             : 'bg-red-50 border-red-200'
                         }`}
                       >
-                        <div className="flex items-center justify-between font-bold">
-                          <span className="text-slate-900">
-                            Q{idx + 1}: {q.question}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-800">
+                            #{idx + 1}. {q.question}
                           </span>
                           <span
-                            className={`text-[10px] uppercase font-black px-2 py-0.5 rounded ${
-                              isCorrect ? 'bg-emerald-200 text-emerald-900' : 'bg-red-200 text-red-900'
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${
+                              isCorrect ? 'bg-emerald-200 text-[#0a4d2e]' : 'bg-red-200 text-red-800'
                             }`}
                           >
                             {isCorrect ? 'Correct' : 'Incorrect'}
                           </span>
                         </div>
-                        <p className="text-slate-600">
-                          Your Answer: <strong>{q.options[candidateChoice] || 'Not answered'}</strong>
-                        </p>
+                        <div className="text-[11px] text-slate-600">
+                          Your Answer: <strong>{q.options[candidateChoice] || 'No Answer'}</strong>
+                        </div>
                         {!isCorrect && (
-                          <p className="text-emerald-900 font-bold">
-                            Correct Answer: <strong>{q.options[q.correctAnswer]}</strong>
-                          </p>
+                          <div className="text-[11px] text-[#0a4d2e] font-bold">
+                            Correct Answer: {q.options[q.correctAnswer]}
+                          </div>
                         )}
                         {q.explanation && (
-                          <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200/60">
-                            Note: {q.explanation}
-                          </p>
+                          <div className="text-[10px] text-slate-500 italic mt-1 pt-1 border-t border-slate-200/60">
+                            Explanation: {q.explanation}
+                          </div>
                         )}
                       </div>
                     );
@@ -280,150 +439,178 @@ export const CBTExamSession: React.FC<CBTExamSessionProps> = ({
                 </div>
               </div>
 
-              <div className="pt-4 flex justify-center gap-3">
+              {/* Close Button */}
+              <div className="pt-4 text-center">
                 <button
                   onClick={onClose}
-                  className="px-6 py-2.5 bg-[#0a4d2e] hover:bg-[#073822] text-white rounded-xl font-bold text-xs shadow-md transition-all"
+                  className="px-8 py-3 bg-[#0a4d2e] hover:bg-[#073822] text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md transition-all"
                 >
                   Return to Dashboard
                 </button>
               </div>
             </div>
           ) : (
-            /* ACTIVE EXAM QUESTION INTERFACE */
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Question Stem & Options */}
-              <div className="lg:col-span-3 space-y-6">
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full uppercase tracking-wider">
-                      Question {currentQuestionIndex + 1} of {questions.length}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">
-                      Answered: <strong>{answeredCount}</strong> / {questions.length}
-                    </span>
-                  </div>
+            /* ======================================================== */
+            /* ACTIVE EXAM QUESTION INTERFACE                           */
+            /* ======================================================== */
+            <div className="space-y-6">
+              {/* Progress Tracker */}
+              <div className="flex items-center justify-between text-xs text-slate-500">
+                <span className="font-bold text-[#0a4d2e] uppercase">
+                  Question {currentQuestionIndex + 1} of {questions.length}
+                </span>
+                <span>
+                  Answered: <strong className="text-slate-900">{answeredCount}</strong> of{' '}
+                  {questions.length}
+                </span>
+              </div>
 
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-[#0a4d2e] h-full transition-all duration-300"
+                  style={{
+                    width: `${questions.length > 0 ? (answeredCount / questions.length) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+
+              {/* Question Item */}
+              {currentQ && (
+                <div className="space-y-4 py-2">
                   <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed">
-                    {currentQ?.question}
+                    {currentQ.question}
                   </h3>
-                </div>
 
-                {/* Options List */}
-                <div className="space-y-3">
-                  {currentQ?.options.map((opt, optIdx) => {
-                    const isSelected = selectedAnswers[currentQ.id] === optIdx;
-                    return (
-                      <button
-                        key={optIdx}
-                        onClick={() => handleSelectOption(currentQ.id, optIdx)}
-                        className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-center gap-3.5 text-xs sm:text-sm font-medium ${
-                          isSelected
-                            ? 'bg-emerald-50 border-[#0a4d2e] text-[#0a4d2e] shadow-sm font-bold'
-                            : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800'
-                        }`}
-                      >
-                        <span
-                          className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                  {/* Options List */}
+                  <div className="space-y-2.5">
+                    {currentQ.options.map((opt, optIdx) => {
+                      const isSelected = selectedAnswers[currentQ.id] === optIdx;
+                      const letter = String.fromCharCode(65 + optIdx);
+                      return (
+                        <button
+                          key={optIdx}
+                          type="button"
+                          onClick={() => handleSelectOption(currentQ.id, optIdx)}
+                          className={`w-full text-left p-4 rounded-2xl border text-xs sm:text-sm font-medium transition-all flex items-center gap-3.5 ${
                             isSelected
-                              ? 'bg-[#0a4d2e] text-white'
-                              : 'bg-slate-100 text-slate-600 border border-slate-300'
+                              ? 'bg-emerald-50 border-[#0a4d2e] text-[#0a4d2e] ring-2 ring-[#0a4d2e]/30 font-bold shadow-xs'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
                           }`}
                         >
-                          {['A', 'B', 'C', 'D'][optIdx]}
-                        </span>
-                        <span className="flex-1 leading-snug">{opt}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Navigation Buttons */}
-                <div className="pt-4 flex items-center justify-between border-t border-slate-200">
-                  <button
-                    onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
-                    disabled={currentQuestionIndex === 0}
-                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center gap-1.5 disabled:opacity-40"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    <span>Previous</span>
-                  </button>
-
-                  {currentQuestionIndex < questions.length - 1 ? (
-                    <button
-                      onClick={() =>
-                        setCurrentQuestionIndex((prev) =>
-                          Math.min(questions.length - 1, prev + 1)
-                        )
-                      }
-                      className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-md"
-                    >
-                      <span>Next Question</span>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleSubmitExam}
-                      className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md transition-all"
-                    >
-                      <Send className="w-4 h-4" />
-                      <span>Submit Examination</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Question Palette Sidebar */}
-              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4">
-                <span className="font-bold text-slate-800 text-xs uppercase tracking-wider block">
-                  Question Palette
-                </span>
-                <div className="grid grid-cols-5 gap-2">
-                  {questions.map((q, idx) => {
-                    const isAnswered = selectedAnswers[q.id] !== undefined;
-                    const isCurrent = currentQuestionIndex === idx;
-                    return (
-                      <button
-                        key={q.id}
-                        onClick={() => setCurrentQuestionIndex(idx)}
-                        className={`h-9 rounded-xl font-bold text-xs flex items-center justify-center transition-all ${
-                          isCurrent
-                            ? 'ring-2 ring-emerald-800 border-2 border-amber-400 bg-emerald-900 text-white'
-                            : isAnswered
-                            ? 'bg-[#0a4d2e] text-white shadow-2xs'
-                            : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        {idx + 1}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-3 border-t border-slate-200 space-y-1.5 text-[11px] text-slate-600">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-[#0a4d2e]"></span>
-                    <span>Answered ({answeredCount})</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded bg-white border border-slate-300"></span>
-                    <span>Unanswered ({questions.length - answeredCount})</span>
+                          <span
+                            className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                              isSelected
+                                ? 'bg-[#0a4d2e] text-white'
+                                : 'bg-slate-100 text-slate-500 border border-slate-200'
+                            }`}
+                          >
+                            {letter}
+                          </span>
+                          <span className="flex-1">{opt}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={handleSubmitExam}
-                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs shadow-xs"
-                  >
-                    Finish &amp; Submit
-                  </button>
-                </div>
-              </div>
+              )}
             </div>
           )}
         </div>
+
+        {/* Footer Navigation Bar (When Active) */}
+        {!submissionResult && (
+          <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
+                disabled={currentQuestionIndex === 0}
+                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-40 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Previous</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentQuestionIndex((prev) => Math.min(questions.length - 1, prev + 1))
+                }
+                disabled={currentQuestionIndex === questions.length - 1}
+                className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 disabled:opacity-40 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Question Quick Palette */}
+            <div className="hidden md:flex flex-wrap items-center gap-1">
+              {questions.map((q, idx) => {
+                const isAnswered = selectedAnswers[q.id] !== undefined;
+                const isCurrent = idx === currentQuestionIndex;
+                return (
+                  <button
+                    key={q.id}
+                    onClick={() => setCurrentQuestionIndex(idx)}
+                    className={`w-7 h-7 rounded-lg text-[10px] font-bold font-mono-code transition-all ${
+                      isCurrent
+                        ? 'bg-[#ca8a04] text-slate-950 ring-2 ring-amber-400 font-black'
+                        : isAnswered
+                        ? 'bg-[#0a4d2e] text-white'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowConfirmModal(true)}
+              className="px-6 py-2.5 bg-[#0a4d2e] hover:bg-[#073822] text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center gap-2"
+            >
+              <Send className="w-4 h-4 text-amber-300" />
+              <span>Submit Examination</span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl text-center">
+            <AlertTriangle className="w-12 h-12 text-[#ca8a04] mx-auto" />
+            <h3 className="text-lg font-black uppercase text-slate-900 font-serif-crest">
+              Confirm Examination Submission
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              You have answered <strong>{answeredCount}</strong> out of{' '}
+              <strong>{questions.length}</strong> questions. Are you sure you want to finish and submit now?
+            </p>
+            <div className="pt-2 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowConfirmModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+              >
+                Return to Exam
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSubmitExam()}
+                disabled={isSubmitting}
+                className="px-6 py-2 bg-[#0a4d2e] hover:bg-[#073822] text-white text-xs font-bold rounded-xl shadow-md"
+              >
+                {isSubmitting ? 'Submitting...' : 'Yes, Submit Exam'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

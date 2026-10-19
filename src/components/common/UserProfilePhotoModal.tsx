@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { User } from '../../types';
 import { StorageService } from '../../services/storage';
 import { compressImage } from '../../utils/imageCompressor';
+import { getSupabase, SUPABASE_BUCKET } from '../../lib/supabase';
 import {
   X,
   Upload,
@@ -33,12 +34,15 @@ export const UserProfilePhotoModal: React.FC<UserProfilePhotoModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [selectedRawFile, setSelectedRawFile] = useState<File | null>(null);
+
   if (!isOpen) return null;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedRawFile(file);
     setErrorMsg(null);
     setSuccessMsg(null);
     setCompressing(true);
@@ -59,17 +63,35 @@ export const UserProfilePhotoModal: React.FC<UserProfilePhotoModalProps> = ({
     }
   };
 
-  const handleSavePhoto = () => {
+  const handleSavePhoto = async () => {
     if (!previewUrl) {
       setErrorMsg('Please select or upload a photograph first.');
       return;
     }
 
     setSaving(true);
+    let finalUrl = previewUrl;
+
     try {
-      StorageService.updateUserProfilePhoto(currentUser.id, previewUrl);
+      const sb = getSupabase();
+      if (sb && selectedRawFile) {
+        const cleanName = selectedRawFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `passports/${Date.now()}-${cleanName}`;
+        const { error: uploadError } = await sb.storage
+          .from(SUPABASE_BUCKET)
+          .upload(fileName, selectedRawFile, { upsert: true });
+
+        if (!uploadError) {
+          const { data: urlData } = sb.storage.from(SUPABASE_BUCKET).getPublicUrl(fileName);
+          if (urlData?.publicUrl) {
+            finalUrl = urlData.publicUrl;
+          }
+        }
+      }
+
+      StorageService.updateUserProfilePhoto(currentUser.id, finalUrl);
       if (onPhotoUpdated) {
-        onPhotoUpdated(previewUrl);
+        onPhotoUpdated(finalUrl);
       }
       setSuccessMsg('Passport photograph saved permanently to your official record!');
       setTimeout(() => {

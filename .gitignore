@@ -8,3 +8,13 @@ coverage/
 !.env.example
 public/uploads/
 src/assets/uploads/
+public/*.png
+public/*.jpg
+public/*.jpeg
+public/*.webp
+src/assets/*
+*.png
+*.jpg
+*.jpeg
+*.webp
+logo*

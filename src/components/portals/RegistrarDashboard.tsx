@@ -14,10 +14,11 @@ import {
 } from 'lucide-react';
 
 import { CBTExamManager } from '../cbt/CBTExamManager';
+import { AdmissionProcessingView } from './AdmissionProcessingView';
 
 export const RegistrarDashboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>(StorageService.getStudents());
-  const [activeTab, setActiveTab] = useState<'students' | 'cbt'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'admissions' | 'cbt'>('students');
   const [searchTerm, setSearchTerm] = useState('');
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [selectedStudentForLetter, setSelectedStudentForLetter] = useState<Student | null>(null);
@@ -74,6 +75,18 @@ export const RegistrarDashboard: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('admissions')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'admissions'
+              ? 'bg-[#0a4d2e] text-white shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>Admissions Committee (/admissions)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('cbt')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeTab === 'cbt'
@@ -86,7 +99,9 @@ export const RegistrarDashboard: React.FC = () => {
         </button>
       </div>
 
-      {activeTab === 'cbt' ? (
+      {activeTab === 'admissions' ? (
+        <AdmissionProcessingView />
+      ) : activeTab === 'cbt' ? (
         <CBTExamManager
           currentUser={{
             id: 'LCNS/2026/RG/001',

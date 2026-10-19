@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import {
   User,
   UserRole,
@@ -14,6 +15,11 @@ import {
   GalleryItem,
   CBTExam,
   CBTSubmission,
+  CBTTest,
+  CBTQuestionItem,
+  CBTResult,
+  BursarAccount,
+  ScreeningScore,
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -30,6 +36,11 @@ const STORAGE_KEYS = {
   CMS: 'lcns_erp_cms_config',
   CBT_EXAMS: 'lcns_erp_cbt_exams',
   CBT_SUBMISSIONS: 'lcns_erp_cbt_submissions',
+  BURSAR_ACCOUNTS: 'lcns_erp_bursar_accounts',
+  CBT_TESTS: 'lcns_erp_cbt_tests',
+  CBT_QUESTIONS: 'lcns_erp_cbt_questions',
+  CBT_RESULTS: 'lcns_erp_cbt_results',
+  SCREENING_SCORES: 'lcns_erp_screening_scores',
 };
 
 const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
@@ -854,7 +865,7 @@ const INITIAL_AUDIT_LOGS: AuditLog[] = [
     user: 'info@lcns.edu.ng',
     role: 'ADMIN',
     action: 'System Boot & Backup Verification',
-    details: 'College ERP database verified and synchronised with Google Sheets backend.',
+    details: 'College ERP database verified and synchronised with Supabase PostgreSQL and Storage backend.',
   },
   {
     id: 'log-002',
@@ -883,7 +894,7 @@ const INITIAL_AUDIT_LOGS: AuditLog[] = [
 ];
 
 const INITIAL_CMS: CMSConfig = {
-  logoUrl: '/assets/lcns-logo-original.jpg',
+  logoUrl: 'https://ais-dev-h7ovcvw6vczn6bp7vy6hdi-436922063103.europe-west2.run.app/assets/lcns-logo-original.jpg',
   provostPhotoUrl: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&q=80&w=600',
   provostName: 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN',
   provostTitle: 'Provost, Labe College of Nursing Sciences',
@@ -892,10 +903,6 @@ const INITIAL_CMS: CMSConfig = {
   bishopName: 'Most Rev. William Avenya',
   bishopTitle: 'Catholic Bishop of Gboko & College Proprietor',
   bishopMessage: 'May the almighty God bless and guide all who enter Labe College of Nursing Sciences to learn, to serve, and to save. We envision this noble citadel of learning as a sanctuary where medical skill meets Christian love and dedicated service to humanity.',
-  governorPhotoUrl: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&q=80&w=600',
-  governorName: 'H.E. Rev. Fr. Dr. Hyacinth Iormem Alia',
-  governorTitle: 'Executive Governor of Benue State',
-  governorMessage: 'Establishing Labe College of Nursing Sciences by Benue State Law is our covenant to transform healthcare delivery and educate world-class nursing professionals rooted in clinical excellence and the fear of God.',
   gallery: [
     {
       id: 'gal-1',
@@ -912,14 +919,6 @@ const INITIAL_CMS: CMSConfig = {
       category: 'Campus & Facilities',
       date: '2026-10-01',
       description: 'Comfortable, safe, and fully serviced student residence with 24/7 security, solar power, and continuous water supply.'
-    },
-    {
-      id: 'gal-3',
-      imageUrl: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?auto=format&fit=crop&q=80&w=800',
-      title: 'Executive Visit of Governor H.E. Rev. Fr. Dr. Hyacinth Iormem Alia',
-      category: 'Ceremonies & Events',
-      date: '2026-10-02',
-      description: 'Official inspection and commissioning address by the Executive Governor of Benue State, patron of healthcare development.'
     },
     {
       id: 'gal-4',
@@ -1170,6 +1169,145 @@ const INITIAL_CBT_SUBMISSIONS: CBTSubmission[] = [
   }
 ];
 
+const INITIAL_BURSAR_ACCOUNTS: BursarAccount[] = [
+  {
+    id: 'ba-001',
+    application_number: 'LCNS/APP/2026/014',
+    applicant_name: 'Deborah Vershima',
+    amount: 15000,
+    payment_proof_url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=800',
+    exam_number: 'LCNS/EXAM/2025/001',
+    cleared_date: '2026-02-10T10:30:00Z',
+    status: 'CLEARED',
+  },
+  {
+    id: 'ba-002',
+    application_number: 'LCNS/APP/2026/102',
+    applicant_name: 'Mngunengen Cynthia Aondo',
+    amount: 15000,
+    payment_proof_url: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=800',
+    exam_number: 'LCNS/EXAM/2025/002',
+    cleared_date: '2026-02-12T14:15:00Z',
+    status: 'CLEARED',
+  },
+];
+
+const INITIAL_CBT_TESTS: CBTTest[] = [
+  {
+    id: 'test-attitude-01',
+    title: 'Attitude Test',
+    duration_minutes: 30,
+    is_active: true,
+    created_at: '2026-02-01T09:00:00Z',
+  },
+];
+
+const INITIAL_CBT_QUESTIONS: CBTQuestionItem[] = [
+  {
+    id: 'q-1',
+    test_id: 'test-attitude-01',
+    question: 'A nurse discovers a patient crying quietly in bed after receiving a clinical diagnosis. What is the most appropriate initial professional response?',
+    option_a: 'Sit beside the patient, demonstrate active listening and empathetic therapeutic presence',
+    option_b: 'Tell the patient to stop crying because modern medicine is advanced',
+    option_c: 'Immediately close the door and leave the patient alone to grieve',
+    option_d: 'Administer an unprescribed sedative medication to calm them down',
+    correct_answer: 'option_a',
+    marks: 1,
+  },
+  {
+    id: 'q-2',
+    test_id: 'test-attitude-01',
+    question: 'In nursing ethics, the principle of Non-maleficence requires a healthcare professional to:',
+    option_a: 'Always act in a manner that inflicts no harm on the patient',
+    option_b: 'Disclose patient records to unauthorized family members',
+    option_c: 'Prioritize personal comfort over urgent clinical emergency calls',
+    option_d: 'Charge extra fees for routine vital signs observations',
+    correct_answer: 'option_a',
+    marks: 1,
+  },
+  {
+    id: 'q-3',
+    test_id: 'test-attitude-01',
+    question: 'What is the normal resting adult human body temperature range?',
+    option_a: '36.5°C – 37.5°C',
+    option_b: '34.0°C – 35.0°C',
+    option_c: '39.0°C – 40.5°C',
+    option_d: '31.0°C – 33.0°C',
+    correct_answer: 'option_a',
+    marks: 1,
+  },
+  {
+    id: 'q-4',
+    test_id: 'test-attitude-01',
+    question: 'Effective communication in collegiate nursing care entails:',
+    option_a: 'Clear, compassionate, respectful, and culturally sensitive interaction with patients and team members',
+    option_b: 'Using complex medical jargon that patients cannot understand',
+    option_c: 'Ignoring patient feedback and concerns',
+    option_d: 'Speaking in an aggressive tone to ensure obedience',
+    correct_answer: 'option_a',
+    marks: 1,
+  },
+  {
+    id: 'q-5',
+    test_id: 'test-attitude-01',
+    question: 'When administering medications, which of the following is NOT one of the traditional "Five Rights" of medication administration?',
+    option_a: 'Right Hospital Bed Frame',
+    option_b: 'Right Patient',
+    option_c: 'Right Medication',
+    option_d: 'Right Dose',
+    correct_answer: 'option_a',
+    marks: 1,
+  },
+];
+
+const INITIAL_CBT_RESULTS: CBTResult[] = [
+  {
+    id: 'res-001',
+    application_number: 'LCNS/APP/2026/014',
+    exam_number: 'LCNS/EXAM/2025/001',
+    score: 88,
+    total: 100,
+    answers_json: { 'q-1': 'option_a', 'q-2': 'option_a', 'q-3': 'option_a', 'q-4': 'option_a', 'q-5': 'option_a' },
+    is_published: true,
+    submitted_at: '2026-02-18T11:00:00Z',
+    test_id: 'test-attitude-01',
+  },
+  {
+    id: 'res-002',
+    application_number: 'LCNS/APP/2026/102',
+    exam_number: 'LCNS/EXAM/2025/002',
+    score: 80,
+    total: 100,
+    answers_json: { 'q-1': 'option_a', 'q-2': 'option_a', 'q-3': 'option_a', 'q-4': 'option_a' },
+    is_published: true,
+    submitted_at: '2026-02-18T11:45:00Z',
+    test_id: 'test-attitude-01',
+  },
+];
+
+const INITIAL_SCREENING_SCORES: ScreeningScore[] = [
+  {
+    id: 'sc-001',
+    application_number: 'LCNS/APP/2026/014',
+    screening_score: 42,
+    interview_score: 46,
+    total_score: 88,
+    remarks: 'Candidate demonstrated exemplary aptitude in biological sciences and clinical communication.',
+    is_published: true,
+    created_at: '2026-02-20',
+  },
+  {
+    id: 'sc-002',
+    application_number: 'LCNS/APP/2026/102',
+    screening_score: 38,
+    interview_score: 42,
+    total_score: 80,
+    remarks: 'Strong aptitude test performance; cleared for provisional admission.',
+    is_published: true,
+    created_at: '2026-02-20',
+  },
+];
+
 // Helper to get from local storage or set initial
 function getStorage<T>(key: string, defaultVal: T): T {
   try {
@@ -1197,11 +1335,47 @@ function setStorage<T>(key: string, val: T): void {
 
 export const StorageService = {
   getUsers: (): (User & { password?: string; pin?: string })[] => {
-    const users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
+    let users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
+    try {
+      const backupRaw = localStorage.getItem('lcns_permanent_users_backup');
+      if (backupRaw) {
+        const backupUsers: (User & { password?: string; pin?: string })[] = JSON.parse(backupRaw);
+        if (Array.isArray(backupUsers) && backupUsers.length > 0) {
+          let updated = false;
+          for (const bu of backupUsers) {
+            const idx = users.findIndex(
+              (u) =>
+                u.id === bu.id || u.email.toLowerCase() === bu.email.toLowerCase()
+            );
+            if (idx === -1) {
+              users.unshift(bu);
+              updated = true;
+            } else if (bu.password && users[idx].password !== bu.password) {
+              users[idx].password = bu.password;
+              updated = true;
+            }
+          }
+          if (updated) {
+            setStorage(STORAGE_KEYS.USERS, users);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
     const deletedUserIds: string[] = getStorage('lcns_deleted_user_ids', []);
     return users.filter((u) => !deletedUserIds.includes(u.id) && !deletedUserIds.includes(u.email));
   },
-  saveUsers: (users: (User & { password?: string; pin?: string })[]) => setStorage(STORAGE_KEYS.USERS, users),
+  saveUsers: (users: (User & { password?: string; pin?: string })[]) => {
+    setStorage(STORAGE_KEYS.USERS, users);
+    try {
+      // Also update backup
+      const nonDefaultUsers = users.filter((u) => !INITIAL_USERS.some((init) => init.id === u.id));
+      localStorage.setItem('lcns_permanent_users_backup', JSON.stringify(nonDefaultUsers));
+    } catch {
+      // ignore
+    }
+  },
 
   deleteUser: (userId: string): (User & { password?: string; pin?: string })[] => {
     const users = StorageService.getUsers();
@@ -1340,16 +1514,82 @@ export const StorageService = {
     return `LCNS/${sub}/${year}/${String(count).padStart(4, '0')}`;
   },
 
-  clearApplicantByBursar: (applicantId: string, remarks?: string): Applicant[] => {
+  generateExamNumber: (year = 2025): string => {
+    const existing = StorageService.getApplicants();
+    const accounts = StorageService.getBursarAccounts();
+    const count = Math.max(
+      existing.filter((a) => a.examNumber || a.exam_number).length,
+      accounts.length
+    ) + 1;
+    return `LCNS/EXAM/${year}/${String(count).padStart(3, '0')}`;
+  },
+
+  clearApplicantByBursar: (applicantId: string, remarks?: string, customExamNo?: string): Applicant[] => {
+    const applicants = StorageService.getApplicants();
+    let assignedExamNumber = customExamNo;
+    let clearedApp: Applicant | null = null;
+
+    const updated = applicants.map((a) => {
+      if (a.id === applicantId || a.formNo === applicantId) {
+        if (!assignedExamNumber) {
+          assignedExamNumber = a.examNumber || a.exam_number || StorageService.generateExamNumber(2025);
+        }
+        clearedApp = {
+          ...a,
+          examNumber: assignedExamNumber,
+          exam_number: assignedExamNumber,
+          bursarCleared: true,
+          bursar_cleared: true,
+          bursarStatus: 'CLEARED' as const,
+          bursarRemarks: remarks || 'Bank payment proof verified & cleared.',
+          bursarClearedDate: new Date().toISOString().split('T')[0],
+          bursarClearanceDate: new Date().toISOString(),
+          bursar_clearance_date: new Date().toISOString(),
+          status: 'BURSAR_CLEARED' as const,
+        };
+        return clearedApp;
+      }
+      return a;
+    });
+    StorageService.saveApplicants(updated);
+
+    if (clearedApp) {
+      const targetApp: Applicant = clearedApp;
+      const accounts = StorageService.getBursarAccounts();
+      const existingAccount = accounts.find((acc) => acc.application_number === targetApp.formNo);
+      if (!existingAccount) {
+        const newAccount: BursarAccount = {
+          id: 'ba-' + Date.now(),
+          application_number: targetApp.formNo,
+          applicant_name: targetApp.fullName,
+          amount: 15000,
+          payment_proof_url: targetApp.paymentReceiptPdfUrl || '',
+          exam_number: assignedExamNumber || targetApp.examNumber || '',
+          cleared_date: new Date().toISOString(),
+          status: 'CLEARED',
+        };
+        StorageService.saveBursarAccounts([newAccount, ...accounts]);
+      }
+    }
+
+    StorageService.logAction(
+      'bursar@lcns.edu.ng',
+      'BURSAR',
+      'BURSAR_CLEARANCE',
+      `Cleared applicant ${applicantId} after payment verification. Exam Number: ${assignedExamNumber || 'Assigned'}`
+    );
+    return updated;
+  },
+
+  assignExamNumber: (applicantId: string, customExamNo?: string): { applicants: Applicant[]; examNumber: string } => {
+    const examNumber = customExamNo || StorageService.generateExamNumber(2025);
     const applicants = StorageService.getApplicants();
     const updated = applicants.map((a) => {
       if (a.id === applicantId || a.formNo === applicantId) {
         return {
           ...a,
-          bursarStatus: 'CLEARED' as const,
-          bursarRemarks: remarks || 'Bank payment proof verified & cleared.',
-          bursarClearedDate: new Date().toISOString().split('T')[0],
-          status: 'BURSAR_CLEARED' as const,
+          examNumber,
+          exam_number: examNumber,
         };
       }
       return a;
@@ -1358,11 +1598,30 @@ export const StorageService = {
     StorageService.logAction(
       'bursar@lcns.edu.ng',
       'BURSAR',
-      'BURSAR_CLEARANCE',
-      `Cleared applicant ${applicantId} after payment verification`
+      'ASSIGN_EXAM_NUMBER',
+      `Assigned Exam Number ${examNumber} to candidate ${applicantId}`
     );
-    return updated;
+    return { applicants: updated, examNumber };
   },
+
+  getBursarAccounts: (): BursarAccount[] => getStorage(STORAGE_KEYS.BURSAR_ACCOUNTS, INITIAL_BURSAR_ACCOUNTS),
+  saveBursarAccounts: (accounts: BursarAccount[]) => setStorage(STORAGE_KEYS.BURSAR_ACCOUNTS, accounts),
+
+  getCBTTests: (): CBTTest[] => getStorage(STORAGE_KEYS.CBT_TESTS, INITIAL_CBT_TESTS),
+  saveCBTTests: (tests: CBTTest[]) => setStorage(STORAGE_KEYS.CBT_TESTS, tests),
+
+  getCBTQuestions: (testId?: string): CBTQuestionItem[] => {
+    const list = getStorage(STORAGE_KEYS.CBT_QUESTIONS, INITIAL_CBT_QUESTIONS);
+    if (testId) return list.filter((q) => q.test_id === testId);
+    return list;
+  },
+  saveCBTQuestions: (questions: CBTQuestionItem[]) => setStorage(STORAGE_KEYS.CBT_QUESTIONS, questions),
+
+  getCBTResults: (): CBTResult[] => getStorage(STORAGE_KEYS.CBT_RESULTS, INITIAL_CBT_RESULTS),
+  saveCBTResults: (results: CBTResult[]) => setStorage(STORAGE_KEYS.CBT_RESULTS, results),
+
+  getScreeningScores: (): ScreeningScore[] => getStorage(STORAGE_KEYS.SCREENING_SCORES, INITIAL_SCREENING_SCORES),
+  saveScreeningScores: (scores: ScreeningScore[]) => setStorage(STORAGE_KEYS.SCREENING_SCORES, scores),
 
   rejectApplicantByBursar: (applicantId: string, remarks: string): Applicant[] => {
     const applicants = StorageService.getApplicants();
@@ -1542,8 +1801,15 @@ export const StorageService = {
       };
     }
 
-    users[userIndex].password = newPass;
-    setStorage(STORAGE_KEYS.USERS, users);
+    let hashedPassword = newPass;
+    try {
+      hashedPassword = bcrypt.hashSync(newPass, 10);
+    } catch {
+      hashedPassword = 'plain:' + newPass;
+    }
+
+    users[userIndex].password = hashedPassword;
+    StorageService.saveUsers(users);
 
     StorageService.logAction(
       users[userIndex].email,
@@ -1622,6 +1888,11 @@ export const StorageService = {
     localStorage.setItem(STORAGE_KEYS.CMS, JSON.stringify(INITIAL_CMS));
     localStorage.setItem(STORAGE_KEYS.CBT_EXAMS, JSON.stringify(INITIAL_CBT_EXAMS));
     localStorage.setItem(STORAGE_KEYS.CBT_SUBMISSIONS, JSON.stringify(INITIAL_CBT_SUBMISSIONS));
+    localStorage.setItem(STORAGE_KEYS.BURSAR_ACCOUNTS, JSON.stringify(INITIAL_BURSAR_ACCOUNTS));
+    localStorage.setItem(STORAGE_KEYS.CBT_TESTS, JSON.stringify(INITIAL_CBT_TESTS));
+    localStorage.setItem(STORAGE_KEYS.CBT_QUESTIONS, JSON.stringify(INITIAL_CBT_QUESTIONS));
+    localStorage.setItem(STORAGE_KEYS.CBT_RESULTS, JSON.stringify(INITIAL_CBT_RESULTS));
+    localStorage.setItem(STORAGE_KEYS.SCREENING_SCORES, JSON.stringify(INITIAL_SCREENING_SCORES));
     window.dispatchEvent(new Event('lcns_storage_update'));
   }
 };

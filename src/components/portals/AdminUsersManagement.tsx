@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { User, UserRole } from '../../types';
 import { StorageService } from '../../services/storage';
+import { ApiService } from '../../services/api';
 import {
   Users,
   Search,
@@ -22,6 +23,7 @@ import {
   Camera,
 } from 'lucide-react';
 import { UserProfilePhotoModal } from '../common/UserProfilePhotoModal';
+import { getSupabase } from '../../lib/supabase';
 
 export const AdminUsersManagement: React.FC = () => {
   const [users, setUsers] = useState<(User & { password?: string; pin?: string })[]>(
@@ -63,13 +65,54 @@ export const AdminUsersManagement: React.FC = () => {
   const [formDept, setFormDept] = useState('Department of Nursing Sciences');
   const [formCustomPass, setFormCustomPass] = useState('');
 
-  // Sync users on storage update
+  const loadUsers = async () => {
+    const localUsers = StorageService.getUsers();
+    const sb = getSupabase();
+    if (sb) {
+      try {
+        const { data, error } = await sb.from('users').select('*').order('created_at', { ascending: false });
+        if (!error && data && data.length > 0) {
+          const formatted = data.map((u: any) => ({
+            id: u.id,
+            email: u.email,
+            password: u.password,
+            pin: u.pin || '123456',
+            role: (u.role || 'STUDENT').toUpperCase() as UserRole,
+            fullName: u.full_name || u.fullName || u.email,
+            phone: u.phone || '',
+            department: u.department || 'Department of Nursing Sciences',
+            status: (u.status || 'ACTIVE').toUpperCase() as any,
+            createdAt: u.created_at ? u.created_at.split('T')[0] : '',
+          }));
+
+          const merged = [...formatted];
+          for (const lu of localUsers) {
+            if (!merged.some((m) => m.email.toLowerCase() === lu.email.toLowerCase())) {
+              merged.push(lu);
+            }
+          }
+          setUsers(merged);
+          return;
+        }
+      } catch (err) {
+        console.warn('Error fetching Supabase users in AdminUsersManagement:', err);
+      }
+    }
+    setUsers(localUsers);
+  };
+
+  // Sync users on mount and storage update
   useEffect(() => {
+    loadUsers();
     const handleStorageUpdate = () => {
-      setUsers(StorageService.getUsers());
+      loadUsers();
     };
     window.addEventListener('lcns_storage_update', handleStorageUpdate);
-    return () => window.removeEventListener('lcns_storage_update', handleStorageUpdate);
+    window.addEventListener('lcns_users_update', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('lcns_storage_update', handleStorageUpdate);
+      window.removeEventListener('lcns_users_update', handleStorageUpdate);
+    };
   }, []);
 
   // Filtered and searched users
@@ -127,12 +170,19 @@ export const AdminUsersManagement: React.FC = () => {
     }
 
     StorageService.deleteUser(userToDelete.id);
+    const sb = getSupabase();
+    if (sb) {
+      sb.from('users')
+        .delete()
+        .or(`id.eq.${userToDelete.id},email.eq.${userToDelete.email}`)
+        .then(() => loadUsers());
+    }
     setUsers(StorageService.getUsers());
     setUserToDelete(null);
     setDeleteConfirmationText('');
   };
 
-  const handleCreateUserSubmit = (e: React.FormEvent) => {
+  const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formFullName || !formEmail) return;
 
@@ -143,24 +193,19 @@ export const AdminUsersManagement: React.FC = () => {
       formRole === 'STUDENT' ? StorageService.generateMatricNumber(formLevel) : undefined;
     const finalPassword = formCustomPass.trim() || 'admin123';
 
-    const newUser: User & { password?: string; pin?: string } = {
-      id: newId,
-      email: formEmail.trim().toLowerCase(),
+    const res = await ApiService.createUser({
       fullName: formFullName.trim(),
+      email: formEmail.trim().toLowerCase(),
       phone: formPhone.trim() || '08126799565',
       role: formRole,
       department: formDept,
       level: formRole === 'STUDENT' ? formLevel : undefined,
       matricNo: newMatricNo,
-      pin: newPin,
       password: finalPassword,
-      status: 'ACTIVE',
-      createdAt: new Date().toISOString().split('T')[0],
-    };
+      pin: newPin,
+    });
 
-    const currentUsers = StorageService.getUsers();
-    StorageService.saveUsers([newUser, ...currentUsers]);
-    setUsers(StorageService.getUsers());
+    await loadUsers();
 
     // Show credential popup
     setCreatedCredentials({
