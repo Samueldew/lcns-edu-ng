@@ -17,10 +17,11 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
   variant = 'main',
 }) => {
   const settingKey = variant === 'white' ? 'school_logo_white' : 'school_logo';
-  const FALLBACK_LOGO = '/lcns-logo.png.jpg'; // Your GitHub uploaded file
+  // Use GitHub raw URL - works even without public folder
+  const FALLBACK_LOGO = 'https://raw.githubusercontent.com/Samueldew/lcns-edu-ng/main/lcns-logo.png.jpg';
   
   const initialLogo = overrideLogoUrl || getLocalSettings()[settingKey] || undefined;
-  const [logoUrl, setLogoUrl] = useState<string | undefined>(initialLogo);
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(initialLogo || FALLBACK_LOGO);
   const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
@@ -34,21 +35,9 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
       if (url) {
         setLogoUrl(url);
         setImgError(false);
-      } else if (!logoUrl) {
-        // Fallback to GitHub logo if DB has nothing
-        setLogoUrl(FALLBACK_LOGO);
       }
     };
     loadFromDb();
-    const handleSettingsUpdate = (e: any) => {
-      if (!e.detail || e.detail.key === settingKey) loadFromDb();
-    };
-    window.addEventListener('lcns_school_settings_update', handleSettingsUpdate);
-    window.addEventListener('lcns_storage_update', handleSettingsUpdate);
-    return () => {
-      window.removeEventListener('lcns_school_settings_update', handleSettingsUpdate);
-      window.removeEventListener('lcns_storage_update', handleSettingsUpdate);
-    };
   }, [overrideLogoUrl, settingKey]);
 
   const sizeMap = {
@@ -59,43 +48,22 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
     '2xl': 'w-48 h-48 text-2xl',
   };
 
-  const [sizeClass, textClass] = sizeMap[size].split(' ');
+  const [sizeClass] = sizeMap[size].split(' ');
   
   return (
     <div className={`inline-flex items-center gap-3 ${className}`}>
-      <div className={`relative ${sizeClass} shrink-0 transition-transform duration-300 hover:scale-105 drop-shadow-sm`}>
-        {logoUrl && !imgError ? (
-          <img
-            src={logoUrl}
-            alt="Labe College of Nursing Sciences Emblem"
-            onError={() => {
-              // If Supabase logo fails, use GitHub logo
-              if (logoUrl !== FALLBACK_LOGO) {
-                setLogoUrl(FALLBACK_LOGO);
-              } else {
-                setImgError(true);
-              }
-            }}
-            className="w-full h-full object-contain rounded-full bg-white"
-          />
-        ) : (
-          <img
-            src={FALLBACK_LOGO}
-            alt="LCNS"
-            className="w-full h-full object-contain rounded-full bg-white p-1"
-            onError={() => setImgError(true)}
-          />
-        )}
+      <div className={`relative ${sizeClass} shrink-0`}>
+        <img
+          src={imgError ? FALLBACK_LOGO : logoUrl}
+          alt="LCNS Logo"
+          onError={() => setImgError(false)}
+          className="w-full h-full object-contain rounded-full bg-white p-1 shadow"
+        />
       </div>
-
       {showText && (
         <div className="flex flex-col">
-          <span className="font-extrabold text-[#0a4d2e] tracking-tight leading-tight text-lg uppercase">
-            Labe College of Nursing Sciences
-          </span>
-          <span className="text-xs font-semibold text-[#0a4d2e] tracking-wider uppercase">
-            Gboko, Benue State • Learn, Serve & Save
-          </span>
+          <span className="font-extrabold text-[#0a4d2e] text-lg uppercase">Labe College of Nursing Sciences</span>
+          <span className="text-xs font-semibold text-[#0a4d2e] uppercase">Gboko, Benue State</span>
         </div>
       )}
     </div>
