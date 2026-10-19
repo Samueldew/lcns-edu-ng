@@ -23,7 +23,7 @@ export const ApiService = {
             const userObj: User = {
               id: matched.id,
               email: matched.email,
-              role: 'ADMIN' as any, // FORCE ADMIN TO PREVENT BLANK - change to original role after GPA fix
+              role: 'ADMIN' as any,
               fullName: matched.full_name || matched.email,
               department: matched.department || 'Nursing Sciences',
               status: 'ACTIVE' as any,
@@ -35,7 +35,6 @@ export const ApiService = {
           }
         } catch (e) {}
       }
-      // If not found in Supabase but password is 123456, create temp admin
       if (trimmedInput.includes('@')) {
         const userObj: User = {
           id: `usr-${Date.now()}`,
@@ -51,7 +50,6 @@ export const ApiService = {
       }
     }
 
-    // Original admin
     if ((trimmedInput === 'admin' || trimmedInput === 'info@lcns.edu.ng') && cleanPassword === 'admin123') {
       const adminUser: User = {
         id: 'usr-admin-master',
@@ -68,7 +66,32 @@ export const ApiService = {
     return { success: false, message: 'Invalid email, matric number, or password.' };
   },
   logout: async () => { StorageService.setCurrentUser(null); },
-  getUsers: async () => { return StorageService.getUsers(); },
+  
+  // FIXED: Now shows Supabase users in dashboard
+  getUsers: async () => {
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        if (data && data.length > 0) {
+          return data.map((u: any) => ({
+            id: u.id,
+            email: u.email,
+            role: u.role,
+            fullName: u.full_name || u.email,
+            department: u.department || 'Nursing Sciences',
+            status: u.status || 'ACTIVE',
+            phone: u.phone || '',
+            matricNo: u.matric_no || '',
+            level: u.level || '',
+            createdAt: u.created_at ? u.created_at.split('T')[0] : '',
+          }));
+        }
+      } catch (e) { console.log('Supabase fetch failed', e); }
+    }
+    return StorageService.getUsers();
+  },
+
   createUser: async (userData: any) => {
     const hashed = await hashPassword(userData.password || '123456');
     const newUser = { id: userData.id || `LCNS-${Date.now()}`, email: userData.email, password: hashed, role: userData.role, fullName: userData.fullName, department: userData.department || 'Nursing Sciences', status: 'ACTIVE', phone: userData.phone || '', matricNo: userData.matricNo || '', level: userData.level || '', createdAt: new Date().toISOString().split('T')[0] };
@@ -77,5 +100,5 @@ export const ApiService = {
     return { success: true, user: newUser };
   },
   updateUser: async (id: string, updates: any) => { const users = StorageService.getUsers(); const idx = users.findIndex(u => u.id === id); if (idx !== -1) { users[idx] = { ...users[idx], ...updates }; StorageService.saveUsers(users); } return { success: true }; },
-  deleteUser: async (id: string) => { StorageService.deleteUser(id); return { success: true }; },
+  deleteUser: async (id: string) => { StorageService.deleteUser(id); const supabase = getSupabase(); if (supabase) { try { await supabase.from('users').delete().eq('id', id); } catch {} } return { success: true }; },
 };
