@@ -1,170 +1,141 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StorageService } from '../../services/storage';
-import { COLLEGE_CONFIG } from '../../types';
-import { 
-  Users, 
-  Settings, 
-  Image as ImageIcon, 
-  BookOpen, 
-  GraduationCap,
-  Search,
-  Plus,
-  Trash2,
-  Upload,
-  Save
-} from 'lucide-react';
+import { SUPABASE_BUCKET } from '../../services/supabase';
+import { AdminSettings } from './AdminSettings';
+import { AdminManagement } from './AdminManagement';
+import { AdminGallery } from './AdminGallery';
+import { CBTExamManager } from '../cbt/CBTExamManager';
+import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Calendar, Users, Database, BookOpen } from 'lucide-react';
+import { StudentPromotion } from './StudentPromotion';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 
-interface Props {
-  initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system';
+interface AdminDashboardProps {
+  initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants';
 }
 
-export const AdminDashboard: React.FC<Props> = ({ initialTab = 'management' }) => {
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [users, setUsers] = useState(StorageService.getUsers ? StorageService.getUsers() : []);
-  const [courses, setCourses] = useState(StorageService.getCourses ? StorageService.getCourses() : JSON.parse(localStorage.getItem('lcns_courses')||'[]'));
-  const [gallery, setGallery] = useState(JSON.parse(localStorage.getItem('lcns_gallery')||'[]'));
-  const [search, setSearch] = useState('');
-  const [showAddCourse, setShowAddCourse] = useState(false);
-  const [newCourse, setNewCourse] = useState({ code: '', title: '', level: 'ND 1', semester: 'First', lecturer: '' });
-  const [pictureUrl, setPictureUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) => {
+  const [users, setUsers] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>(() => JSON.parse(localStorage.getItem('lcns_courses') || '[]'));
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [activeAdminTab, setActiveAdminTab] = useState<
+    'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants'
+  >(initialTab || 'settings');
 
-  const lecturers = users.filter((u:any) => u.role === 'LECTURER' || u.role === 'HOD');
+  useEffect(() => {
+    try {
+      const allUsers = StorageService.getUsers ? StorageService.getUsers() : JSON.parse(localStorage.getItem('lcns_users') || '[]');
+      setUsers(allUsers);
+    } catch {}
+  }, [activeAdminTab]);
 
-  const handlePictureUpload = (e: any) => {
-    const file = e.target.files[0];
-    if (file) {
-      setUploading(true);
-      const reader = new FileReader();
-      reader.onload = () => {
-        const url = reader.result as string;
-        setPictureUrl(url);
-        // Save to gallery
-        const newGallery = [...gallery, { id: Date.now(), url, title: file.name, date: new Date().toISOString() }];
-        setGallery(newGallery);
-        localStorage.setItem('lcns_gallery', JSON.stringify(newGallery));
-        setUploading(false);
-        alert('Picture uploaded! Check Gallery tab');
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleAllocateCourse = () => {
-    if (!newCourse.code || !newCourse.title || !newCourse.lecturer) {
-      alert('Fill all fields');
-      return;
-    }
-    const course = { id: Date.now(), ...newCourse, createdAt: new Date().toISOString() };
-    const newCourses = [...courses, course];
-    setCourses(newCourses);
-    localStorage.setItem('lcns_courses', JSON.stringify(newCourses));
-    if (StorageService.saveCourses) StorageService.saveCourses(newCourses);
-    setShowAddCourse(false);
-    setNewCourse({ code: '', title: '', level: 'ND 1', semester: 'First', lecturer: '' });
-  };
-
-  const filteredCourses = courses.filter((c:any) => `${c.code} ${c.title} ${c.lecturer}`.toLowerCase().includes(search.toLowerCase()));
+  const lecturers = users.filter((u: any) => u.role === 'LECTURER' || u.role === 'HOD');
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-3xl p-6 shadow-xl">
-        <h1 className="text-2xl font-black">Admin Dashboard - Director of ICT</h1>
-        <p className="text-xs text-slate-300">Course Allocation to Lecturers + All Applicants Link - Super Fine - Fixed Import Path + Picture Upload</p>
+    <div className="space-y-8">
+      <div className="bg-gradient-to-r from-slate-900 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-900">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal</span>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2">
+              <GraduationCap className="w-8 h-8 text-amber-400"/>
+              Administrator Dashboard
+            </h1>
+            <p className="text-xs text-emerald-200 mt-1">
+              Supabase PostgreSQL • Bucket: {SUPABASE_BUCKET} • Cross-Device Sync • {localStorage.getItem('lcns_current_session') || '2025/2026'} Session • Users: {users.length} • Lecturers: {lecturers.length}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border shadow-sm no-print">
-        <button onClick={()=>setActiveTab('management')} className={`px-4 py-2.5 rounded-xl text-xs font-black flex gap-2 items-center ${activeTab==='management'?'bg-slate-900 text-white':'bg-slate-100'}`}><BookOpen className="w-4 h-4"/>📚 Allocate Courses to Lecturers</button>
-        <button onClick={()=>setActiveTab('users')} className={`px-4 py-2.5 rounded-xl text-xs font-black flex gap-2 items-center ${activeTab==='users'?'bg-slate-900 text-white':'bg-slate-100'}`}><Users className="w-4 h-4"/>Users - Lecturers</button>
-        <button onClick={()=>setActiveTab('gallery')} className={`px-4 py-2.5 rounded-xl text-xs font-black flex gap-2 items-center ${activeTab==='gallery'?'bg-slate-900 text-white':'bg-slate-100'}`}><ImageIcon className="w-4 h-4"/>Gallery - Pictures</button>
-        <button onClick={()=>setActiveTab('settings')} className={`px-4 py-2.5 rounded-xl text-xs font-black flex gap-2 items-center ${activeTab==='settings'?'bg-slate-900 text-white':'bg-slate-100'}`}><Settings className="w-4 h-4"/>Settings</button>
-        <button onClick={()=>setActiveTab('system')} className={`px-4 py-2.5 rounded-xl text-xs font-black flex gap-2 items-center ${activeTab==='system'?'bg-purple-700 text-white':'bg-slate-100'}`}><GraduationCap className="w-4 h-4"/>🎓 All Applicants Records</button>
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <button onClick={() => setActiveAdminTab('promotion')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${activeAdminTab === 'promotion' ? 'bg-amber-500 text-black shadow-md ring-2 ring-amber-300' : 'text-slate-600 hover:text-slate-900 hover:bg-amber-50 border border-amber-200'}`}>
+          <ArrowUpCircle className="w-4 h-4" />
+          <span>Promote Students & New Session 2026/2027</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-black text-amber-400 font-bold">NEW</span>
+        </button>
+
+        <button onClick={() => setActiveAdminTab('courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${activeAdminTab === 'courses' ? 'bg-emerald-700 text-white shadow-md ring-2 ring-emerald-300' : 'text-emerald-800 hover:bg-emerald-50 border-2 border-emerald-300'}`}>
+          <BookOpen className="w-4 h-4" />
+          <span>📚 Allocate Courses to Lecturers</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-black text-white font-bold">{courses.length}</span>
+        </button>
+
+        <button onClick={() => setActiveAdminTab('applicants')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${activeAdminTab === 'applicants' ? 'bg-purple-700 text-white shadow-md ring-2 ring-purple-300' : 'text-purple-800 hover:bg-purple-50 border-2 border-purple-300'}`}>
+          <GraduationCap className="w-4 h-4" />
+          <span>🎓 All Applicants - CBT + Interview + Admit</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black font-bold">SUPER FINE</span>
+        </button>
+
+        <button onClick={() => setActiveAdminTab('settings')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'settings' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <Sliders className="w-4 h-4 text-[#ca8a04]" />
+          <span>School Settings</span>
+        </button>
+        <button onClick={() => setActiveAdminTab('management')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'management' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <Users className="w-4 h-4 text-emerald-400" />
+          <span>Management Team</span>
+        </button>
+        <button onClick={() => setActiveAdminTab('gallery')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'gallery' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <Camera className="w-4 h-4 text-amber-400" />
+          <span>Photo Gallery</span>
+        </button>
+        <button onClick={() => setActiveAdminTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'users' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <UserCheck className="w-4 h-4 text-emerald-400" />
+          <span>Users & Roles</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white font-bold">{users.length}</span>
+        </button>
+        <button onClick={() => setActiveAdminTab('cbt')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'cbt' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <Award className="w-4 h-4 text-amber-400" />
+          <span>CBT Tests</span>
+        </button>
+        <button onClick={() => setActiveAdminTab('system')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'system' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
+          <Database className="w-4 h-4 text-emerald-400" />
+          <span>Sync & Health</span>
+        </button>
       </div>
 
-      {activeTab==='management' && (
+      {activeAdminTab === 'promotion' && <StudentPromotion />}
+      {activeAdminTab === 'settings' && <AdminSettings />}
+      {activeAdminTab === 'management' && <AdminManagement />}
+      {activeAdminTab === 'gallery' && <AdminGallery />}
+      {activeAdminTab === 'users' && (
+        <div className="bg-white rounded-2xl border p-4">
+          <h3 className="font-black">Users Information - {users.length} Users Found</h3>
+          <div className="mt-3 grid gap-2">
+            {users.map((u:any) => (
+              <div key={u.email} className="flex justify-between border p-2 rounded-xl text-xs">
+                <span className="font-bold">{u.fullName} | {u.email} | {u.role}</span>
+                <span className="bg-green-100 px-2 rounded">{u.status || 'ACTIVE'}</span>
+              </div>
+            ))}
+            {users.length===0 && <p className="text-xs text-red-500">No users in localStorage - Create users in Management or check Supabase connection</p>}
+          </div>
+        </div>
+      )}
+      {activeAdminTab === 'cbt' && <CBTExamManager currentUser={{id:'admin',email:'admin@lcns.edu.ng',role:'ADMIN',fullName:'Admin',status:'ACTIVE'}} />}
+      {activeAdminTab === 'courses' && (
         <div className="bg-white rounded-3xl border-2 p-4 space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="font-black text-lg">📚 Course Allocation - Admin Assigns to Lecturer</h2>
-              <p className="text-xs">Lecturer sees on portal - {courses.length} courses - {lecturers.length} lecturers found</p>
-            </div>
-            <button onClick={()=>setShowAddCourse(true)} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1"><Plus className="w-4 h-4"/>+ Allocate Course</button>
-          </div>
-
-          <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border">
-            <Search className="w-4 h-4 text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search code, title, lecturer..." className="flex-1 py-2 text-xs bg-transparent outline-none"/>
-          </div>
-
+          <h2 className="font-black">📚 Course Allocation - {courses.length} Courses - {lecturers.length} Lecturers</h2>
           <div className="overflow-x-auto border-2 rounded-xl">
             <table className="w-full text-xs">
-              <thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Code</th><th className="p-2 text-left">Title</th><th className="p-2 text-left">Level/Sem</th><th className="p-2 text-left">Lecturer</th><th className="p-2">Action</th></tr></thead>
-              <tbody>
-                {filteredCourses.length===0 ? <tr><td colSpan={5} className="p-8 text-center text-slate-400 font-black">No courses - Click + Allocate - Create LECTURER accounts first</td></tr> :
-                filteredCourses.map((c:any)=>(
-                  <tr key={c.id} className="border-b hover:bg-slate-50"><td className="p-2 font-mono font-black">{c.code}</td><td className="p-2 font-bold">{c.title}</td><td className="p-2">{c.level} / {c.semester}</td><td className="p-2">{c.lecturer}</td><td className="p-2 text-center"><button onClick={()=>{const nc=courses.filter((x:any)=>x.id!==c.id);setCourses(nc);localStorage.setItem('lcns_courses',JSON.stringify(nc))}} className="p-1 bg-red-100 text-red-700 rounded"><Trash2 className="w-4 h-4"/></button></td></tr>
-                ))}
-              </tbody>
+              <thead className="bg-slate-900 text-white"><tr><th className="p-2">Code</th><th className="p-2">Title</th><th className="p-2">Lecturer</th></tr></thead>
+              <tbody>{courses.map((c:any)=><tr key={c.id} className="border-b"><td className="p-2 font-mono font-black">{c.code}</td><td className="p-2">{c.title}</td><td className="p-2">{c.lecturer}</td></tr>)}</tbody>
             </table>
           </div>
-
-          {showAddCourse && (
-            <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-3">
-                <h3 className="font-black">Allocate Course to Lecturer</h3>
-                <input value={newCourse.code} onChange={e=>setNewCourse({...newCourse,code:e.target.value})} placeholder="Course Code e.g NRS 111" className="w-full border rounded-xl p-2 text-xs"/>
-                <input value={newCourse.title} onChange={e=>setNewCourse({...newCourse,title:e.target.value})} placeholder="Course Title" className="w-full border rounded-xl p-2 text-xs"/>
-                <select value={newCourse.level} onChange={e=>setNewCourse({...newCourse,level:e.target.value})} className="w-full border rounded-xl p-2 text-xs"><option>ND 1</option><option>ND 2</option><option>HND 1</option><option>HND 2</option></select>
-                <select value={newCourse.semester} onChange={e=>setNewCourse({...newCourse,semester:e.target.value})} className="w-full border rounded-xl p-2 text-xs"><option>First</option><option>Second</option></select>
-                <select value={newCourse.lecturer} onChange={e=>setNewCourse({...newCourse,lecturer:e.target.value})} className="w-full border rounded-xl p-2 text-xs">
-                  <option value="">Select Lecturer</option>
-                  {lecturers.map((l:any)=><option key={l.email} value={l.fullName}>{l.fullName} - {l.email}</option>)}
-                </select>
-                <div className="flex gap-2"><button onClick={()=>setShowAddCourse(false)} className="flex-1 py-2 bg-slate-100 rounded-xl text-xs font-black">Cancel</button><button onClick={handleAllocateCourse} className="flex-1 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">Save Allocation</button></div>
-              </div>
-            </div>
-          )}
+          <p className="text-[11px] text-slate-500">Create lecturers in Users & Roles tab first, then allocate here</p>
         </div>
       )}
-
-      {activeTab==='gallery' && (
-        <div className="bg-white rounded-3xl border-2 p-6 space-y-4">
-          <h2 className="font-black text-lg">Gallery - Set Pictures</h2>
-          <div className="border-2 border-dashed rounded-2xl p-8 text-center space-y-3">
-            <Upload className="w-8 h-8 mx-auto text-slate-400"/>
-            <p className="text-xs font-bold">Upload College Pictures - Provost, Registrar, Campus</p>
-            <input type="file" accept="image/*" onChange={handlePictureUpload} className="text-xs"/>
-            {uploading && <p className="text-xs text-amber-600">Uploading...</p>}
-            {pictureUrl && <img src={pictureUrl} alt="preview" className="w-32 h-32 object-cover mx-auto rounded-xl border-2"/>}
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {gallery.map((g:any)=><div key={g.id} className="border rounded-xl overflow-hidden"><img src={g.url} alt={g.title} className="w-full h-24 object-cover"/><p className="p-1 text-[10px] font-bold truncate">{g.title}</p></div>)}
-          </div>
-          {gallery.length===0 && <p className="text-xs text-slate-400 text-center">No pictures yet - Upload above</p>}
-        </div>
-      )}
-
-      {activeTab==='users' && (
-        <div className="bg-white rounded-3xl border-2 p-4">
-          <h2 className="font-black">Lecturers: {lecturers.length} found</h2>
-          <div className="mt-3 space-y-2">{lecturers.map((l:any)=><div key={l.email} className="flex justify-between border p-2 rounded-xl text-xs"><span className="font-bold">{l.fullName} - {l.email} - {l.role}</span><span className="bg-green-100 px-2 rounded">{l.status}</span></div>)}</div>
-          {lecturers.length===0 && <p className="text-xs text-red-500 mt-2">No lecturers - Go to Settings tab to create LECTURER accounts - You cleared code!</p>}
-        </div>
-      )}
-
-      {activeTab==='system' && (
+      {activeAdminTab === 'applicants' && (
         <div className="space-y-4">
-          <div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">All Applicants Records - CBT + Interview + Admit - Super Fine Link</div>
-          <AdminAdmissionManager currentUser={{id:'admin',email:'admin@lcns.edu.ng',role:'ADMIN',fullName:'Admin',status:'ACTIVE'}} />
+          <div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">🎓 All Applicants Records - CBT + Interview + Admit - Super Fine Link - With Picture</div>
+          <AdminAdmissionManager currentUser={{id:'admin',email:'admin@lcns.edu.ng',role:'ADMIN',fullName:'Admin - Director of ICT',status:'ACTIVE'}} />
         </div>
       )}
-
-      {activeTab==='settings' && (
-        <div className="bg-white rounded-3xl border-2 p-6">
-          <h2 className="font-black">College Settings - Pictures + Info</h2>
-          <p className="text-xs mt-2">College Name: {COLLEGE_CONFIG.NAME}</p>
-          <p className="text-xs">Session: {COLLEGE_CONFIG.CURRENT_SESSION}</p>
-          <p className="text-xs mt-4 font-bold">To restore your old picture settings, check GitHub history for AdminDashboard.tsx before today</p>
+      {activeAdminTab === 'system' && (
+        <div className="bg-white rounded-2xl border p-6 text-xs">
+          <h3 className="font-black">System Health</h3>
+          <p>Session: {localStorage.getItem('lcns_current_session') || '2025/2026'}</p>
+          <p>Users: {users.length}</p>
+          <p>Bucket: {SUPABASE_BUCKET}</p>
         </div>
       )}
     </div>
