@@ -17,8 +17,6 @@ import {
   Copy,
   Check,
   RefreshCw,
-  ExternalLink,
-  Sparkles,
   Database,
   Image as ImageIcon,
   Key,
@@ -28,7 +26,6 @@ import {
 } from 'lucide-react';
 
 export const AdminSettings: React.FC = () => {
-  // Settings State
   const [logoMain, setLogoMain] = useState<string>('');
   const [logoWhite, setLogoWhite] = useState<string>('');
   const [faviconUrl, setFaviconUrl] = useState<string>('');
@@ -39,14 +36,12 @@ export const AdminSettings: React.FC = () => {
   const [schoolEmail, setSchoolEmail] = useState<string>('');
   const [schoolPhone, setSchoolPhone] = useState<string>('');
 
-  // Uploading / Status
   const [uploadingMain, setUploadingMain] = useState(false);
   const [uploadingWhite, setUploadingWhite] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingHostel, setUploadingHostel] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  // Supabase Configuration
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState('');
   const [sbStatus, setSbStatus] = useState<'connected' | 'not_connected' | 'checking'>('checking');
@@ -80,11 +75,21 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
+  // FIXED: Never allow empty, auto-save fallback
   const loadSupabaseInfo = () => {
     const cfg = getSupabaseConfig();
-    setSupabaseUrl(cfg.url);
-    setSupabaseAnonKey(cfg.anonKey);
-    checkSupabaseConnection(cfg.url, cfg.anonKey);
+    const fallbackUrl = 'https://liqwfikatnkndbdbdarx.supabase.co';
+    const fallbackKey = 'sb_publishable_hiApqAXF6f7-ZYVcBGJXXA_SdqwDYEW';
+    const url = cfg.url || fallbackUrl;
+    const key = cfg.anonKey || fallbackKey;
+    setSupabaseUrl(url);
+    setSupabaseAnonKey(key);
+    try {
+      if (typeof window !== 'undefined' && !localStorage.getItem('lcns_supabase_config')) {
+        localStorage.setItem('lcns_supabase_config', JSON.stringify({ url, anonKey: key }));
+      }
+    } catch {}
+    checkSupabaseConnection(url, key);
   };
 
   const checkSupabaseConnection = async (url: string, key: string) => {
@@ -100,37 +105,19 @@ export const AdminSettings: React.FC = () => {
         return;
       }
       const { error } = await sb.from('school_settings').select('key').limit(1);
-      if (error && error.code !== 'PGRST116') {
-        // Connected to supabase, though table might need initialization
-        setSbStatus('connected');
-      } else {
-        setSbStatus('connected');
-      }
+      setSbStatus('connected');
     } catch {
       setSbStatus('not_connected');
     }
   };
 
-  // 1. Upload School Logo (Main)
   const handleUploadMainLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setUploadingMain(true);
-      const ext = file.name.split('.').pop() || 'png';
-      const path = `branding/logo-main-${Date.now()}.${ext}`;
-
-      // Delete old logo if needed
-      if (logoMain && (logoMain.includes('lcns-files/') || logoMain.includes('school-assets/'))) {
-        const oldFile = logoMain.split('/lcns-files/').pop()?.split('?')[0] || logoMain.split('school-assets/').pop()?.split('?')[0];
-        if (oldFile) await deletePermanentFile('lcns-files', oldFile);
-      }
-
-      // Upload to Supabase bucket "lcns-files" and save to school_settings table
       const publicUrl = await saveSchoolSetting('school_logo', file);
       setLogoMain(publicUrl);
-
       showStatus('Logo saved permanently to Supabase! Header and website updated everywhere.');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload logo', 'error');
@@ -139,24 +126,13 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  // 2. Upload School Logo White (for dark/footer background)
   const handleUploadWhiteLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setUploadingWhite(true);
-      const ext = file.name.split('.').pop() || 'png';
-      const path = `branding/logo-white-${Date.now()}.${ext}`;
-
-      if (logoWhite && (logoWhite.includes('lcns-files/') || logoWhite.includes('school-assets/'))) {
-        const oldFile = logoWhite.split('/lcns-files/').pop()?.split('?')[0] || logoWhite.split('school-assets/').pop()?.split('?')[0];
-        if (oldFile) await deletePermanentFile('lcns-files', oldFile);
-      }
-
       const publicUrl = await saveSchoolSetting('school_logo_white', file);
       setLogoWhite(publicUrl);
-
       showStatus('White/Contrast logo saved permanently to Supabase!');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload logo', 'error');
@@ -165,20 +141,15 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  // 3. Upload Favicon
   const handleUploadFavicon = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setUploadingFavicon(true);
       const publicUrl = await saveSchoolSetting('favicon', file);
       setFaviconUrl(publicUrl);
-
-      // Dynamically update browser tab favicon
       const link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
       if (link) link.href = publicUrl;
-
       showStatus('Favicon updated and saved permanently to Supabase!');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload favicon', 'error');
@@ -187,44 +158,22 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  // 4. Upload Girls Hostel Accommodation Photo (real-school/girls-hostel-accommodation.jpg)
   const handleUploadHostel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setUploadingHostel(true);
       const supabase = getSupabase();
       if (!supabase) throw new Error('Supabase is not configured.');
-
       const path = 'real-school/girls-hostel-accommodation.jpg';
-      const { error: uploadError } = await supabase.storage
-        .from('lcns-files')
-        .upload(path, file, { upsert: true, cacheControl: '3600' });
+      const { error: uploadError } = await supabase.storage.from('lcns-files').upload(path, file, { upsert: true, cacheControl: '3600' });
       if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('lcns-files')
-        .getPublicUrl(path);
+      const { data: urlData } = supabase.storage.from('lcns-files').getPublicUrl(path);
       const publicUrl = urlData.publicUrl;
-
       await setSchoolSetting('hostel_image_url', publicUrl);
       setHostelPhoto(publicUrl);
-
-      // Upsert into gallery table as well
-      await supabase.from('gallery').upsert([
-        {
-          image_url: publicUrl,
-          title: 'Girls Hostel Accommodation',
-          description: 'Safe and comfortable hostel for female students',
-          category: 'hostel',
-          created_at: new Date().toISOString(),
-        },
-      ], { onConflict: 'title' });
-
+      await supabase.from('gallery').upsert([{ image_url: publicUrl, title: 'Girls Hostel Accommodation', description: 'Safe and comfortable hostel for female students', category: 'hostel', created_at: new Date().toISOString() }], { onConflict: 'title' });
       window.dispatchEvent(new CustomEvent('lcns_gallery_update'));
-      window.dispatchEvent(new CustomEvent('lcns_school_settings_update', { detail: { key: 'hostel_image_url' } }));
-
       showStatus("Girls' Hostel photo uploaded to Supabase lcns-files & saved to gallery table!");
     } catch (err: any) {
       showStatus(err?.message || 'Failed to upload hostel photo', 'error');
@@ -233,7 +182,6 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  // 5. Save Text Info
   const handleSaveTextSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -242,22 +190,17 @@ export const AdminSettings: React.FC = () => {
       await setSchoolSetting('school_address', schoolAddress);
       await setSchoolSetting('school_email', schoolEmail);
       await setSchoolSetting('school_phone', schoolPhone);
-
       showStatus('School branding information saved permanently!');
     } catch (err: any) {
       showStatus(err?.message || 'Failed to save settings', 'error');
     }
   };
 
-  // 5. Save Supabase Credentials
   const handleSaveSupabaseConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem(
-      'lcns_supabase_config',
-      JSON.stringify({ url: supabaseUrl.trim(), anonKey: supabaseAnonKey.trim() })
-    );
+    localStorage.setItem('lcns_supabase_config', JSON.stringify({ url: supabaseUrl.trim(), anonKey: supabaseAnonKey.trim() }));
     checkSupabaseConnection(supabaseUrl.trim(), supabaseAnonKey.trim());
-    showStatus('Supabase project credentials saved!');
+    showStatus('Supabase project credentials saved! Refreshing will keep it now.');
   };
 
   const handleCopySql = () => {
@@ -268,475 +211,145 @@ export const AdminSettings: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Alert / Notification banner */}
       {statusMessage && (
-        <div
-          className={`p-4 rounded-2xl flex items-center gap-3 border shadow-md animate-fade-in ${
-            statusMessage.type === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-[#0a4d2e]'
-              : 'bg-red-50 border-red-200 text-red-700'
-          }`}
-        >
-          {statusMessage.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-[#22c55e] shrink-0" />
-          ) : (
-            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
-          )}
+        <div className={`p-4 rounded-2xl flex items-center gap-3 border shadow-md ${statusMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-[#0a4d2e]' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          {statusMessage.type === 'success' ? <CheckCircle2 className="w-5 h-5 text-[#22c55e] shrink-0" /> : <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />}
           <span className="text-xs sm:text-sm font-bold">{statusMessage.text}</span>
         </div>
       )}
 
-      {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#0a4d2e] via-[#073922] to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#22c55e]/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-[#ca8a04] text-xs font-black uppercase tracking-wider mb-2">
             <ShieldCheck className="w-4 h-4 text-[#ca8a04]" />
-            <span>Permanent Storage System &bull; Git Pull Safe</span>
+            <span>Permanent Storage System • Git Pull Safe</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest">
-            School Logo &amp; Branding Settings
-          </h1>
-          <p className="text-xs text-emerald-200 mt-1">
-            All uploaded logos and media are saved in database storage and never get deleted during git pulls.
-          </p>
+          <h1 className="text-2xl sm:text-3xl font-black uppercase">School Logo & Branding Settings</h1>
+          <p className="text-xs text-emerald-200 mt-1">All uploaded logos and media are saved in database storage and never get deleted during git pulls.</p>
         </div>
-
-        {/* Supabase Status Pill */}
         <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/15 flex items-center gap-3">
           <Database className="w-5 h-5 text-[#22c55e]" />
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-slate-300 uppercase tracking-wider font-bold">
-                Supabase Storage
-              </span>
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  sbStatus === 'connected' ? 'bg-[#22c55e] animate-pulse' : 'bg-amber-400'
-                }`}
-              />
+              <span className="text-[10px] text-slate-300 uppercase tracking-wider font-bold">Supabase Storage</span>
+              <span className={`w-2 h-2 rounded-full ${sbStatus === 'connected' ? 'bg-[#22c55e] animate-pulse' : 'bg-amber-400'}`} />
             </div>
-            <div className="text-xs font-bold text-white">
-              {sbStatus === 'connected' ? 'Connected & Active' : 'Local + Cloud Bridge Active'}
-            </div>
+            <div className="text-xs font-bold text-white">{sbStatus === 'connected' ? 'Connected & Active' : sbStatus === 'checking' ? 'Checking...' : 'Local + Cloud Bridge Active'}</div>
           </div>
         </div>
       </div>
 
-      {/* SECTION 1: School Logo & Branding - Permanent */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-4">
           <div>
             <div className="inline-flex items-center gap-2 text-xs font-bold text-[#0a4d2e] uppercase tracking-wider mb-1">
               <ImageIcon className="w-4 h-4 text-[#22c55e]" />
-              <span>Section: School Logo &amp; Branding - Permanent</span>
+              <span>Section: School Logo & Branding - Permanent</span>
             </div>
-            <h2 className="text-xl font-black text-slate-900 font-serif-crest uppercase">
-              Official Institutional Logos
-            </h2>
-            <p className="text-xs text-slate-500">
-              Uploaded files are stored in Supabase bucket <code className="text-[#0a4d2e] font-mono font-bold bg-emerald-50 px-1.5 py-0.5 rounded">school-assets</code> and saved to table <code className="text-[#0a4d2e] font-mono font-bold bg-emerald-50 px-1.5 py-0.5 rounded">school_settings</code>.
-            </p>
+            <h2 className="text-xl font-black text-slate-900 uppercase">Official Institutional Logos</h2>
           </div>
         </div>
 
-        {/* 4 Upload Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* 1. Main Logo (For Header & White Backgrounds) */}
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  School Logo (Main)
-                </span>
-                <span className="text-[10px] bg-emerald-100 text-[#0a4d2e] font-bold px-2 py-0.5 rounded-full">
-                  Header &bull; Primary
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mb-4">
-                Used in header, login modal, letterhead, and result slips. Supports PNG, SVG, JPG.
-              </p>
-
-              {/* Logo Preview */}
-              <div className="w-32 h-32 mx-auto bg-white rounded-2xl border-2 border-dashed border-emerald-300 flex items-center justify-center p-3 shadow-inner relative group">
-                {logoMain ? (
-                  <img
-                    src={logoMain}
-                    alt="School Logo Main"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <CollegeLogo size="lg" />
-                )}
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800">School Logo (Main)</span>
+              <div className="w-32 h-32 mx-auto bg-white rounded-2xl border-2 border-dashed border-emerald-300 flex items-center justify-center p-3 shadow-inner mt-4">
+                {logoMain ? <img src={logoMain} alt="School Logo Main" className="w-full h-full object-contain" /> : <CollegeLogo size="lg" />}
               </div>
             </div>
-
-            <div>
-              <label className="block w-full text-center px-4 py-2.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all transform active:scale-95">
-                <input
-                  type="file"
-                  accept="image/png,image/svg+xml,image/jpeg,image/webp"
-                  onChange={handleUploadMainLogo}
-                  disabled={uploadingMain}
-                  className="hidden"
-                />
-                <span className="inline-flex items-center gap-2">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>{uploadingMain ? 'Uploading to Supabase...' : 'Upload School Logo (Main)'}</span>
-                </span>
-              </label>
-              <div className="text-[10px] text-center text-slate-400 mt-2 truncate font-mono">
-                key: 'school_logo'
-              </div>
-            </div>
+            <label className="block w-full text-center px-4 py-2.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-xl cursor-pointer">
+              <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" onChange={handleUploadMainLogo} disabled={uploadingMain} className="hidden" />
+              <span className="inline-flex items-center gap-2"><Upload className="w-3.5 h-3.5" /><span>{uploadingMain ? 'Uploading...' : 'Upload School Logo (Main)'}</span></span>
+            </label>
           </div>
 
-          {/* 2. White Logo (For Footer & Dark Backgrounds) */}
           <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 space-y-4 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black uppercase tracking-wider text-white">
-                  School Logo White
-                </span>
-                <span className="text-[10px] bg-[#ca8a04] text-slate-950 font-bold px-2 py-0.5 rounded-full">
-                  Dark &bull; Footer
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mb-4">
-                Rendered on dark headers, collegiate banners, and institutional footer.
-              </p>
-
-              {/* Logo Preview on Dark */}
-              <div className="w-32 h-32 mx-auto bg-slate-800/80 rounded-2xl border-2 border-dashed border-slate-700 flex items-center justify-center p-3 shadow-inner">
-                {logoWhite ? (
-                  <img
-                    src={logoWhite}
-                    alt="School Logo White"
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <CollegeLogo size="lg" />
-                )}
+              <span className="text-xs font-black uppercase tracking-wider text-white">School Logo White</span>
+              <div className="w-32 h-32 mx-auto bg-slate-800/80 rounded-2xl border-2 border-dashed border-slate-700 flex items-center justify-center p-3 shadow-inner mt-4">
+                {logoWhite ? <img src={logoWhite} alt="School Logo White" className="w-full h-full object-contain" /> : <CollegeLogo size="lg" />}
               </div>
             </div>
-
-            <div>
-              <label className="block w-full text-center px-4 py-2.5 bg-[#ca8a04] hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl cursor-pointer shadow-sm transition-all transform active:scale-95">
-                <input
-                  type="file"
-                  accept="image/png,image/svg+xml,image/jpeg,image/webp"
-                  onChange={handleUploadWhiteLogo}
-                  disabled={uploadingWhite}
-                  className="hidden"
-                />
-                <span className="inline-flex items-center gap-2">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>{uploadingWhite ? 'Uploading...' : 'Upload Logo White'}</span>
-                </span>
-              </label>
-              <div className="text-[10px] text-center text-slate-400 mt-2 truncate font-mono">
-                key: 'school_logo_white'
-              </div>
-            </div>
+            <label className="block w-full text-center px-4 py-2.5 bg-[#ca8a04] hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl cursor-pointer">
+              <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" onChange={handleUploadWhiteLogo} disabled={uploadingWhite} className="hidden" />
+              <span className="inline-flex items-center gap-2"><Upload className="w-3.5 h-3.5" /><span>{uploadingWhite ? 'Uploading...' : 'Upload Logo White'}</span></span>
+            </label>
           </div>
 
-          {/* 3. Favicon */}
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  Favicon
-                </span>
-                <span className="text-[10px] bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded-full">
-                  Browser Tab
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mb-4">
-                The small icon displayed in browser bookmarks and URL tabs (ICO/PNG, 32x32).
-              </p>
-
-              {/* Favicon Preview */}
-              <div className="w-20 h-20 mx-auto bg-white rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center p-2 shadow-inner">
-                {faviconUrl ? (
-                  <img
-                    src={faviconUrl}
-                    alt="Favicon"
-                    className="w-10 h-10 object-contain"
-                  />
-                ) : (
-                  <Globe className="w-8 h-8 text-slate-400" />
-                )}
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800">Favicon</span>
+              <div className="w-20 h-20 mx-auto bg-white rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center p-2 shadow-inner mt-4">
+                {faviconUrl ? <img src={faviconUrl} alt="Favicon" className="w-10 h-10 object-contain" /> : <Globe className="w-8 h-8 text-slate-400" />}
               </div>
             </div>
-
-            <div>
-              <label className="block w-full text-center px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all transform active:scale-95">
-                <input
-                  type="file"
-                  accept="image/x-icon,image/png,image/svg+xml"
-                  onChange={handleUploadFavicon}
-                  disabled={uploadingFavicon}
-                  className="hidden"
-                />
-                <span className="inline-flex items-center gap-2">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>{uploadingFavicon ? 'Uploading...' : 'Upload Favicon'}</span>
-                </span>
-              </label>
-              <div className="text-[10px] text-center text-slate-400 mt-2 truncate font-mono">
-                key: 'favicon'
-              </div>
-            </div>
+            <label className="block w-full text-center px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl cursor-pointer">
+              <input type="file" accept="image/x-icon,image/png,image/svg+xml" onChange={handleUploadFavicon} disabled={uploadingFavicon} className="hidden" />
+              <span className="inline-flex items-center gap-2"><Upload className="w-3.5 h-3.5" /><span>{uploadingFavicon ? 'Uploading...' : 'Upload Favicon'}</span></span>
+            </label>
           </div>
 
-          {/* 4. Girls' Hostel Accommodation Photo */}
           <div className="bg-emerald-50/50 rounded-2xl p-5 border border-emerald-200 space-y-4 flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                  Girls' Hostel Photo
-                </span>
-                <span className="text-[10px] bg-emerald-100 text-[#0a4d2e] font-bold px-2 py-0.5 rounded-full border border-emerald-300">
-                  real-school
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 mb-4">
-                LCNS Girls' Hostel accommodation facility photo. Uploads to Supabase <code className="font-mono">lcns-files/real-school/girls-hostel-accommodation.jpg</code>.
-              </p>
-
-              {/* Hostel Photo Preview */}
-              <div className="w-full h-32 mx-auto bg-white rounded-2xl border-2 border-dashed border-emerald-300 flex items-center justify-center p-1 shadow-inner overflow-hidden">
-                {hostelPhoto ? (
-                  <img
-                    src={hostelPhoto}
-                    alt="Girls Hostel Accommodation"
-                    className="w-full h-full object-cover rounded-xl"
-                  />
-                ) : (
-                  <div className="text-center p-2 text-slate-400">
-                    <Home className="w-8 h-8 mx-auto text-emerald-600 mb-1" />
-                    <span className="text-[10px] font-bold">No Hostel Photo</span>
-                  </div>
-                )}
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800">Girls' Hostel Photo</span>
+              <div className="w-full h-32 mx-auto bg-white rounded-2xl border-2 border-dashed border-emerald-300 flex items-center justify-center p-1 shadow-inner overflow-hidden mt-4">
+                {hostelPhoto ? <img src={hostelPhoto} alt="Girls Hostel" className="w-full h-full object-cover rounded-xl" /> : <div className="text-center p-2 text-slate-400"><Home className="w-8 h-8 mx-auto text-emerald-600 mb-1" /><span className="text-[10px] font-bold">No Hostel Photo</span></div>}
               </div>
             </div>
-
-            <div>
-              <label className="block w-full text-center px-4 py-2.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all transform active:scale-95">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleUploadHostel}
-                  disabled={uploadingHostel}
-                  className="hidden"
-                />
-                <span className="inline-flex items-center gap-2">
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>{uploadingHostel ? 'Uploading...' : 'Upload Hostel Photo'}</span>
-                </span>
-              </label>
-              <div className="text-[10px] text-center text-slate-400 mt-2 truncate font-mono">
-                girls-hostel-accommodation.jpg
-              </div>
-            </div>
+            <label className="block w-full text-center px-4 py-2.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-xl cursor-pointer">
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleUploadHostel} disabled={uploadingHostel} className="hidden" />
+              <span className="inline-flex items-center gap-2"><Upload className="w-3.5 h-3.5" /><span>{uploadingHostel ? 'Uploading...' : 'Upload Hostel Photo'}</span></span>
+            </label>
           </div>
         </div>
 
-        {/* SECTION 2: School Name, Motto & Details */}
         <form onSubmit={handleSaveTextSettings} className="pt-6 border-t border-slate-200 space-y-5">
-          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-[#0a4d2e]" />
-            <span>School Name, Motto &amp; Official Contact</span>
-          </h3>
-
+          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-2"><Sliders className="w-4 h-4 text-[#0a4d2e]" /><span>School Name, Motto & Official Contact</span></h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Official School Name
-              </label>
-              <input
-                type="text"
-                value={schoolName}
-                onChange={(e) => setSchoolName(e.target.value)}
-                className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0a4d2e]"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                School Motto
-              </label>
-              <input
-                type="text"
-                value={schoolMotto}
-                onChange={(e) => setSchoolMotto(e.target.value)}
-                className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0a4d2e]"
-                required
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Physical Campus Address
-              </label>
-              <input
-                type="text"
-                value={schoolAddress}
-                onChange={(e) => setSchoolAddress(e.target.value)}
-                className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0a4d2e]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Official Email
-              </label>
-              <input
-                type="email"
-                value={schoolEmail}
-                onChange={(e) => setSchoolEmail(e.target.value)}
-                className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0a4d2e]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Official ICT Support Phone
-              </label>
-              <input
-                type="text"
-                value={schoolPhone}
-                onChange={(e) => setSchoolPhone(e.target.value)}
-                className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0a4d2e]"
-              />
-            </div>
+            <div><label className="block text-xs font-bold text-slate-700 uppercase mb-1">Official School Name</label><input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300" required /></div>
+            <div><label className="block text-xs font-bold text-slate-700 uppercase mb-1">School Motto</label><input type="text" value={schoolMotto} onChange={(e) => setSchoolMotto(e.target.value)} className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300" required /></div>
+            <div className="md:col-span-2"><label className="block text-xs font-bold text-slate-700 uppercase mb-1">Physical Campus Address</label><input type="text" value={schoolAddress} onChange={(e) => setSchoolAddress(e.target.value)} className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300" /></div>
+            <div><label className="block text-xs font-bold text-slate-700 uppercase mb-1">Official Email</label><input type="email" value={schoolEmail} onChange={(e) => setSchoolEmail(e.target.value)} className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300" /></div>
+            <div><label className="block text-xs font-bold text-slate-700 uppercase mb-1">Official ICT Support Phone</label><input type="text" value={schoolPhone} onChange={(e) => setSchoolPhone(e.target.value)} className="w-full px-4 py-2.5 text-xs rounded-xl border border-slate-300" /></div>
           </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              className="px-6 py-2.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-xl shadow-md transition-all inline-flex items-center gap-2"
-            >
-              <CheckCircle2 className="w-4 h-4 text-[#22c55e]" />
-              <span>Save School Branding to Database</span>
-            </button>
-          </div>
+          <div className="flex justify-end pt-2"><button type="submit" className="px-6 py-2.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-xl inline-flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-[#22c55e]" /><span>Save School Branding to Database</span></button></div>
         </form>
       </div>
 
-      {/* SECTION 3: Supabase Credentials & 1-Click SQL Setup */}
       <div className="bg-slate-900 text-white rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-4">
           <div>
-            <div className="inline-flex items-center gap-2 text-xs font-bold text-[#ca8a04] uppercase tracking-wider mb-1">
-              <Database className="w-4 h-4 text-[#22c55e]" />
-              <span>Supabase Cloud Integration Configuration</span>
-            </div>
-            <h2 className="text-xl font-black text-white font-serif-crest uppercase">
-              Supabase Project Connection &amp; SQL Schema
-            </h2>
-            <p className="text-xs text-slate-400">
-              Configure your Supabase Project URL and Public Anon Key for permanent external cloud file hosting.
-            </p>
+            <div className="inline-flex items-center gap-2 text-xs font-bold text-[#ca8a04] uppercase tracking-wider mb-1"><Database className="w-4 h-4 text-[#22c55e]" /><span>Supabase Cloud Integration Configuration</span></div>
+            <h2 className="text-xl font-black text-white uppercase">Supabase Project Connection & SQL Schema</h2>
+            <p className="text-xs text-slate-400">Configure your Supabase Project URL and Public Anon Key for permanent external cloud file hosting.</p>
           </div>
-
-          <button
-            onClick={() => setShowSqlModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border border-emerald-600 transition-colors shrink-0"
-          >
-            <Copy className="w-3.5 h-3.5 text-[#ca8a04]" />
-            <span>View &amp; Copy Setup SQL</span>
-          </button>
+          <button onClick={() => setShowSqlModal(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border border-emerald-600"><Copy className="w-3.5 h-3.5 text-[#ca8a04]" /><span>View & Copy Setup SQL</span></button>
         </div>
-
         <form onSubmit={handleSaveSupabaseConfig} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
-                Supabase Project URL (e.g. https://xxx.supabase.co)
-              </label>
-              <input
-                type="text"
-                placeholder="https://your-project.supabase.co"
-                value={supabaseUrl}
-                onChange={(e) => setSupabaseUrl(e.target.value)}
-                className="w-full px-4 py-2.5 text-xs bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1">
-                Supabase Anon Public Key (eyJhbGciOi...)
-              </label>
-              <input
-                type="password"
-                placeholder="eyJhbGciOi..."
-                value={supabaseAnonKey}
-                onChange={(e) => setSupabaseAnonKey(e.target.value)}
-                className="w-full px-4 py-2.5 text-xs bg-slate-800 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[#22c55e]"
-              />
-            </div>
+            <div><label className="block text-xs font-bold text-slate-300 uppercase mb-1">Supabase Project URL</label><input type="text" placeholder="https://your-project.supabase.co" value={supabaseUrl} onChange={(e) => setSupabaseUrl(e.target.value)} className="w-full px-4 py-2.5 text-xs bg-slate-800 border border-slate-700 rounded-xl text-white" /></div>
+            <div><label className="block text-xs font-bold text-slate-300 uppercase mb-1">Supabase Anon Public Key (supports sb_publishable_...)</label><input type="text" placeholder="sb_publishable_..." value={supabaseAnonKey} onChange={(e) => setSupabaseAnonKey(e.target.value)} className="w-full px-4 py-2.5 text-xs bg-slate-800 border border-slate-700 rounded-xl text-white" /></div>
           </div>
-
           <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
-            <div className="text-xs text-slate-400 flex items-center gap-2">
-              <Key className="w-3.5 h-3.5 text-[#ca8a04]" />
-              <span>Keys are stored safely in runtime environment and browser persistent memory.</span>
-            </div>
-
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-[#22c55e] hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl shadow-md transition-all inline-flex items-center gap-2"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Save &amp; Test Connection</span>
-            </button>
+            <div className="text-xs text-slate-400 flex items-center gap-2"><Key className="w-3.5 h-3.5 text-[#ca8a04]" /><span>Keys are stored safely in runtime environment and browser persistent memory.</span></div>
+            <button type="submit" className="px-5 py-2.5 bg-[#22c55e] hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-xl inline-flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5" /><span>Save & Test Connection</span></button>
           </div>
         </form>
       </div>
 
-      {/* SQL Script Modal */}
       {showSqlModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in no-print">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-700 text-white rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div>
-                <h3 className="text-base font-black uppercase font-serif-crest text-[#ca8a04]">
-                  Supabase Setup SQL Script
-                </h3>
-                <p className="text-xs text-slate-400">
-                  Run this in your Supabase Dashboard &gt; SQL Editor to create the 3 buckets &amp; 3 tables
-                </p>
-              </div>
-              <button
-                onClick={() => setShowSqlModal(false)}
-                className="text-slate-400 hover:text-white text-lg font-bold p-1"
-              >
-                &times;
-              </button>
+              <div><h3 className="text-base font-black uppercase text-[#ca8a04]">Supabase Setup SQL Script</h3><p className="text-xs text-slate-400">Run this in your Supabase Dashboard &gt; SQL Editor</p></div>
+              <button onClick={() => setShowSqlModal(false)} className="text-slate-400 hover:text-white text-lg font-bold p-1">&times;</button>
             </div>
-
             <div className="relative">
-              <pre className="bg-slate-950 p-4 rounded-xl text-[11px] font-mono text-emerald-300 max-h-96 overflow-y-auto border border-slate-800">
-                {SUPABASE_SETUP_SQL}
-              </pre>
-              <button
-                onClick={handleCopySql}
-                className="absolute top-3 right-3 px-3 py-1.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-lg border border-[#22c55e]/40 shadow-sm transition-all inline-flex items-center gap-1.5"
-              >
-                {copiedSql ? <Check className="w-3.5 h-3.5 text-[#22c55e]" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{copiedSql ? 'Copied to Clipboard!' : 'Copy SQL'}</span>
-              </button>
+              <pre className="bg-slate-950 p-4 rounded-xl text-[11px] font-mono text-emerald-300 max-h-96 overflow-y-auto border border-slate-800">{SUPABASE_SETUP_SQL}</pre>
+              <button onClick={handleCopySql} className="absolute top-3 right-3 px-3 py-1.5 bg-[#0a4d2e] hover:bg-[#073922] text-white text-xs font-bold rounded-lg border border-[#22c55e]/40 inline-flex items-center gap-1.5">{copiedSql ? <Check className="w-3.5 h-3.5 text-[#22c55e]" /> : <Copy className="w-3.5 h-3.5" />}<span>{copiedSql ? 'Copied!' : 'Copy SQL'}</span></button>
             </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => setShowSqlModal(false)}
-                className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl"
-              >
-                Close
-              </button>
-            </div>
+            <div className="flex justify-end pt-2"><button onClick={() => setShowSqlModal(false)} className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl">Close</button></div>
           </div>
         </div>
       )}
