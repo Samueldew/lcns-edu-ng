@@ -28,14 +28,17 @@ export const Footer: React.FC<FooterProps> = ({
                 <h3 className="text-white font-extrabold text-base uppercase font-serif-crest leading-snug">
                   Labe College of Nursing Sciences
                 </h3>
+                <p className="text-[11px] text-amber-300 font-bold tracking-wider uppercase">
+                  Catholic Diocese of Gboko
+                </p>
                 <p className="text-xs text-[#22c55e] font-semibold tracking-wider uppercase">
                   Gboko, Benue State &bull; Nigeria
                 </p>
-                <p className="text-[11px] text-[#ca8a04] italic font-serif">"Learn, Serve &amp; Save"</p>
+                <p className="text-[11px] text-[#ca8a04] italic font-serif">"Learn, Serve & Save"</p>
               </div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Committed to training compassionate, highly competent, globally competitive nursing professionals and midwives equipped with modern clinical simulation skills and medical ethics.
+              A faith-based institution of the Catholic Diocese of Gboko, committed to training compassionate, highly competent, globally competitive nursing professionals and midwives equipped with modern clinical simulation skills and medical ethics.
             </p>
             <div className="flex items-center gap-2 pt-2">
               <span className="inline-flex items-center gap-1 bg-[#0a4d2e] border border-[#22c55e]/40 text-[#22c55e] text-[10px] font-bold px-2 py-1 rounded">
@@ -43,6 +46,9 @@ export const Footer: React.FC<FooterProps> = ({
               </span>
               <span className="inline-flex items-center gap-1 bg-[#0a4d2e] border border-[#22c55e]/40 text-[#22c55e] text-[10px] font-bold px-2 py-1 rounded">
                 <CheckCircle className="w-3 h-3 text-[#22c55e]" /> NBTE Accredited
+              </span>
+              <span className="inline-flex items-center gap-1 bg-[#06321e] border border-[#ca8a04]/40 text-[#ca8a04] text-[10px] font-bold px-2 py-1 rounded">
+                Catholic Diocese
               </span>
             </div>
           </div>
@@ -67,7 +73,7 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
                 <span className="text-emerald-500 font-bold">&bull;</span>
-                Clinical Skills Simulation &amp; Laboratory Excellence
+                Clinical Skills Simulation & Laboratory Excellence
               </li>
             </ul>
           </div>
@@ -75,7 +81,7 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Col 3: Portal Links */}
           <div className="space-y-3">
             <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-emerald-800 pb-2">
-              Quick ERP &amp; Portal
+              Quick ERP & Portal
             </h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
@@ -93,7 +99,7 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:text-emerald-400 transition-colors text-left flex items-center gap-1.5"
                 >
                   <span className="text-emerald-500 font-bold">&bull;</span>
-                  Check Admission Status &amp; Print Letter
+                  Check Admission Status & Print Letter
                 </button>
               </li>
               <li>
@@ -102,7 +108,7 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:text-emerald-400 transition-colors text-left flex items-center gap-1.5"
                 >
                   <span className="text-emerald-500 font-bold">&bull;</span>
-                  Login (Student &amp; Staff)
+                  Login (Student & Staff)
                 </button>
               </li>
 
@@ -121,7 +127,7 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
                 >
                   <span className="text-emerald-500 font-bold">&bull;</span>
-                  Campus &amp; Clinical Photo Gallery
+                  Campus & Clinical Photo Gallery
                 </a>
               </li>
               <li>
@@ -130,7 +136,7 @@ export const Footer: React.FC<FooterProps> = ({
                   className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
                 >
                   <span className="text-emerald-500 font-bold">&bull;</span>
-                  ICT Support &amp; Help Desk
+                  ICT Support & Help Desk
                 </a>
               </li>
             </ul>
@@ -145,7 +151,8 @@ export const Footer: React.FC<FooterProps> = ({
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-[#ca8a04] shrink-0 mt-0.5" />
                 <span>
-                  Off Gboko Hill, Along Agbile Road, Gboko, Benue State, Nigeria
+                  Off Gboko Hill, Along Agbile Road, Gboko, Benue State, Nigeria<br/>
+                  <span className="text-amber-300 font-semibold">Catholic Diocese of Gboko</span>
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -172,11 +179,11 @@ export const Footer: React.FC<FooterProps> = ({
 
         {/* Bottom copyright */}
         <div className="mt-12 pt-6 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
-          <p>&copy; {new Date().getFullYear()} Labe College of Nursing Sciences, Gboko (LCNS). All Rights Reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Labe College of Nursing Sciences, Catholic Diocese of Gboko, Benue State. All Rights Reserved.</p>
           <p className="flex items-center gap-2">
             <span>Powered by LCNS ICT Directorate</span>
             <span>&bull;</span>
-            <span className="text-emerald-400">Learn, Serve &amp; Save</span>
+            <span className="text-emerald-400">Learn, Serve & Save</span>
           </p>
         </div>
       </div>
