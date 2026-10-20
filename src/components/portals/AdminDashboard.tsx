@@ -8,6 +8,7 @@ import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Users,
 import { StudentPromotion } from './StudentPromotion';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { getSupabase, getSupabaseConfig } from '../../lib/supabase';
+import { ScoreSheetViewer } from './ScoreSheetViewer';
 
 const SUPABASE_BUCKET = 'lcns-media';
 
@@ -28,7 +29,7 @@ const ALL_ROLES = [
 ];
 
 interface AdminDashboardProps {
-  initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants' | 'backend' | 'bursar' | 'application' | 'announcements';
+  initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants' | 'backend' | 'bursar' | 'application' | 'announcements' | 'scoresheets';
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) => {
@@ -72,12 +73,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
   });
 
   const [activeAdminTab, setActiveAdminTab] = useState<
-    'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants' | 'backend' | 'bursar' | 'application' | 'announcements'
-  >(initialTab || 'settings');
+    'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants' | 'backend' | 'bursar' | 'application' | 'announcements' | 'scoresheets'
+  >(initialTab || 'scoresheets');
 
   const showStatus = (text:string, type:'success'|'error'='success') => {
     setStatus({text, type});
     setTimeout(()=>setStatus(null), 6000);
+  };
+
+  const currentUser = StorageService.getCurrentUser() || {
+    id: 'admin-001',
+    email: 'admin@lcns.edu.ng',
+    role: 'ADMIN',
+    fullName: 'Admin - Director of ICT',
+    status: 'ACTIVE',
   };
 
   useEffect(() => {
@@ -95,7 +104,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
       const cfg = getSupabaseConfig();
       const data: any = { supabaseUrl: cfg.url || 'https://liqwfikatnkndbdbdarx.supabase.co', connected: !!sb, tables: {} };
       if (sb) {
-        const tables = ['school_settings', 'management', 'gallery', 'users', 'profiles', 'payments', 'announcements', 'events', 'app_settings', 'students'];
+        const tables = ['school_settings', 'management', 'gallery', 'users', 'profiles', 'payments', 'announcements', 'events', 'app_settings', 'students', 'student_scores'];
         for (const t of tables) {
           try { const { count } = await sb.from(t).select('*', { count: 'exact', head: true }); data.tables[t] = count ?? 0; } catch { data.tables[t] = 0; }
         }
@@ -232,35 +241,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
       <div className="bg-gradient-to-r from-slate-900 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-900">
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - STAFF + STUDENT + ALL ROLES</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - Score Sheets Submitted by Lecturers - Download PDF</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard</h1>
-            <p className="text-xs text-emerald-200 mt-1">Session: {currentSession} • Users: {users.length} • Staff: {users.filter((u:any)=>u.userType==='STAFF' || ['LECTURER','HOD','PROVOST','BURSAR','REGISTRAR','ADMIN'].includes(u.role)).length} • Students: {users.filter((u:any)=>u.role==='STUDENT').length} • Matric Year: {currentYear}</p>
+            <p className="text-xs text-emerald-200 mt-1">Session: {currentSession} • Users: {users.length} • Score Sheets: See Lecturers Submitted + Download PDF - ND1 N2 HND1 HND2 - 40+60=100</p>
           </div>
           <div className="flex gap-2"><div className={`px-4 py-2 rounded-xl text-xs font-black ${backendData.connected?'bg-emerald-600':'bg-red-600'}`}>{backendData.connected?'● CONNECTED':'● OFFLINE'}</div><button onClick={loadBackend} className="px-4 py-2 bg-white/10 rounded-xl text-xs font-bold flex gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/> REFRESH</button></div>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <button onClick={() => setActiveAdminTab('scoresheets')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'scoresheets' ? 'bg-blue-700 text-white ring-2 ring-blue-300' : 'border-2 border-blue-400 bg-blue-50 text-blue-800'}`}><BookOpen className="w-4 h-4"/>📄 Score Sheets - Lecturers Submitted - Download PDF - NEW - 40+60</button>
         <button onClick={() => setActiveAdminTab('backend')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'backend' ? 'bg-slate-900 text-white' : 'border'}`}><Server className="w-4 h-4"/>Backend</button>
-        <button onClick={() => setActiveAdminTab('users')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'users' ? 'bg-[#0a4d2e] text-white ring-2 ring-emerald-300' : 'border-2'}`}><UserCheck className="w-4 h-4"/>Users - Create Staff+Student + Change Role<span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white">{users.length}</span></button>
+        <button onClick={() => setActiveAdminTab('users')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'users' ? 'bg-[#0a4d2e] text-white ring-2 ring-emerald-300' : 'border-2'}`}><UserCheck className="w-4 h-4"/>Users<span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white">{users.length}</span></button>
         <button onClick={() => setActiveAdminTab('application')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'application' ? 'bg-red-700 text-white' : 'border-2 border-red-300'}`}><Link2 className="w-4 h-4"/>App {appStatus.isOpen?'OPEN':'CLOSED'}</button>
         <button onClick={() => setActiveAdminTab('announcements')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'announcements' ? 'bg-blue-700 text-white' : 'border-2 border-blue-300'}`}><Megaphone className="w-4 h-4"/>Announcements</button>
         <button onClick={() => setActiveAdminTab('bursar')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'bursar' ? 'bg-emerald-700 text-white' : 'border-2'}`}><DollarSign className="w-4 h-4"/>Bursar</button>
         <button onClick={() => setActiveAdminTab('promotion')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'promotion' ? 'bg-amber-500 text-black' : 'border'}`}><ArrowUpCircle className="w-4 h-4"/>Promote</button>
         <button onClick={() => setActiveAdminTab('courses')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'courses' ? 'bg-emerald-700 text-white' : 'border-2 border-emerald-300'}`}><BookOpen className="w-4 h-4"/>Courses</button>
         <button onClick={() => setActiveAdminTab('applicants')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab === 'applicants' ? 'bg-purple-700 text-white' : 'border-2 border-purple-300'}`}><GraduationCap className="w-4 h-4"/>Applicants</button>
-        <button onClick={() => setActiveAdminTab('settings')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold ${activeAdminTab === 'settings' ? 'bg-[#0a4d2e] text-white' : 'hover:bg-slate-100'}`}><Sliders className="w-4 h-4"/>Settings</button>
-        <button onClick={() => setActiveAdminTab('management')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold ${activeAdminTab === 'management' ? 'bg-[#0a4d2e] text-white' : 'hover:bg-slate-100'}`}><Users className="w-4 h-4"/>Management</button>
-        <button onClick={() => setActiveAdminTab('gallery')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold ${activeAdminTab === 'gallery' ? 'bg-[#0a4d2e] text-white' : 'hover:bg-slate-100'}`}><Camera className="w-4 h-4"/>Gallery</button>
-        <button onClick={() => setActiveAdminTab('cbt')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold ${activeAdminTab === 'cbt' ? 'bg-[#0a4d2e] text-white' : 'hover:bg-slate-100'}`}><Award className="w-4 h-4"/>CBT</button>
-        <button onClick={() => setActiveAdminTab('system')} className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold ${activeAdminTab === 'system' ? 'bg-[#0a4d2e] text-white' : 'hover:bg-slate-100'}`}><Database className="w-4 h-4"/>System</button>
       </div>
+
+      {activeAdminTab === 'scoresheets' && <ScoreSheetViewer currentUser={currentUser} />}
 
       {activeAdminTab === 'backend' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white rounded-2xl p-5 border-2"><h3 className="font-black text-xs">SUPABASE</h3><p className="text-[11px] mt-2 break-all bg-slate-50 p-2 rounded-lg">{backendData.supabaseUrl}</p></div>
           <div className="bg-white rounded-2xl p-5 border"><h3 className="font-black text-xs">TABLES COUNT</h3><div className="mt-3 space-y-1 text-[11px]">{Object.entries(backendData.tables||{}).map(([t,c])=><div key={t} className="flex justify-between bg-slate-50 px-2 py-1 rounded-lg"><span>{t}</span><span className="bg-emerald-600 text-white px-2 rounded-full">{String(c)}</span></div>)}</div></div>
-          <div className="bg-white rounded-2xl p-5 border"><h3 className="font-black text-xs">STATUS</h3><div className="mt-3 text-[11px] space-y-2"><div className="flex justify-between"><span>Users</span><span>{users.length}</span></div><div className="flex justify-between"><span>Payments</span><span>{payments.length}</span></div></div></div>
+          <div className="bg-white rounded-2xl p-5 border"><h3 className="font-black text-xs">STATUS</h3><div className="mt-3 text-[11px] space-y-2"><div className="flex justify-between"><span>Users</span><span>{users.length}</span></div><div className="flex justify-between"><span>Payments</span><span>{payments.length}</span></div><div className="flex justify-between"><span>Score Sheets Submitted</span><span className="bg-blue-700 text-white px-2 rounded-full">{backendData.tables?.student_scores || 0}</span></div></div></div>
         </div>
       )}
 
@@ -281,66 +288,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
 
       {activeAdminTab === 'bursar' && (<div className="bg-white rounded-3xl border-2 p-6"><h2 className="font-black text-lg mb-4">BURSAR - PAYMENTS</h2><table className="w-full text-xs"><thead><tr className="bg-emerald-900 text-white"><th className="p-3 text-left">Student</th><th className="p-3">Amount</th><th className="p-3">Delete</th></tr></thead><tbody>{payments.map((p:any)=><tr key={p.id} className="border-b"><td className="p-3">{p.student_name||p.email}</td><td className="p-3">₦{p.amount||0}</td><td className="p-3"><button onClick={()=>deletePayment(p.id)} className="bg-red-600 text-white px-3 py-1 rounded-xl text-[10px] font-black">DELETE</button></td></tr>)}</tbody></table></div>)}
 
-      {/* USERS - CREATE STAFF + STUDENT + ALL ROLES - ADMIN CAN CHANGE ROLE */}
+      {/* USERS */}
       {activeAdminTab === 'users' && (
         <div className="bg-white rounded-3xl border-2 p-6 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
             <div>
-              <h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - CREATE STAFF + STUDENT - ALL PORTAL ROLES - ADMIN CAN CHANGE ROLE</h3>
-              <p className="text-[11px] text-slate-600 mt-1">Create: Student (Full Biodata + Auto Matric LCNS\ND\{currentYear}\002) + Staff (HOD, Exam Officer, Provost, Registrar, Bursar, Lecturer, Admin etc) + Admin can change role anytime - Roles: {ALL_ROLES.map(r=>r.label).join(', ')}</p>
+              <h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - CREATE STAFF + STUDENT - Score Sheets {backendData.tables?.student_scores || 0} records</h3>
             </div>
-            <button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-6 py-3 bg-[#0a4d2e] hover:bg-black text-white rounded-xl text-xs font-black flex gap-2 shadow-md"><UserPlus className="w-4 h-4"/> {showCreateUser ? 'CLOSE FORM' : '+ CREATE USER - STAFF OR STUDENT'}</button>
+            <button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-6 py-3 bg-[#0a4d2e] hover:bg-black text-white rounded-xl text-xs font-black flex gap-2 shadow-md"><UserPlus className="w-4 h-4"/> {showCreateUser ? 'CLOSE FORM' : '+ CREATE USER'}</button>
           </div>
 
           {showCreateUser && (
             <div className="bg-gradient-to-br from-slate-50 to-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 space-y-4">
               <div className="flex gap-3">
                 <button onClick={()=>{setUserType('STUDENT'); setNewUser({...newUser, role: 'STUDENT'});}} className={`flex-1 py-3 rounded-xl text-xs font-black flex justify-center gap-2 ${userType==='STUDENT'?'bg-blue-700 text-white':'bg-white border-2'}`}><GraduationCap className="w-4 h-4"/> CREATE STUDENT</button>
-                <button onClick={()=>{setUserType('STAFF'); setNewUser({...newUser, role: 'LECTURER'});}} className={`flex-1 py-3 rounded-xl text-xs font-black flex justify-center gap-2 ${userType==='STAFF'?'bg-[#0a4d2e] text-white':'bg-white border-2'}`}><Briefcase className="w-4 h-4"/> CREATE STAFF - HOD/EXAM OFFICER/PROVOST/REGISTRAR/BURSAR</button>
+                <button onClick={()=>{setUserType('STAFF'); setNewUser({...newUser, role: 'LECTURER'});}} className={`flex-1 py-3 rounded-xl text-xs font-black flex justify-center gap-2 ${userType==='STAFF'?'bg-[#0a4d2e] text-white':'bg-white border-2'}`}><Briefcase className="w-4 h-4"/> CREATE STAFF</button>
               </div>
-
-              <div className="bg-amber-50 border border-amber-300 p-3 rounded-xl text-[11px]">
-                {userType==='STUDENT' ? <p className="font-bold">Student Matric Preview: LCNS\{newUser.level || 'ND1'}\{currentYear}\XXX → Example: LCNS\ND1\{currentYear}\002 - Auto {parseInt(currentYear)+1} next session - Never repeats unless deleted!</p> : <p className="font-bold">Staff ID Preview: LCNS\{newUser.role.substring(0,3)}\{currentYear}\XXX → Example: LCNS\LEC\{currentYear}\001 for Lecturer - Auto assigns based on role - Never repeats unless deleted!</p>}
-              </div>
-
               <form onSubmit={handleCreateUser} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="md:col-span-3"><label className="text-[11px] font-black">Full Names *</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser, fullName: e.target.value})} placeholder="Full name as in certificate" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs font-bold" required/></div>
-                <div><label className="text-[11px] font-bold">First Name</label><input value={newUser.firstName} onChange={e=>setNewUser({...newUser, firstName: e.target.value})} placeholder="First Name" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"/></div>
-                <div><label className="text-[11px] font-bold">Middle Name</label><input value={newUser.middleName} onChange={e=>setNewUser({...newUser, middleName: e.target.value})} placeholder="Middle Name" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"/></div>
-                <div><label className="text-[11px] font-bold">Last Name</label><input value={newUser.lastName} onChange={e=>setNewUser({...newUser, lastName: e.target.value})} placeholder="Last Name" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"/></div>
-                
-                <div className="md:col-span-2"><label className="text-[11px] font-bold flex gap-1"><MapPin className="w-3 h-3"/> Address *</label><input value={newUser.address} onChange={e=>setNewUser({...newUser, address: e.target.value})} placeholder="Address" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required={userType==='STUDENT'}/></div>
-                <div><label className="text-[11px] font-bold flex gap-1"><Phone className="w-3 h-3"/> Phone *</label><input value={newUser.phone} onChange={e=>setNewUser({...newUser, phone: e.target.value})} placeholder="080..." className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required/></div>
-
-                {userType==='STUDENT' ? (
-                  <>
-                    <div><label className="text-[11px] font-bold flex gap-1"><Droplet className="w-3 h-3"/> Blood Group</label><select value={newUser.bloodGroup} onChange={e=>setNewUser({...newUser, bloodGroup: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"><option value="">Select</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option><option value="O+">O+</option><option value="O-">O-</option></select></div>
-                    <div><label className="text-[11px] font-bold">Sex *</label><select value={newUser.sex} onChange={e=>setNewUser({...newUser, sex: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required><option value="">Select Sex</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
-                    <div><label className="text-[11px] font-bold flex gap-1"><Home className="w-3 h-3"/> Hostel/Off-Campus *</label><select value={newUser.staying} onChange={e=>setNewUser({...newUser, staying: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required><option value="">Select</option><option value="hostel">Hostel</option><option value="offcampus">Off-Campus</option></select></div>
-                    <div className="md:col-span-2"><label className="text-[11px] font-bold">Parent/Guardian Name *</label><input value={newUser.parentName} onChange={e=>setNewUser({...newUser, parentName: e.target.value})} placeholder="Parent Name" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-bold">Parent Phone *</label><input value={newUser.parentPhone} onChange={e=>setNewUser({...newUser, parentPhone: e.target.value})} placeholder="Parent Phone" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required/></div>
-                  </>
-                ) : (
-                  <>
-                    <div><label className="text-[11px] font-bold">Qualification</label><input value={newUser.qualification} onChange={e=>setNewUser({...newUser, qualification: e.target.value})} placeholder="e.g., MSc Nursing, PhD" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"/></div>
-                    <div><label className="text-[11px] font-bold">Staff Department</label><select value={newUser.staffDepartment} onChange={e=>setNewUser({...newUser, staffDepartment: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"><option value="Nursing">Nursing</option><option value="Midwifery">Midwifery</option><option value="Admin">Admin</option><option value="Bursary">Bursary</option><option value="Registry">Registry</option><option value="ICT">ICT</option></select></div>
-                    <div><label className="text-[11px] font-bold">Staff ID (Auto if empty)</label><input value={newUser.staffId} onChange={e=>setNewUser({...newUser, staffId: e.target.value})} placeholder="Auto: LCNS/LEC/2026/001" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"/></div>
-                  </>
-                )}
-
-                <div><label className="text-[11px] font-bold">Email *</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} placeholder="email@lcns.edu.ng" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required/></div>
-                
-                {userType==='STUDENT' ? (
-                  <div><label className="text-[11px] font-bold">Level *</label><select value={newUser.level} onChange={e=>setNewUser({...newUser, level: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs font-bold" required><option value="">Select Level</option><option value="ND1">ND1</option><option value="ND2">ND2 (N2)</option><option value="HND1">HND1</option><option value="HND2">HND2</option></select></div>
-                ) : <div><label className="text-[11px] font-bold">Department</label><input value={newUser.department} onChange={e=>setNewUser({...newUser, department: e.target.value})} placeholder="Department" className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs"/></div>}
-
-                <div><label className="text-[11px] font-bold">Role - ALL PORTAL ROLES *</label><select value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs font-bold" required>
-                  {userType==='STUDENT' ? <option value="STUDENT">STUDENT</option> : ALL_ROLES.filter(r=>r.category!=='Student').map(r=><option key={r.value} value={r.value}>{r.label}</option>)}
-                  {userType==='STUDENT' && ALL_ROLES.map(r=><option key={r.value} value={r.value}>{r.label}</option>)}
-                </select></div>
-
+                <div className="md:col-span-3"><label className="text-[11px] font-black">Full Names *</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser, fullName: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs font-bold" required/></div>
+                <div><label className="text-[11px] font-bold">Email *</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser, email: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs" required/></div>
+                <div><label className="text-[11px] font-bold">Level *</label><select value={newUser.level} onChange={e=>setNewUser({...newUser, level: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs font-bold"><option value="">Select Level</option><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option></select></div>
+                <div><label className="text-[11px] font-bold">Role *</label><select value={newUser.role} onChange={e=>setNewUser({...newUser, role: e.target.value})} className="w-full mt-1 px-4 py-2.5 border-2 rounded-xl text-xs font-bold" required>{ALL_ROLES.map(r=><option key={r.value} value={r.value}>{r.label}</option>)}</select></div>
                 <div className="md:col-span-3 flex gap-3 pt-2">
-                  <button type="submit" className="flex-1 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex justify-center gap-2"><UserPlus className="w-4 h-4"/> CREATE {userType} - {userType==='STUDENT' ? `MATRIC LCNS\\${newUser.level || 'LEVEL'}\\${currentYear}\\XXX` : `STAFF ID - ROLE ${newUser.role}`}</button>
+                  <button type="submit" className="flex-1 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-black">CREATE USER</button>
                   <button type="button" onClick={()=>setShowCreateUser(false)} className="px-6 py-3 bg-slate-200 rounded-xl text-xs font-bold">CANCEL</button>
                 </div>
               </form>
@@ -348,37 +318,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
           )}
 
           <div className="space-y-3">
-            <h4 className="font-black text-sm">All Users - Staff + Students - Admin Can Change Role - HOD, Exam Officer, Provost, Registrar, Bursar, etc ({users.length})</h4>
-            <div className="grid gap-3">
+            <h4 className="font-black text-sm">All Users ({users.length}) - Lecturer submissions: {backendData.tables?.student_scores || 0}</h4>
+            <div className="grid gap-3 max-h-[600px] overflow-y-auto">
               {users.map((u:any) => (
                 <div key={u.email} className="border-2 p-4 rounded-2xl bg-slate-50 hover:bg-white space-y-2">
                   <div className="flex flex-col lg:flex-row justify-between gap-3">
-                    <div className="flex-1 space-y-1">
+                    <div className="flex-1">
                       <div className="font-black text-sm flex flex-wrap gap-2 items-center">
                         <span>{u.fullName || u.name}</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-900 text-white">{u.matricNumber || u.staffId || u.id?.slice(0,8) || 'No ID'}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-100">{u.level || u.userType || 'No Level'}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-100">{u.userType || (u.role==='STUDENT'?'STUDENT':'STAFF')}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-900 text-white">{u.matricNumber || u.staffId || 'No ID'}</span>
                       </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-1 text-[11px] text-slate-600">
-                        <span>Email: {u.email}</span><span>Phone: {u.phone || 'N/A'}</span><span>Sex: {u.sex || 'N/A'}</span><span>Dept: {u.department || u.staffDepartment || 'N/A'}</span>
-                        {u.userType==='STUDENT' || u.role==='STUDENT' ? <><span className="md:col-span-2">Address: {u.address || 'N/A'}</span><span>Parent: {u.parentName || 'N/A'}</span><span>Parent Phone: {u.parentPhone || 'N/A'}</span></> : <><span>Qualification: {u.qualification || 'N/A'}</span><span>Staff Dept: {u.staffDepartment || 'N/A'}</span></>}
-                      </div>
+                      <div className="text-[11px] text-slate-600">{u.email} - {u.level} - {u.phone}</div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <div className="text-[10px] font-black text-slate-700">CHANGE ROLE - ADMIN CAN CHANGE TO ANY ROLE ON PORTAL:</div>
                       <div className="flex flex-wrap gap-1">
                         {ALL_ROLES.map(r=>(
-                          <button key={r.value} onClick={()=>assignRole(u.email, r.value)} className={`px-2 py-1 rounded-xl text-[9px] font-black border ${u.role===r.value?'bg-slate-900 text-white ring-2 ring-amber-300':'bg-white hover:bg-slate-100'}`}>{r.value.replace('_',' ')}</button>
+                          <button key={r.value} onClick={()=>assignRole(u.email, r.value)} className={`px-2 py-1 rounded-xl text-[9px] font-black border ${u.role===r.value?'bg-slate-900 text-white':'bg-white'}`}>{r.value.replace('_',' ')}</button>
                         ))}
                       </div>
-                      <button onClick={()=>deleteUser(u.email, u.fullName||u.email, u.matricNumber||u.staffId)} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-[10px] font-black flex gap-1 justify-center"><Trash2 className="w-3 h-3"/> DELETE USER - FREES MATRIC/STAFF ID</button>
+                      <button onClick={()=>deleteUser(u.email, u.fullName||u.email, u.matricNumber||u.staffId)} className="px-3 py-1.5 bg-red-600 text-white rounded-xl text-[10px] font-black">DELETE</button>
                     </div>
                   </div>
                 </div>
               ))}
-              {users.length===0 && <p className="text-xs text-center py-8 bg-red-50 border-2 border-dashed rounded-xl">No users - Click CREATE USER - Choose STAFF or STUDENT - For Staff: HOD, Exam Officer, Provost, Registrar, Bursar etc - For Student: Auto Matric LCNS\ND\{currentYear}\002</p>}
             </div>
           </div>
         </div>
@@ -391,7 +354,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
       {activeAdminTab === 'cbt' && <CBTExamManager currentUser={{id:'admin',email:'admin@lcns.edu.ng',role:'ADMIN',fullName:'Admin',status:'ACTIVE'}} />}
       {activeAdminTab === 'courses' && (<div className="bg-white rounded-3xl border-2 p-4"><h2 className="font-black">📚 Courses - {courses.length} - Lecturers {lecturers.length}</h2><div className="overflow-x-auto border-2 rounded-xl mt-3"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2">Code</th><th className="p-2">Title</th><th className="p-2">Lecturer</th></tr></thead><tbody>{courses.map((c:any)=><tr key={c.id} className="border-b"><td className="p-2 font-mono">{c.code}</td><td className="p-2">{c.title}</td><td className="p-2">{c.lecturer}</td></tr>)}</tbody></table></div></div>)}
       {activeAdminTab === 'applicants' && (<div className="space-y-4"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">🎓 Applicants - App {appStatus.isOpen?'OPEN':'CLOSED'}</div><AdminAdmissionManager currentUser={{id:'admin',email:'admin@lcns.edu.ng',role:'ADMIN',fullName:'Admin',status:'ACTIVE'}} /></div>)}
-      {activeAdminTab === 'system' && (<div className="bg-white rounded-3xl border-2 p-6 text-xs"><h3 className="font-black">System Health</h3><p>Session: {currentSession} - Matric Year: {currentYear}</p><p>Users: {users.length} - Staff: {users.filter((u:any)=>['LECTURER','HOD','EXAM_OFFICER','PROVOST','REGISTRAR','BURSAR'].includes(u.role)).length} - Students: {users.filter((u:any)=>u.role==='STUDENT').length}</p><p>All Roles Available: {ALL_ROLES.map(r=>r.value).join(', ')}</p></div>)}
+      {activeAdminTab === 'system' && (<div className="bg-white rounded-3xl border-2 p-6 text-xs"><h3 className="font-black">System Health</h3><p>Session: {currentSession} - Matric Year: {currentYear}</p><p>Users: {users.length}</p><p>Score Sheets Submitted: {backendData.tables?.student_scores || 0} - Lecturers submissions visible here!</p></div>)}
     </div>
   );
 };
