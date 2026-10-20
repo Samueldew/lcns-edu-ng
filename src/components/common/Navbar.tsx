@@ -87,6 +87,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-50 bg-[#0a4d2e] text-white shadow-md border-b border-[#06321e] no-print">
+      {/* TOP CONTACT BAR */}
       <div className="bg-[#06321e] text-emerald-100 text-xs px-4 py-1.5 flex flex-wrap items-center justify-between border-b border-[#042114]">
         <div className="flex items-center gap-4 flex-wrap">
           <span className="flex items-center gap-1.5 font-medium">
@@ -101,7 +102,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Support: {COLLEGE_CONFIG.SUPPORT_PHONE}</span>
           </span>
         </div>
-
         <div className="relative ml-auto flex items-center gap-2">
           <button
             onClick={() => setShowRoleMenu(!showRoleMenu)}
@@ -111,7 +111,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>Switch Role</span>
             <ChevronDown className="w-3 h-3 opacity-75" />
           </button>
-
           {showRoleMenu && (
             <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 p-2 text-slate-800 z-50 divide-y divide-slate-100">
               <div className="p-2 text-xs font-bold text-emerald-900 uppercase tracking-wider">
@@ -139,6 +138,36 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </div>
 
+      {/* FAST MOVING - DARK BLACK BOLD */}
+      <div className="bg-[#ca8a04] py-1.5 overflow-hidden whitespace-nowrap border-b-2 border-black">
+        <div className="animate-marquee-fast flex items-center gap-12">
+          <span className="font-black text-black text-[13px]">🔔 Labe College of Nursing Sciences, Catholic Diocese of Gboko, Benue State</span>
+          <span className="font-black text-black text-[13px]">•</span>
+          <span className="font-black text-black text-[13px]">ADMISSION IN PROGRESS FOR 2026/2027 ND/HND NURSING SCIENCE</span>
+          <span className="font-black text-black text-[13px]">•</span>
+          <span className="font-black text-black text-[13px]">NMCN APPROVED • NBTE ACCREDITED • CATHOLIC DIOCESE OF GBOKO</span>
+          <span className="font-black text-black text-[13px]">•</span>
+          <span className="font-black text-black text-[13px]">LEARN, SERVE & SAVE • APPLY NOW AT LCNS.EDU.NG</span>
+          <span className="font-black text-black text-[13px]">•</span>
+          <span className="font-black text-black text-[13px]">🔔 Labe College of Nursing Sciences, Catholic Diocese of Gboko, Benue State</span>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes marquee-fast {
+          0% { transform: translateX(100%); }
+          100% { transform: translateX(-100%); }
+        }
+        .animate-marquee-fast {
+          display: inline-flex;
+          animation: marquee-fast 15s linear infinite;
+          min-width: 200%;
+        }
+        .animate-marquee-fast:hover {
+          animation-play-state: paused;
+        }
+      `}</style>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <button
@@ -165,67 +194,37 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-white/90">
-            <button onClick={() => { setActiveView('website'); window.scrollTo({top:0, behavior:'smooth'}); }} className="hover:text-amber-300 transition-colors">
-              Home
-            </button>
-            <button onClick={() => scrollToId('about')} className="hover:text-amber-300 transition-colors">
-              About
-            </button>
-            <button onClick={() => scrollToId('programmes')} className="hover:text-amber-300 transition-colors">
-              Programmes
-            </button>
-            <button onClick={() => scrollToId('values-philosophy')} className="hover:text-amber-300 transition-colors">
-              Values & Philosophy
-            </button>
-            <button onClick={() => scrollToId('hostel')} className="hover:text-amber-300 transition-colors">
-              Hostel
-            </button>
-            <button onClick={() => scrollToId('gallery')} className="hover:text-amber-300 transition-colors font-bold text-amber-300">
-              Gallery
-            </button>
+            <button onClick={() => { setActiveView('website'); window.scrollTo({top:0, behavior:'smooth'}); }} className="hover:text-amber-300 transition-colors">Home</button>
+            <button onClick={() => scrollToId('about')} className="hover:text-amber-300 transition-colors">About</button>
+            <button onClick={() => scrollToId('programmes')} className="hover:text-amber-300 transition-colors">Programmes</button>
+            <button onClick={() => scrollToId('values-philosophy')} className="hover:text-amber-300 transition-colors">Values & Philosophy</button>
+            <button onClick={() => scrollToId('hostel')} className="hover:text-amber-300 transition-colors">Hostel</button>
+            <button onClick={() => scrollToId('gallery')} className="hover:text-amber-300 transition-colors font-bold text-amber-300">Gallery</button>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={onOpenAdmissionChecker}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors"
-            >
+            <button onClick={onOpenAdmissionChecker} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg transition-colors">
               <FileText className="w-3.5 h-3.5 text-amber-300" />
               <span>Check Admission / Candidate</span>
             </button>
-
-            <button
-              onClick={onOpenApplication}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#F59E0B] hover:bg-amber-400 rounded-lg shadow-sm"
-            >
+            <button onClick={onOpenApplication} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-950 bg-[#F59E0B] hover:bg-amber-400 rounded-lg shadow-sm">
               <GraduationCap className="w-4 h-4 text-slate-950" />
               <span>Apply</span>
             </button>
-
             {currentUser ? (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setActiveView('portal')}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border bg-white text-[#0a4d2e] border-[#0a4d2e]/30"
-                >
+                <button onClick={() => setActiveView('portal')} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl border bg-white text-[#0a4d2e] border-[#0a4d2e]/30">
                   <LayoutDashboard className="w-3 h-3" />
                   <span className="hidden md:inline">Portal</span>
                 </button>
-                <button onClick={handleLogout} className="p-2 text-white/70 hover:text-red-300">
-                  <LogOut className="w-4 h-4" />
-                </button>
+                <button onClick={handleLogout} className="p-2 text-white/70 hover:text-red-300"><LogOut className="w-4 h-4" /></button>
               </div>
             ) : (
-              <button
-                onClick={onOpenLogin}
-                title="All logins: Admin, Bursar, Lecturer, Student, Registrar"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg"
-              >
+              <button onClick={onOpenLogin} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg">
                 <LogIn className="w-3.5 h-3.5 text-slate-600" />
                 <span>Portal Login</span>
               </button>
             )}
-
             <button onClick={() => setMobileOpen(!mobileOpen)} className="lg:hidden p-2 bg-white/10 rounded-lg">
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
@@ -243,7 +242,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button onClick={() => scrollToId('gallery')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase bg-amber-500/20 text-amber-300 rounded-lg">Gallery</button>
           <div className="pt-3 border-t border-white/10 space-y-2">
             <button onClick={() => { setMobileOpen(false); onOpenAdmissionChecker(); }} className="w-full py-3 text-xs font-bold uppercase bg-white/10 rounded-lg">Check Admission + Candidate Portal</button>
-            <button onClick={() => { setMobileOpen(false); onOpenLogin(); }} className="w-full py-3 text-xs font-bold uppercase bg-white text-[#0a4d2e] rounded-lg">Portal Login (Admin/Bursary/All)</button>
+            <button onClick={() => { setMobileOpen(false); onOpenLogin(); }} className="w-full py-3 text-xs font-bold uppercase bg-white text-[#0a4d2e] rounded-lg">Portal Login</button>
           </div>
         </div>
       )}
