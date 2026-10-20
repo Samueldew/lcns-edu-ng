@@ -27,10 +27,11 @@ import { AdminSettings } from './AdminSettings';
 import { AdminManagement } from './AdminManagement';
 import { AdminGallery } from './AdminGallery';
 import { CBTExamManager } from '../cbt/CBTExamManager';
-import { Sliders, Camera, Award, UserCheck } from 'lucide-react';
+import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Calendar } from 'lucide-react';
+import { StudentPromotion } from './StudentPromotion';
 
 interface AdminDashboardProps {
-  initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms';
+  initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion';
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) => {
@@ -49,7 +50,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
   });
   const [testingConnection, setTestingConnection] = useState(false);
   const [activeAdminTab, setActiveAdminTab] = useState<
-    'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms'
+    'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion'
   >(initialTab || 'settings');
 
   useEffect(() => {
@@ -155,7 +156,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
               Administrator Dashboard
             </h1>
             <p className="text-xs text-emerald-200 mt-1">
-              Supabase PostgreSQL • Bucket: {SUPABASE_BUCKET} • Cross-Device Sync
+              Supabase PostgreSQL • Bucket: {SUPABASE_BUCKET} • Cross-Device Sync • {localStorage.getItem('lcns_current_session') || '2025/2026'} Session
             </p>
           </div>
 
@@ -214,33 +215,39 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <button onClick={() => setActiveAdminTab('promotion')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${activeAdminTab === 'promotion' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-600 hover:text-slate-900 hover:bg-amber-50 border border-amber-200'}`}>
+          <ArrowUpCircle className="w-4 h-4" />
+          <span>Promote Students & New Session 2026/2027</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-black text-amber-400 font-bold">NEW</span>
+        </button>
         <button onClick={() => setActiveAdminTab('settings')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'settings' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
           <Sliders className="w-4 h-4 text-[#ca8a04]" />
-          <span>Logo & School Settings (/admin/settings)</span>
+          <span>School Settings</span>
         </button>
         <button onClick={() => setActiveAdminTab('management')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'management' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
           <Users className="w-4 h-4 text-emerald-400" />
-          <span>Management Team (/admin/management)</span>
+          <span>Management Team</span>
         </button>
         <button onClick={() => setActiveAdminTab('gallery')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'gallery' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
           <Camera className="w-4 h-4 text-amber-400" />
-          <span>Photo Gallery (/admin/gallery)</span>
+          <span>Photo Gallery</span>
         </button>
         <button onClick={() => setActiveAdminTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'users' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
           <UserCheck className="w-4 h-4 text-emerald-400" />
-          <span>Users & Roles (/admin/users)</span>
+          <span>Users & Roles</span>
           <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white font-bold">{users.length}</span>
         </button>
         <button onClick={() => setActiveAdminTab('cbt')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'cbt' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
           <Award className="w-4 h-4 text-amber-400" />
-          <span>CBT Tests & Scores</span>
+          <span>CBT Tests</span>
         </button>
         <button onClick={() => setActiveAdminTab('system')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'system' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
           <Database className="w-4 h-4 text-emerald-400" />
-          <span>Sync & Database Health</span>
+          <span>Sync & Health</span>
         </button>
       </div>
 
+      {activeAdminTab === 'promotion' && <StudentPromotion />}
       {activeAdminTab === 'settings' && <AdminSettings />}
       {activeAdminTab === 'management' && <AdminManagement />}
       {activeAdminTab === 'gallery' && <AdminGallery />}
