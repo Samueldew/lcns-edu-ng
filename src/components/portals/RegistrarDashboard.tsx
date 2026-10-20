@@ -18,10 +18,11 @@ import {
 import { CBTExamManager } from '../cbt/CBTExamManager';
 import { AdmissionProcessingView } from './AdmissionProcessingView';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
+import { ScoreSheetViewer } from './ScoreSheetViewer';
 
 // ✅ NAMED EXPORT - THIS FIXES YOUR VERCEL ERROR!
 export const RegistrarDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'scoresheets'>('scoresheets');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -57,21 +58,24 @@ export const RegistrarDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar - Score Sheets Submitted by Lecturers - Download PDF</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">Office of the Registrar - LCNS</h1>
-            <p className="text-xs text-blue-200">Executive Overview + All Students Biodata with Current Level + All Applicants CBT Interview Admit - Super Fine</p>
+            <p className="text-xs text-blue-200">Executive Overview + See Lecturers Who Submitted Scores + Download PDF - ND1 N2 HND1 HND2 - Session - Semester - 40+60=100</p>
           </div>
           <div className="text-right"><span className="text-xs text-blue-300 font-semibold block">Academic Session</span><span className="text-lg font-black text-amber-400 font-mono-code">{COLLEGE_CONFIG.CURRENT_SESSION}</span></div>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
+        <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets - Lecturers Submitted - Download PDF - NEW</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">40+60</span></button>
         <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='overview'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Building className="w-4 h-4 text-emerald-400"/><span>Overview</span></button>
-        <button onClick={() => setActiveTab('students_biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='students_biodata'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 All Students Biodata with Current Level</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">NEW</span></button>
-        <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='admissions_all'?'bg-purple-700 text-white shadow ring-2 ring-purple-300':'bg-purple-50 border-2 border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 All Applicants - CBT + Interview + Admit</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">SUPER FINE</span></button>
+        <button onClick={() => setActiveTab('students_biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='students_biodata'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 All Students Biodata</span></button>
+        <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white shadow ring-2 ring-purple-300':'bg-purple-50 border-2 border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 All Applicants</span></button>
       </div>
 
-      {activeTab==='students_biodata' ? (
+      {activeTab==='scoresheets' ? (
+        <ScoreSheetViewer currentUser={currentUser} />
+      ) : activeTab==='students_biodata' ? (
         <div className="bg-white rounded-3xl border-2 border-emerald-300 p-4 space-y-4">
           <div className="flex flex-col md:flex-row justify-between gap-3">
             <div>
