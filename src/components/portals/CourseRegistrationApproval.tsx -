@@ -1,0 +1,148 @@
+import React, { useState, useEffect } from 'react';
+import { StorageService } from '../../services/storage';
+import { getSupabase } from '../../lib/supabase';
+import jsPDF from 'jspdf';
+
+export const CourseRegistrationApproval: React.FC<{ currentUser: any }> = ({ currentUser }) => {
+  const [registrations, setRegistrations] = useState<any[]>([]);
+  const [filtered, setFiltered] = useState<any[]>([]);
+  const [filterLevel, setFilterLevel] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [creditLimits, setCreditLimits] = useState<any>({ 'ND 1': 24, 'ND 2': 26, 'HND 1': 28, 'HND 2': 28 });
+  const [search, setSearch] = useState('');
+
+  const schoolFullName = "COLLEGE OF NURSING SCIENCES, CATHOLIC DIOCESE OF GBOKO";
+
+  useEffect(()=>{ loadRegs(); loadLimits(); }, []);
+
+  const loadLimits = () => {
+    const saved = JSON.parse(localStorage.getItem('lcns_credit_limits') || '{}');
+    if(Object.keys(saved).length>0) setCreditLimits({...creditLimits, ...saved});
+  };
+
+  const saveLimits = () => {
+    localStorage.setItem('lcns_credit_limits', JSON.stringify(creditLimits));
+    alert(`Credit limits saved! ND1:${creditLimits['ND 1']} ND2:${creditLimits['ND 2']} HND1:${creditLimits['HND 1']} HND2:${creditLimits['HND 2']} - Students exceeding will be DISAPPROVED automatically`);
+  };
+
+  const loadRegs = async () => {
+    const sb = getSupabase();
+    let all:any[]=[];
+    if(sb){ const {data}=await sb.from('course_registrations').select('*').order('created_at',{ascending:false}); if(data && data.length>0) all=data; }
+    if(all.length===0) all=JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]');
+    setRegistrations(all); setFiltered(all);
+  };
+
+  const applyFilter = () => {
+    let f=registrations;
+    if(filterLevel) f=f.filter((r:any)=> r.level===filterLevel);
+    if(filterStatus) f=f.filter((r:any)=> r.status===filterStatus);
+    if(search) f=f.filter((r:any)=> `${r.student_name} ${r.matric_number} ${r.level}`.toLowerCase().includes(search.toLowerCase()));
+    setFiltered(f);
+  };
+
+  useEffect(()=>{ applyFilter(); }, [filterLevel, filterStatus, search]);
+
+  const approveReg = async (reg:any) => {
+    // Check if exceeds - if exceeds, MUST DISAPPROVE
+    const limit = creditLimits[reg.level] || 24;
+    if(reg.total_units > limit){
+      alert(`⚠️ CANNOT APPROVE! Student total units ${reg.total_units} exceeds max allowed ${limit} for ${reg.level}! You MUST DISAPPROVE!`);
+      return;
+    }
+    const updatedReg = { ...reg, status: 'APPROVED', approved_by: `${currentUser.role} - ${currentUser.fullName||currentUser.email}`, approved_at: new Date().toISOString() };
+    const all = JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]');
+    const newAll = all.map((r:any)=> r.id===reg.id ? updatedReg : r);
+    localStorage.setItem('lcns_course_registrations', JSON.stringify(newAll));
+    setRegistrations(newAll); setFiltered(newAll);
+    const sb = getSupabase();
+    if(sb){ try{ await sb.from('course_registrations').update({ status: 'APPROVED', approved_by: updatedReg.approved_by, approved_at: updatedReg.approved_at }).eq('id', reg.id); }catch(e){} }
+  };
+
+  const disapproveReg = async (reg:any, reason:string) => {
+    const updatedReg = { ...reg, status: 'DISAPPROVED', approved_by: `${currentUser.role} - ${currentUser.fullName||currentUser.email} - Reason: ${reason}`, approved_at: new Date().toISOString() };
+    const all = JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]');
+    const newAll = all.map((r:any)=> r.id===reg.id ? updatedReg : r);
+    localStorage.setItem('lcns_course_registrations', JSON.stringify(newAll));
+    setRegistrations(newAll); setFiltered(newAll);
+    const sb = getSupabase();
+    if(sb){ try{ await sb.from('course_registrations').update({ status: 'DISAPPROVED', approved_by: updatedReg.approved_by, approved_at: updatedReg.approved_at }).eq('id', reg.id); }catch(e){} }
+  };
+
+  const printForm = (reg:any) => {
+    const doc = new jsPDF('p','mm','a4');
+    doc.setFontSize(16); doc.setFont('helvetica','bold');
+    doc.text(schoolFullName, 105, 15, {align:'center'});
+    doc.setFontSize(12); doc.text(`COURSE REGISTRATION FORM - ${reg.status}`, 105, 22, {align:'center'});
+    doc.setFontSize(10); doc.setFont('helvetica','normal');
+    doc.text(`Student: ${reg.student_name} (${reg.matric_number})`, 15, 32);
+    doc.text(`Level: ${reg.level} | Session: ${reg.session} | Semester: ${reg.semester}`, 15, 38);
+    doc.text(`Total Units: ${reg.total_units} / Max: ${reg.max_allowed} | Status: ${reg.status}`, 15, 44);
+    doc.text(`Action By: ${reg.approved_by||'Pending'} | ${currentUser.role} View`, 15, 50);
+    let y=60; doc.setFont('helvetica','bold'); doc.setFontSize(9);
+    doc.text('S/N',10,y); doc.text('Course Code',20,y); doc.text('Title',50,y); doc.text('Units',150,y);
+    doc.setFont('helvetica','normal'); y+=7;
+    reg.courses.forEach((c:any,i:number)=>{ if(y>270){ doc.addPage(); y=20; } doc.text(`${i+1}`,10,y); doc.text(`${c.code}`,20,y); doc.text(`${(c.title||c.name||'').substring(0,50)}`,50,y); doc.text(`${c.units}`,152,y); y+=6; });
+    y+=10; doc.setFont('helvetica','bold'); doc.text('_________________________',15,y); doc.text('_________________________',80,y); doc.text('_________________________',150,y);
+    y+=5; doc.setFontSize(8); doc.text('Student Signature',15,y); doc.text('Exam Officer Signature',80,y); doc.text('HOD Signature',150,y);
+    doc.save(`CourseReg_${reg.matric_number}_${reg.status}.pdf`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-900 text-white rounded-2xl p-5">
+        <h1 className="font-black text-sm">COURSE REGISTRATION APPROVAL - EXAM OFFICER / HOD - {currentUser.role}</h1>
+        <p className="text-xs text-emerald-200 mt-1">Students register semester courses - You approve/disapprove - If credit units exceed limit, MUST DISAPPROVE - Student prints approved form with {schoolFullName} + LOGO</p>
+        <p className="text-[11px] mt-2">Total: {registrations.length} | Pending: {registrations.filter((r:any)=>r.status.includes('PENDING')).length} | Approved: {registrations.filter((r:any)=>r.status==='APPROVED').length} | Disapproved: {registrations.filter((r:any)=>r.status==='DISAPPROVED').length}</p>
+      </div>
+
+      <div className="bg-white border-2 rounded-2xl p-4 space-y-3">
+        <h3 className="font-black text-xs">SET CREDIT UNIT LIMITS - If student exceeds, Exam Officer/HOD should DISAPPROVE</h3>
+        <div className="grid grid-cols-4 gap-3">
+          {Object.keys(creditLimits).map((lvl:any)=>(
+            <div key={lvl}><label className="text-[10px] font-black">{lvl} Max Units</label><input type="number" value={creditLimits[lvl]} onChange={e=>setCreditLimits({...creditLimits, [lvl]: parseInt(e.target.value)||0})} className="w-full p-2 border-2 rounded-xl text-xs font-bold"/></div>
+          ))}
+        </div>
+        <button onClick={saveLimits} className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">SAVE CREDIT LIMITS - Students exceeding will be auto flagged for DISAPPROVAL</button>
+      </div>
+
+      <div className="bg-white border-2 rounded-2xl p-4 grid grid-cols-4 gap-3">
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search Name, Matric, Level" className="border-2 rounded-xl p-2 text-xs"/>
+        <select value={filterLevel} onChange={e=>setFilterLevel(e.target.value)} className="border-2 rounded-xl p-2 text-xs"><option value="">All Levels ND1/N2/HND1/HND2</option><option value="ND 1">ND 1</option><option value="ND 2">ND 2</option><option value="HND 1">HND 1</option><option value="HND 2">HND 2</option></select>
+        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} className="border-2 rounded-xl p-2 text-xs"><option value="">All Status</option><option value="PENDING">PENDING</option><option value="PENDING_EXCEED">PENDING_EXCEED</option><option value="APPROVED">APPROVED</option><option value="DISAPPROVED">DISAPPROVED</option></select>
+        <button onClick={loadRegs} className="bg-slate-900 text-white rounded-xl text-xs font-black">REFRESH</button>
+      </div>
+
+      <div className="space-y-3">
+        {filtered.map((reg:any)=>{
+          const limit = creditLimits[reg.level] || reg.max_allowed || 24;
+          const exceed = reg.total_units > limit;
+          return (
+            <div key={reg.id} className={`border-2 rounded-xl p-4 ${exceed?'bg-red-50 border-red-300': reg.status==='APPROVED'?'bg-emerald-50 border-emerald-300':'bg-white'}`}>
+              <div className="flex justify-between items-start gap-3">
+                <div className="text-xs space-y-1 flex-1">
+                  <p className="font-black text-sm">{reg.student_name} - {reg.matric_number} - {reg.level} - {reg.session} - {reg.semester} Semester</p>
+                  <p>Total Units: <b className={exceed?'text-red-600':''}>{reg.total_units}</b> / Max Allowed: {limit} {exceed && <span className="bg-red-600 text-white px-2 py-0.5 rounded-full text-[10px]">⚠️ EXCEEDS! MUST DISAPPROVE</span>} | Status: <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${reg.status==='APPROVED'?'bg-emerald-600 text-white':reg.status==='DISAPPROVED'?'bg-red-600 text-white':'bg-amber-400 text-black'}`}>{reg.status}</span></p>
+                  <p className="text-[11px]">Courses: {reg.courses.map((c:any)=> `${c.code}(${c.units})`).join(', ')}</p>
+                  <p className="text-[10px]">Submitted: {new Date(reg.created_at).toLocaleString()} | Approved By: {reg.approved_by||'Pending Exam Officer/HOD'}</p>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {reg.status.includes('PENDING') && (
+                    <>
+                      {!exceed && <button onClick={()=>approveReg(reg)} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">✅ APPROVE - {reg.total_units} Units OK</button>}
+                      <button onClick={()=>disapproveReg(reg, exceed ? `Exceeds credit units ${reg.total_units} > ${limit}` : 'Disapproved by HOD/Exam Officer')} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">❌ DISAPPROVE - {exceed ? `EXCEEDS ${reg.total_units} > ${limit}` : 'DISAPPROVE'}</button>
+                    </>
+                  )}
+                  <button onClick={()=>printForm(reg)} className="px-4 py-2 bg-blue-700 text-white rounded-xl text-xs font-black">🖨️ PRINT - {schoolFullName}</button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length===0 && <div className="p-8 text-center border-2 border-dashed rounded-xl text-xs">No course registrations yet - Students must register via Student Portal → Course Registration</div>}
+      </div>
+    </div>
+  );
+};
+
+export default CourseRegistrationApproval;
