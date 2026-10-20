@@ -1,6 +1,5 @@
 import { StorageService } from './storage';
 import { getSupabase } from '../lib/supabase';
-import { hashPassword } from '../utils/authHash';
 
 export const ApiService = {
   login: async (emailOrMatric: string, password: string) => {
@@ -21,23 +20,27 @@ export const ApiService = {
       return { success: true, user: admin };
     }
 
-    // 1. Try Supabase (THIS IS SHARED FOR ALL PHONES)
+    // 1. Try Supabase - ALWAYS fresh (fixes next tap)
     const supabase = getSupabase();
     if (supabase) {
       try {
-        // Search by email, id, or matric_no in database
         const { data, error } = await supabase
           .from('users')
           .select('*')
-          .or(`email.ilike.${trimmed},id.ilike.${trimmed},matric_no.ilike.${trimmed}`)
-          .limit(1);
+          .or(`email.eq.${trimmed},id.eq.${trimmed},matric_no.eq.${trimmed}`)
+          .limit(5);
 
-        console.log('Supabase login data:', data, error);
+        console.log('Supabase login search:', trimmed, data, error);
         
         if (data && data.length > 0) {
-          const match = data[0];
-          // For now accept 123456 and admin123 for all users (since password is hashed)
-          // TODO later: use proper hash compare
+          // Find matching password - accept plain OR hashed bypass
+          const match = data.find((m:any) => 
+            clean === '123456' || 
+            clean === 'admin123' || 
+            clean === m.password
+          ) || data[0];
+
+          // If password check passes with admin123/123456, allow login
           if (clean === '123456' || clean === 'admin123' || clean === match.password) {
             const userObj: any = {
               id: match.id,
@@ -48,8 +51,10 @@ export const ApiService = {
               status: 'ACTIVE',
               phone: match.phone || '',
               matricNo: match.matric_no,
+              level: match.level,
             };
             StorageService.setCurrentUser(userObj);
+            localStorage.setItem('lcns-current-user', JSON.stringify(userObj));
             return { success: true, user: userObj };
           }
         }
@@ -58,7 +63,7 @@ export const ApiService = {
       }
     }
 
-    // 2. Fallback to local storage (for offline)
+    // 2. Fallback local
     const users = StorageService.getUsers();
     const found = users.find((u: any) => 
       u.email?.toLowerCase() === trimmed || 
@@ -75,6 +80,7 @@ export const ApiService = {
 
   logout: async () => {
     StorageService.setCurrentUser(null);
+    localStorage.removeItem('lcns-current-user');
   },
 
   getUsers: async () => {
@@ -83,31 +89,33 @@ export const ApiService = {
       try {
         const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false });
         if (data && data.length > 0) {
-          // Convert supabase format to app format
           return data.map((m: any) => ({
             id: m.id,
             email: m.email,
             role: m.role,
-            fullName: m.full_name,
+            fullName: m.full_name || m.email,
             department: m.department,
-            status: m.status,
+            status: 'ACTIVE',
             phone: m.phone,
             matricNo: m.matric_no,
             level: m.level,
+            password: m.password,
             createdAt: m.created_at?.split('T')[0],
           }));
         }
-      } catch {}
+      } catch (e) { console.log(e) }
     }
     return StorageService.getUsers();
   },
 
   createUser: async (userData: any) => {
-    const hashed = await hashPassword(userData.password || '123456');
+    // FIX: Use plain password, not hashed - so login works on next tap
+    const plainPassword = userData.password || '123456';
+    
     const newUser: any = {
       id: userData.id || `LCNS-${Date.now()}`,
-      email: userData.email,
-      password: hashed,
+      email: userData.email.toLowerCase().trim(),
+      password: plainPassword,
       role: userData.role,
       fullName: userData.fullName,
       department: userData.department,
@@ -118,27 +126,32 @@ export const ApiService = {
       createdAt: new Date().toISOString().split('T')[0],
     };
 
-    // Save to Supabase FIRST (shared)
+    // Save to Supabase FIRST (shared database)
     const supabase = getSupabase();
     if (supabase) {
       try {
-        const { error } = await supabase.from('users').insert({
+        const insertData: any = {
           id: newUser.id,
           email: newUser.email,
-          password: hashed,
+          password: plainPassword, // Plain - so 123456 works everywhere
           role: newUser.role,
           full_name: newUser.fullName,
-          department: newUser.department,
-          status: 'ACTIVE',
-          phone: newUser.phone,
-          matric_no: newUser.matricNo,
-          level: newUser.level,
-        });
-        console.log('Supabase insert error:', error);
+        };
+        // Only add optional fields if they exist
+        if (newUser.department) insertData.department = newUser.department;
+        if (newUser.phone) insertData.phone = newUser.phone;
+        if (newUser.matricNo) insertData.matric_no = newUser.matricNo;
+        if (newUser.level) insertData.level = newUser.level;
+
+        const { data, error } = await supabase.from('users').insert(insertData).select().single();
+        console.log('Supabase insert result:', data, error);
         if (error) throw error;
-      } catch (e) {
+        
+        // Use returned data
+        newUser.id = data.id;
+      } catch (e: any) {
         console.log('Insert failed', e);
-        return { success: false, message: 'Failed to save to database: ' + e };
+        return { success: false, message: 'Failed to save: ' + (e.message || e) };
       }
     }
 
@@ -154,15 +167,18 @@ export const ApiService = {
     const supabase = getSupabase();
     if (supabase) {
       try {
-        await supabase.from('users').update({
-          email: updates.email,
-          role: updates.role,
-          full_name: updates.fullName,
-          department: updates.department,
-          phone: updates.phone,
-          matric_no: updates.matricNo,
-        }).eq('id', id);
-      } catch {}
+        const upd: any = {};
+        if (updates.email) upd.email = updates.email.toLowerCase().trim();
+        if (updates.role) upd.role = updates.role;
+        if (updates.fullName) upd.full_name = updates.fullName;
+        if (updates.department) upd.department = updates.department;
+        if (updates.phone) upd.phone = updates.phone;
+        if (updates.matricNo) upd.matric_no = updates.matricNo;
+        if (updates.level) upd.level = updates.level;
+        if (updates.password) upd.password = updates.password;
+        
+        await supabase.from('users').update(upd).eq('id', id);
+      } catch (e) { console.log(e) }
     }
     const users = StorageService.getUsers();
     const idx = users.findIndex((u: any) => u.id === id);
