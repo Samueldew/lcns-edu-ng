@@ -1,1033 +1,195 @@
 import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storage';
-import { PaymentRecord, FeeItem, Applicant, COLLEGE_CONFIG, BursarAccount } from '../../types';
 import { getSupabase } from '../../lib/supabase';
-import { CollegeLogo } from '../common/CollegeLogo';
-import {
-  CreditCard,
-  Search,
-  CheckCircle2,
-  Printer,
-  TrendingUp,
-  Download,
-  Filter,
-  Receipt,
-  Clock,
-  Plus,
-  Users,
-  Check,
-  X,
-  FileText,
-  ShieldCheck,
-  AlertCircle,
-  Eye,
-  UserCheck,
-  UserX,
-  Sparkles,
-  Award,
-  Hash,
-} from 'lucide-react';
+import { Search, Plus, Trash2, DollarSign, Users, Eye, Download, FileText, X, Check, Clock, RefreshCw, Database, BarChart3, TrendingUp, AlertCircle } from 'lucide-react';
 
-export const BursarDashboard: React.FC = () => {
-  const [bursarTab, setBursarTab] = useState<'applicants' | 'bursar_accounts' | 'payments'>('applicants');
-  const [payments, setPayments] = useState<PaymentRecord[]>(StorageService.getPayments());
-  const [applicants, setApplicants] = useState<Applicant[]>(StorageService.getApplicants());
-  const [bursarAccounts, setBursarAccounts] = useState<BursarAccount[]>(StorageService.getBursarAccounts());
-  const [searchPayment, setSearchPayment] = useState('');
-  const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
+interface FeeItem { id: string; name: string; amount: number; level: string; session: string; category: string; applicant_type: string; is_published: boolean; account_name: string; account_number: string; bank_name: string; description: string; created_at: string; }
+interface Payment { id: string; user_id: string; user_name: string; matric_no: string; user_type: string; level: string; fee_id: string; fee_name: string; amount: number; amount_paid: number; balance: number; status: string; reference: string; session: string; proof_url?: string; proof_type?: string; proof_name?: string; bursar_note?: string; approved_at?: string; created_at?: string; }
 
-  // Applicant Clearance State
-  const [applicantSearch, setApplicantSearch] = useState('');
-  const [accountsSearch, setAccountsSearch] = useState('');
-  const [applicantStatusFilter, setApplicantStatusFilter] = useState<'ALL' | 'PENDING_BURSAR' | 'BURSAR_CLEARED' | 'REJECTED'>('PENDING_BURSAR');
-  const [viewingProofApplicant, setViewingProofApplicant] = useState<Applicant | null>(null);
-  const [rejectingApplicant, setRejectingApplicant] = useState<Applicant | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [selectedClearedSlipApplicant, setSelectedClearedSlipApplicant] = useState<Applicant | null>(null);
+export const BursarFeeManager: React.FC = () => {
+  const [fees, setFees] = useState<FeeItem[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
+  const [applicants, setApplicants] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'dashboard'|'fees'|'pending'|'students'|'applicants'|'all'>('dashboard');
+  const [search, setSearch] = useState(''); const [levelFilter, setLevelFilter] = useState('ALL'); const [viewProof, setViewProof] = useState<Payment|null>(null);
+  const [loading, setLoading] = useState(false); const [supabaseStatus, setSupabaseStatus] = useState('Checking...');
 
-  // New Manual Payment State
-  const [showAddPayment, setShowAddPayment] = useState(false);
-  const [payerMatric, setPayerMatric] = useState('LCNS/2026/ND/014');
-  const [payerName, setPayerName] = useState('Deborah Vershima');
-  const [payerFeeType, setPayerFeeType] = useState('Tuition & Academic Training Fee (First Semester)');
-  const [payerAmount, setPayerAmount] = useState<number>(185000);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentRecord['paymentMethod']>('Remita / Card');
+  const [feeName, setFeeName] = useState(''); const [feeAmount, setFeeAmount] = useState(''); const [feeLevel, setFeeLevel] = useState('ND1'); const [feeSession, setFeeSession] = useState(localStorage.getItem('lcns_current_session')||'2026/2027'); const [feeCategory, setFeeCategory] = useState('TUITION'); const [applicantType, setApplicantType] = useState('BOTH'); const [accountName, setAccountName] = useState('Labe College of Nursing Sciences'); const [accountNumber, setAccountNumber] = useState(''); const [bankName, setBankName] = useState('Zenith Bank');
 
-  useEffect(() => {
-    const handleStorageUpdate = () => {
-      setPayments(StorageService.getPayments());
-      setApplicants(StorageService.getApplicants());
-      setBursarAccounts(StorageService.getBursarAccounts());
-    };
-    window.addEventListener('lcns_storage_update', handleStorageUpdate);
-    return () => window.removeEventListener('lcns_storage_update', handleStorageUpdate);
-  }, []);
+  const FEES_KEY='lcns_fees'; const PAY_KEY='lcns_student_payments';
 
-  const pendingApplicantsCount = applicants.filter(
-    (a) => a.status === 'PENDING_BURSAR' || a.bursarStatus === 'PENDING_BURSAR'
-  ).length;
-
-  const filteredPayments = payments.filter((p) => {
-    return (
-      p.matricOrFormNo.toLowerCase().includes(searchPayment.toLowerCase()) ||
-      p.payerName.toLowerCase().includes(searchPayment.toLowerCase()) ||
-      p.rrr.toLowerCase().includes(searchPayment.toLowerCase()) ||
-      p.receiptNo.toLowerCase().includes(searchPayment.toLowerCase())
-    );
-  });
-
-  const filteredApplicants = applicants.filter((a) => {
-    const matchesSearch =
-      a.fullName.toLowerCase().includes(applicantSearch.toLowerCase()) ||
-      a.formNo.toLowerCase().includes(applicantSearch.toLowerCase()) ||
-      (a.examNumber && a.examNumber.toLowerCase().includes(applicantSearch.toLowerCase())) ||
-      (a.exam_number && a.exam_number.toLowerCase().includes(applicantSearch.toLowerCase())) ||
-      a.email.toLowerCase().includes(applicantSearch.toLowerCase()) ||
-      a.phone.toLowerCase().includes(applicantSearch.toLowerCase());
-
-    const isPending = a.status === 'PENDING_BURSAR' || a.bursarStatus === 'PENDING_BURSAR';
-    const isCleared = a.status === 'BURSAR_CLEARED' || a.bursarStatus === 'CLEARED';
-    const isRejected = a.status === 'REJECTED' || a.bursarStatus === 'REJECTED';
-
-    let matchesStatus = true;
-    if (applicantStatusFilter === 'PENDING_BURSAR') {
-      matchesStatus = isPending;
-    } else if (applicantStatusFilter === 'BURSAR_CLEARED') {
-      matchesStatus = isCleared;
-    } else if (applicantStatusFilter === 'REJECTED') {
-      matchesStatus = isRejected;
-    }
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const filteredBursarAccounts = bursarAccounts.filter((acc) => {
-    return (
-      acc.application_number.toLowerCase().includes(accountsSearch.toLowerCase()) ||
-      acc.applicant_name.toLowerCase().includes(accountsSearch.toLowerCase()) ||
-      (acc.exam_number && acc.exam_number.toLowerCase().includes(accountsSearch.toLowerCase()))
-    );
-  });
-
-  const totalCollected = payments
-    .filter((p) => p.status === 'PAID')
-    .reduce((acc, p) => acc + p.amount, 0);
-
-  // Clearance Actions
-  const handleAssignExamNumber = async (applicantId: string) => {
-    const { applicants: updated, examNumber } = StorageService.assignExamNumber(applicantId);
-    setApplicants(updated);
-
-    // Sync to Supabase applications
-    try {
+  const loadFromSupabase = async () => {
+    setLoading(true);
+    try{
       const sb = getSupabase();
-      if (sb) {
-        const target = updated.find((a) => a.id === applicantId || a.formNo === applicantId);
-        if (target) {
-          await sb.from('applications').update({
-            exam_number: examNumber,
-          }).eq('form_no', target.formNo);
-        }
-      }
-    } catch (err) {
-      console.warn('Supabase sync error on assignExamNumber:', err);
+      if(!sb){ setSupabaseStatus('LocalStorage Mode'); throw new Error('No SB'); }
+      const { data: feesData } = await sb.from('lcns_fees').select('*').order('created_at', {ascending:false});
+      const { data: payData } = await sb.from('lcns_student_payments').select('*').order('created_at', {ascending:false}).limit(2000);
+      if(feesData) { setFees(feesData as any); localStorage.setItem(FEES_KEY, JSON.stringify(feesData)); }
+      if(payData) { setPayments(payData as any); localStorage.setItem(PAY_KEY, JSON.stringify(payData)); setSupabaseStatus(`✅ Supabase - ${feesData?.length||0} fees, ${payData?.length||0} payments`); }
+    }catch{
+      const f=JSON.parse(localStorage.getItem(FEES_KEY)||'[]'); setFees(f);
+      const p=JSON.parse(localStorage.getItem(PAY_KEY)||'[]'); setPayments(p);
+      setSupabaseStatus('⚠️ Local Mode - Run SQL');
     }
+    const allUsers=StorageService.getUsers();
+    const studs=allUsers.filter((u:any)=>u.role==='STUDENT').map((u:any)=>({...u, level:u.level||'ND1', session:u.session||'2026/2027', userType:'STUDENT'}));
+    const apps=allUsers.filter((u:any)=>u.role==='APPLICANT').map((u:any)=>({...u, userType:'APPLICANT', fullName:u.fullName, matricNo:u.matricNo||u.applicationNo||u.id, level:u.level||'ND1', session:u.session||'2026/2027'}));
+    setStudents(studs); setApplicants(apps); setLoading(false);
   };
 
-  const handleClearApplicant = async (applicantId: string) => {
-    const targetBefore = applicants.find((a) => a.id === applicantId || a.formNo === applicantId);
-    const assignedExamNo = targetBefore?.examNumber || targetBefore?.exam_number || StorageService.generateExamNumber(2025);
+  useEffect(()=>{ loadFromSupabase(); }, []);
 
-    const updated = StorageService.clearApplicantByBursar(
-      applicantId,
-      'Bank payment proof audited, matched with ledger and cleared.',
-      assignedExamNo
-    );
-    setApplicants(updated);
-    setBursarAccounts(StorageService.getBursarAccounts());
-
-    // Sync to Supabase applications and bursar_accounts
-    try {
-      const sb = getSupabase();
-      if (sb && targetBefore) {
-        await sb.from('applications').update({
-          bursar_cleared: true,
-          exam_number: assignedExamNo,
-          bursar_clearance_date: new Date().toISOString(),
-          status: 'BURSAR_CLEARED',
-        }).eq('form_no', targetBefore.formNo);
-
-        await sb.from('bursar_accounts').insert([
-          {
-            application_number: targetBefore.formNo,
-            applicant_name: targetBefore.fullName,
-            amount: 15000,
-            payment_proof_url: targetBefore.paymentReceiptPdfUrl || '',
-            exam_number: assignedExamNo,
-            cleared_date: new Date().toISOString(),
-            status: 'CLEARED',
-          },
-        ]);
-      }
-    } catch (err) {
-      console.warn('Supabase sync error on clearApplicantByBursar:', err);
-    }
+  const saveFeesToSupabase = async (newFee:FeeItem) => {
+    const sb = getSupabase();
+    try{ if(sb) await sb.from('lcns_fees').insert([{ id:newFee.id, name:newFee.name, amount:newFee.amount, level:newFee.level, session:newFee.session, category:newFee.category, applicant_type:newFee.applicant_type, is_published:newFee.is_published, account_name:newFee.account_name, account_number:newFee.account_number, bank_name:newFee.bank_name, description:newFee.description }]); }catch{}
+    const current=JSON.parse(localStorage.getItem(FEES_KEY)||'[]'); localStorage.setItem(FEES_KEY, JSON.stringify([newFee, ...current])); setFees([newFee, ...current] as any);
   };
 
-  const handleOpenReject = (applicant: Applicant) => {
-    setRejectingApplicant(applicant);
-    setRejectionReason('Payment receipt unreadable or incomplete bank transaction reference.');
+  const handleCreateFee= async ()=>{
+    if(!feeName.trim() || !feeAmount) return alert('Enter fee name and amount');
+    if(!accountNumber.trim()) return alert('Enter account number');
+    const newFee:any={ id:'FEE-'+Date.now(), name:feeName.trim(), amount:parseInt(feeAmount), level:feeLevel, session:feeSession, category:feeCategory, applicant_type:applicantType, is_published:true, account_name:accountName, account_number:accountNumber, bank_name:bankName, description:`Pay to ${bankName} ${accountNumber}`, created_at:new Date().toISOString() };
+    await saveFeesToSupabase(newFee); setFeeName(''); setFeeAmount(''); alert(`✅ Saved to SUPABASE! ${newFee.name} ₦${newFee.amount.toLocaleString()}`);
   };
 
-  const handleConfirmReject = () => {
-    if (!rejectingApplicant || !rejectionReason.trim()) return;
-    const updated = StorageService.rejectApplicantByBursar(
-      rejectingApplicant.id,
-      rejectionReason.trim()
-    );
-    setApplicants(updated);
-    setRejectingApplicant(null);
-    setRejectionReason('');
+  const handleApprove= async (pay:Payment, ok:boolean)=>{
+    const note=ok? prompt('Receipt No?')||'Cleared by Bursar' : prompt('Reason')||'Rejected';
+    const sb=getSupabase(); try{ if(sb) await sb.from('lcns_student_payments').update({ status: ok ? (pay.balance<=0?'PAID':'PARTIAL') : 'REJECTED', bursar_note:note, approved_at:new Date().toISOString() }).eq('id', pay.id); }catch{}
+    const updated=payments.map(p=> p.id===pay.id ? {...p, status: ok ? (p.balance<=0?'PAID':'PARTIAL') : 'REJECTED', bursar_note:note, approved_at:new Date().toISOString()} : p);
+    localStorage.setItem(PAY_KEY, JSON.stringify(updated)); setPayments(updated); setViewProof(null);
+    alert(ok?`✅ Cleared in SUPABASE!`:`❌ Rejected`);
   };
 
-  const handleRecordPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    const receiptNo = `LCNS-REC-2026-${String(payments.length + 1).padStart(3, '0')}`;
-    const rrr = `${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const newPayment: PaymentRecord = {
-      id: 'pay-' + Date.now(),
-      receiptNo,
-      rrr,
-      matricOrFormNo: payerMatric,
-      payerName,
-      feeType: payerFeeType,
-      amount: payerAmount,
-      session: COLLEGE_CONFIG.CURRENT_SESSION,
-      semester: 'First',
-      paymentDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      paymentMethod,
-      status: 'PAID',
-      verifiedBy: 'Mr. Simon T. Tyavyar (Bursar)',
-    };
-
-    const updated = [newPayment, ...payments];
-    StorageService.savePayments(updated);
-    setPayments(updated);
-    StorageService.logAction(
-      'bursar@lcns.edu.ng',
-      'BURSAR',
-      'RECORD_PAYMENT',
-      `Issued receipt ${receiptNo} (RRR: ${rrr}) for ${payerName} - ₦${payerAmount.toLocaleString()}`
-    );
-
-    setShowAddPayment(false);
-    setSelectedReceipt(newPayment);
+  const handleDeleteFee= async (id:string)=>{
+    if(!confirm('Delete from Supabase?')) return;
+    const sb=getSupabase(); try{ if(sb) await sb.from('lcns_fees').delete().eq('id', id); }catch{}
+    const updated=fees.filter(f=>f.id!==id); localStorage.setItem(FEES_KEY, JSON.stringify(updated)); setFees(updated);
   };
 
-  const handlePrintSlip = () => {
-    window.print();
+  // === CALCULATE TOTALS FOR EACH FEE ===
+  const getFeeTotals = (fee: FeeItem) => {
+    // Eligible users for this fee
+    let eligibleUsers: any[] = [];
+    if(fee.applicant_type==='STUDENT' || fee.applicant_type==='BOTH') eligibleUsers = [...eligibleUsers, ...students.filter(s=> (fee.level==='ALL' || s.level===fee.level) && s.session===fee.session)];
+    if(fee.applicant_type==='APPLICANT' || fee.applicant_type==='BOTH') eligibleUsers = [...eligibleUsers, ...applicants.filter((a:any)=> (fee.level==='ALL' || a.level===fee.level))];
+    
+    const eligibleCount = eligibleUsers.length;
+    const totalExpected = eligibleCount * fee.amount;
+    
+    const feePayments = payments.filter(p=> p.fee_id===fee.id && p.status!=='REJECTED');
+    const totalCollected = feePayments.filter(p=> p.status==='PAID'||p.status==='PARTIAL').reduce((s,p)=>s+p.amount_paid,0);
+    const totalPending = feePayments.filter(p=> p.status==='PENDING').reduce((s,p)=>s+p.amount_paid,0);
+    const totalBalance = totalExpected - totalCollected;
+    
+    // Count paid statuses
+    const paidFullUsers = new Set(feePayments.filter(p=>{ 
+      const userTotal = feePayments.filter(x=> x.user_id===p.user_id && (x.status==='PAID'||x.status==='PARTIAL')).reduce((s,x)=>s+x.amount_paid,0);
+      return userTotal >= fee.amount;
+    }).map(p=>p.user_id)).size;
+    
+    const paidPartialUsers = new Set(feePayments.filter(p=> (p.status==='PAID'||p.status==='PARTIAL')).map(p=>p.user_id)).size - paidFullUsers;
+    const unpaidUsers = eligibleCount - (paidFullUsers + paidPartialUsers);
+    const pendingUsers = new Set(feePayments.filter(p=> p.status==='PENDING').map(p=>p.user_id)).size;
+
+    return { eligibleCount, totalExpected, totalCollected, totalPending, totalBalance, paidFullUsers, paidPartialUsers, unpaidUsers, pendingUsers, feePayments };
   };
+
+  const pending=payments.filter(p=>p.status==='PENDING');
+  const totalAllExpected = fees.reduce((sum,f)=> sum + getFeeTotals(f).totalExpected, 0);
+  const totalAllCollected = payments.filter(p=>p.status==='PAID'||p.status==='PARTIAL').reduce((s,p)=>s+p.amount_paid,0);
+  const totalAllPending = pending.reduce((s,p)=>s+p.amount_paid,0);
+  const totalAllBalance = totalAllExpected - totalAllCollected;
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">
-              Bursary &amp; Accounts Department &bull; College Bursar
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">
-              Mr. Simon T. Tyavyar (FCA)
-            </h1>
-            <p className="text-xs text-emerald-200">
-              Revenue Reconciliation, Remita Verification, Applicant Clearance &amp; Official Receipts
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowAddPayment(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-md transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Issue Official Receipt</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Revenue & Clearance Counters */}
-        <div className="mt-6 pt-6 border-t border-emerald-800/80 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div className="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800">
-            <span className="text-emerald-300 block text-[10px] font-bold uppercase">Total Revenue Collected</span>
-            <span className="text-xl font-black text-amber-400 font-mono-code">
-              ₦{totalCollected.toLocaleString()}
-            </span>
-          </div>
-          <div className="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800">
-            <span className="text-amber-300 block text-[10px] font-bold uppercase">Pending Applicant Clearance</span>
-            <span className="text-xl font-black text-amber-300 font-mono-code">
-              {pendingApplicantsCount} Awaiting Audit
-            </span>
-          </div>
-          <div className="bg-emerald-950/70 p-3 rounded-2xl border border-emerald-800">
-            <span className="text-emerald-300 block text-[10px] font-bold uppercase">Verified Transactions</span>
-            <span className="text-xl font-black text-white font-mono-code">
-              {payments.filter((p) => p.status === 'PAID').length} Payments Logged
-            </span>
-          </div>
-        </div>
+    <div className="max-w-7xl mx-auto p-4 bg-white rounded-xl shadow space-y-4">
+      <div className="flex flex-wrap justify-between border-b pb-3 gap-2">
+        <div><h2 className="text-xl font-black text-emerald-900 flex items-center gap-2"><BarChart3 className="w-5 h-5"/> Bursar Dashboard - Total Payments Per Fee Set - Supabase</h2><p className="text-[11px] font-bold mt-1 flex items-center gap-2"><span className={`px-2 py-0.5 rounded-full ${supabaseStatus.includes('✅')?'bg-green-100 text-green-800':'bg-amber-100 text-amber-800'}`}>{supabaseStatus}</span><button onClick={loadFromSupabase} className="px-2 py-1 bg-slate-800 text-white rounded text-[10px] flex items-center gap-1"><RefreshCw className={`w-3 h-3 ${loading?'animate-spin':''}`}/> Refresh</button></p></div>
+        <div className="flex gap-2 text-[11px]"><span className="bg-red-100 text-red-800 px-3 py-1 rounded-full font-black">Pending: {pending.length}</span></div>
       </div>
 
-      {/* SUB-NAVIGATION TABS */}
-      <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
-        <button
-          onClick={() => setBursarTab('applicants')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            bursarTab === 'applicants'
-              ? 'bg-[#0a4d2e] text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4 text-amber-400" />
-          <span>Applicant Payment Clearance (/bursar/applicants)</span>
-          {pendingApplicantsCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
-              {pendingApplicantsCount} Pending
-            </span>
-          )}
-        </button>
-
-        <button
-          onClick={() => setBursarTab('bursar_accounts')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            bursarTab === 'bursar_accounts'
-              ? 'bg-[#0a4d2e] text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Award className="w-4 h-4 text-emerald-400" />
-          <span>Cleared Accounts Table (bursar_accounts)</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white font-bold">
-            {bursarAccounts.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setBursarTab('payments')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            bursarTab === 'payments'
-              ? 'bg-[#0a4d2e] text-white shadow-sm'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <CreditCard className="w-4 h-4 text-emerald-400" />
-          <span>Revenue &amp; Student Fee Payments Register</span>
-          <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-700 text-white font-bold">
-            {payments.length}
-          </span>
-        </button>
+      <div className="flex flex-wrap gap-2 bg-slate-50 p-2 rounded-xl border text-xs font-black">
+        <button onClick={()=>setActiveTab('dashboard')} className={`px-3 py-2 rounded-xl flex items-center gap-1 ${activeTab==='dashboard'?'bg-emerald-900 text-white':'bg-white border'}`}><BarChart3 className="w-4 h-4"/> Dashboard Totals Per Fee</button>
+        <button onClick={()=>setActiveTab('fees')} className={`px-3 py-2 rounded-xl ${activeTab==='fees'?'bg-emerald-900 text-white':'bg-white border'}`}>💰 Set Fees to Supabase</button>
+        <button onClick={()=>setActiveTab('pending')} className={`px-3 py-2 rounded-xl ${activeTab==='pending'?'bg-red-600 text-white':'bg-white border'}`}>⏳ Pending PNG/PDF ({pending.length})</button>
+        <button onClick={()=>setActiveTab('all')} className={`px-3 py-2 rounded-xl ${activeTab==='all'?'bg-slate-900 text-white':'bg-white border'}`}>📊 All Payments</button>
       </div>
 
-      {/* TAB 1: APPLICANT PAYMENT CLEARANCE */}
-      {bursarTab === 'applicants' && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                value={applicantSearch}
-                onChange={(e) => setApplicantSearch(e.target.value)}
-                placeholder="Search applicant name, form no, phone..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#0a4d2e]"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Filter className="w-4 h-4 text-slate-500" />
-              <select
-                value={applicantStatusFilter}
-                onChange={(e) => setApplicantStatusFilter(e.target.value as any)}
-                className="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700"
-              >
-                <option value="PENDING_BURSAR">Pending Bursar Clearance ({pendingApplicantsCount})</option>
-                <option value="BURSAR_CLEARED">Bursar Cleared</option>
-                <option value="REJECTED">Bursar Rejected</option>
-                <option value="ALL">All Applicants ({applicants.length})</option>
-              </select>
-            </div>
+      {activeTab==='dashboard' && (
+        <div className="space-y-4">
+          {/* OVERALL SUMMARY CARDS */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gradient-to-br from-emerald-900 to-emerald-700 text-white p-4 rounded-xl"><p className="text-[11px] uppercase opacity-80">Total Expected (All Fees)</p><p className="text-xl font-black">₦{totalAllExpected.toLocaleString()}</p><p className="text-[10px] mt-1">{fees.length} fees × {students.length+applicants.length} users</p></div>
+            <div className="bg-gradient-to-br from-green-600 to-green-500 text-white p-4 rounded-xl"><p className="text-[11px] uppercase opacity-80">Total Collected (Cleared)</p><p className="text-xl font-black">₦{totalAllCollected.toLocaleString()}</p><p className="text-[10px] mt-1 flex items-center gap-1"><TrendingUp className="w-3 h-3"/> {totalAllExpected>0? ((totalAllCollected/totalAllExpected)*100).toFixed(1):0}% collected</p></div>
+            <div className="bg-gradient-to-br from-amber-500 to-amber-400 text-black p-4 rounded-xl"><p className="text-[11px] uppercase">Pending Approval (PNG/PDF)</p><p className="text-xl font-black">₦{totalAllPending.toLocaleString()}</p><p className="text-[10px] mt-1">{pending.length} uploads awaiting clearance</p></div>
+            <div className="bg-gradient-to-br from-red-600 to-red-500 text-white p-4 rounded-xl"><p className="text-[11px] uppercase opacity-80">Outstanding Balance</p><p className="text-xl font-black">₦{totalAllBalance.toLocaleString()}</p><p className="text-[10px] mt-1">Yet to be paid</p></div>
           </div>
 
-          {/* APPLICANT CARDS / TABLE */}
-          {filteredApplicants.length === 0 ? (
-            <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 space-y-2">
-              <ShieldCheck className="w-8 h-8 mx-auto text-emerald-600" />
-              <p className="font-bold text-xs">No applicants matching this clearance filter.</p>
-              <p className="text-[11px] text-slate-400">All applications under this category have been processed.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-emerald-50 text-emerald-950 font-bold uppercase tracking-wider border-b border-emerald-200">
-                  <tr>
-                    <th className="p-3">Applicant Photo &amp; Name</th>
-                    <th className="p-3">Application Number</th>
-                    <th className="p-3">Course Choice 1 &amp; 2</th>
-                    <th className="p-3">Proof of Bank Payment</th>
-                    <th className="p-3">Clearance Status</th>
-                    <th className="p-3 text-right">Bursar Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredApplicants.map((app) => {
-                    const isPending =
-                      app.status === 'PENDING_BURSAR' || app.bursarStatus === 'PENDING_BURSAR';
-                    const isCleared =
-                      app.status === 'BURSAR_CLEARED' ||
-                      app.status === 'ADMITTED' ||
-                      app.bursarStatus === 'CLEARED';
-                    const isRejected =
-                      app.status === 'REJECTED' || app.bursarStatus === 'REJECTED';
+          {/* PER FEE BREAKDOWN - TOTAL PAYMENTS FOR EACH FEE SET */}
+          <h3 className="font-black text-sm flex items-center gap-2"><DollarSign className="w-4 h-4 text-emerald-600"/> Total Payments Per Fee Set - Breakdown</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {fees.map(fee=>{
+              const t=getFeeTotals(fee);
+              return (
+                <div key={fee.id} className="border-2 rounded-xl p-4 space-y-2 bg-white hover:shadow-lg transition">
+                  <div className="flex justify-between items-start"><div><h4 className="font-black text-sm">{fee.name}</h4><p className="text-[11px] text-slate-500">{fee.level} • {fee.session} • For: <span className={`px-1.5 py-0.5 rounded-full font-black text-[10px] ${fee.applicant_type==='STUDENT'?'bg-emerald-100 text-emerald-800': fee.applicant_type==='APPLICANT'?'bg-blue-100 text-blue-800':'bg-amber-100 text-amber-800'}`}>{fee.applicant_type}</span> • ₦{fee.amount.toLocaleString()} each</p><p className="text-[10px] bg-slate-900 text-amber-300 px-2 py-0.5 rounded mt-1 inline-block">{fee.bank_name} {fee.account_number}</p></div><span className={`px-2 py-1 rounded-full text-[10px] font-black ${t.totalBalance<=0?'bg-green-600 text-white':'bg-amber-400 text-black'}`}>{t.totalBalance<=0?'✅ FULLY COLLECTED':`₦${t.totalBalance.toLocaleString()} BAL`}</span></div>
+                  
+                  <div className="grid grid-cols-3 gap-2 text-[11px]">
+                    <div className="bg-slate-50 p-2 rounded"><p className="text-[10px] text-slate-500">Eligible Users</p><p className="font-black text-sm">{t.eligibleCount} ({t.eligibleCount>0?`${fee.level}`:''})</p></div>
+                    <div className="bg-emerald-50 p-2 rounded"><p className="text-[10px] text-slate-500">Expected Total</p><p className="font-black text-sm">₦{t.totalExpected.toLocaleString()}</p></div>
+                    <div className="bg-green-50 p-2 rounded"><p className="text-[10px] text-slate-500">Collected (Cleared)</p><p className="font-black text-sm text-green-700">₦{t.totalCollected.toLocaleString()}</p></div>
+                    <div className="bg-amber-50 p-2 rounded"><p className="text-[10px] text-slate-500">Pending PNG/PDF</p><p className="font-black text-sm text-amber-700">₦{t.totalPending.toLocaleString()}</p></div>
+                    <div className="bg-red-50 p-2 rounded"><p className="text-[10px] text-slate-500">Outstanding Bal</p><p className="font-black text-sm text-red-600">₦{t.totalBalance.toLocaleString()}</p></div>
+                    <div className="bg-blue-50 p-2 rounded"><p className="text-[10px] text-slate-500">Collection %</p><p className="font-black text-sm">{t.totalExpected>0? ((t.totalCollected/t.totalExpected)*100).toFixed(1):0}%</p></div>
+                  </div>
 
-                    return (
-                      <tr key={app.id} className="hover:bg-slate-50 transition-colors">
-                        {/* Photo & Name */}
-                        <td className="p-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-12 rounded-lg bg-slate-100 border border-slate-300 overflow-hidden shrink-0 flex items-center justify-center">
-                              {app.passportPhotoUrl ? (
-                                <img
-                                  src={app.passportPhotoUrl}
-                                  alt={app.fullName}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <Users className="w-5 h-5 text-slate-400" />
-                              )}
-                            </div>
-                            <div>
-                              <span className="font-bold text-slate-900 uppercase block">{app.fullName}</span>
-                              <span className="text-[11px] text-slate-500">{app.email} &bull; {app.phone}</span>
-                              <span className="text-[10px] text-slate-400 block">{app.stateOfOrigin} / {app.lga}</span>
-                            </div>
-                          </div>
-                        </td>
+                  <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full">✅ Full Paid: {t.paidFullUsers} users</span>
+                    <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded-full">⚠️ Partial: {t.paidPartialUsers} users</span>
+                    <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full">❌ Unpaid: {t.unpaidUsers} users</span>
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">⏳ Pending: {t.pendingUsers} users</span>
+                  </div>
 
-                        {/* App Number */}
-                        <td className="p-3">
-                          <span className="font-mono-code font-bold text-[#0a4d2e] block text-xs">{app.formNo}</span>
-                          <span className="text-[10px] text-slate-500 font-mono-code">JAMB: {app.jambRegNo} ({app.jambScore})</span>
-                        </td>
-
-                        {/* Course Choice */}
-                        <td className="p-3">
-                          <span className="font-semibold text-slate-900 block text-xs">
-                            1: {app.courseChoice1 || app.program}
-                          </span>
-                          <span className="text-[11px] text-slate-500 block">
-                            2: {app.courseChoice2 || 'HND Nursing Sciences'}
-                          </span>
-                        </td>
-
-                        {/* Payment Document */}
-                        <td className="p-3">
-                          <button
-                            type="button"
-                            onClick={() => setViewingProofApplicant(app)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0a4d2e] border border-emerald-300 rounded-xl font-bold text-[11px] transition-colors"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-emerald-700" />
-                            <span>View Bank PDF Receipt</span>
-                          </button>
-                        </td>
-
-                        {/* Clearance Status */}
-                        <td className="p-3">
-                          {isPending && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black uppercase tracking-wider">
-                              <Clock className="w-3 h-3 text-amber-700" />
-                              <span>PENDING BURSAR</span>
-                            </span>
-                          )}
-                          {isCleared && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 text-[10px] font-black uppercase tracking-wider">
-                              <ShieldCheck className="w-3 h-3 text-[#22c55e]" />
-                              <span>BURSAR CLEARED</span>
-                            </span>
-                          )}
-                          {isRejected && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-100 text-red-900 text-[10px] font-black uppercase tracking-wider">
-                              <X className="w-3 h-3 text-red-700" />
-                              <span>REJECTED</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {isPending && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleClearApplicant(app.id)}
-                                  className="px-3 py-1.5 bg-[#0a4d2e] hover:bg-[#06321e] text-white rounded-xl font-bold text-xs shadow-xs transition-all flex items-center gap-1"
-                                >
-                                  <Check className="w-3.5 h-3.5 text-emerald-300" />
-                                  <span>CLEAR</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenReject(app)}
-                                  className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 rounded-xl font-bold text-xs transition-colors flex items-center gap-1"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                  <span>REJECT</span>
-                                </button>
-                              </>
-                            )}
-
-                            {isCleared && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedClearedSlipApplicant(app)}
-                                className="px-3 py-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5"
-                              >
-                                <Printer className="w-3.5 h-3.5 text-amber-300" />
-                                <span>Official Cleared Slip</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 2: REVENUE & STUDENT PAYMENTS REGISTER */}
-      {bursarTab === 'payments' && (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-              <input
-                type="text"
-                value={searchPayment}
-                onChange={(e) => setSearchPayment(e.target.value)}
-                placeholder="Search by RRR, Receipt No, Matric, Name..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#0a4d2e]"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="p-3">Receipt / RRR</th>
-                  <th className="p-3">Payer &amp; Matric No</th>
-                  <th className="p-3">Fee Description</th>
-                  <th className="p-3 text-right">Amount (₦)</th>
-                  <th className="p-3">Method</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredPayments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="p-3">
-                      <span className="font-mono-code font-bold text-emerald-900 block">{p.receiptNo}</span>
-                      <span className="text-[10px] text-slate-500 font-mono-code">RRR: {p.rrr}</span>
-                    </td>
-                    <td className="p-3">
-                      <span className="font-bold text-slate-900 uppercase block">{p.payerName}</span>
-                      <span className="text-[10px] text-slate-500 font-mono-code">{p.matricOrFormNo}</span>
-                    </td>
-                    <td className="p-3 text-slate-700">{p.feeType}</td>
-                    <td className="p-3 font-mono-code font-bold text-emerald-900 text-right text-sm">
-                      ₦{p.amount.toLocaleString()}
-                    </td>
-                    <td className="p-3 text-slate-600 text-[11px]">{p.paymentMethod}</td>
-                    <td className="p-3">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full">
-                        <CheckCircle2 className="w-3 h-3 text-[#22c55e]" /> PAID
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      <button
-                        onClick={() => setSelectedReceipt(p)}
-                        className="px-3 py-1 bg-[#0a4d2e] hover:bg-[#06321e] text-white rounded-lg text-[11px] font-bold shadow-xs flex items-center gap-1 ml-auto"
-                      >
-                        <Receipt className="w-3 h-3" />
-                        <span>Print Receipt</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  <div className="w-full bg-slate-200 rounded-full h-2.5 mt-2"><div className="bg-green-600 h-2.5 rounded-full" style={{width: `${t.totalExpected>0? Math.min((t.totalCollected/t.totalExpected)*100,100):0}%`}}></div></div>
+                  <div className="flex justify-between text-[10px] text-slate-500"><span>0%</span><span>{t.totalExpected>0? ((t.totalCollected/t.totalExpected)*100).toFixed(1):0}% Collected</span><span>100%</span></div>
+                </div>
+              )
+            })}
+            {fees.length===0 && <div className="col-span-2 p-12 text-center border-2 border-dashed rounded-xl text-slate-400">No fees set yet - Create first fee in Fees tab - Totals will show here</div>}
           </div>
         </div>
       )}
 
-      {/* VIEW PROOF OF PAYMENT MODAL */}
-      {viewingProofApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in no-print">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
-            <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-5 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold uppercase font-serif-crest text-sm">Proof of Bank Payment</h3>
-                <p className="text-xs text-emerald-300">
-                  {viewingProofApplicant.fullName} &bull; {viewingProofApplicant.formNo}
-                </p>
-              </div>
-              <button
-                onClick={() => setViewingProofApplicant(null)}
-                className="p-1.5 text-emerald-300 hover:text-white rounded-xl hover:bg-emerald-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">Document Name:</span>
-                  <span className="font-mono-code font-bold text-slate-900">
-                    {viewingProofApplicant.paymentReceiptName || 'Proof_of_Payment.pdf'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">Applicant Email:</span>
-                  <span className="text-slate-900">{viewingProofApplicant.email}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">Phone Number:</span>
-                  <span className="text-slate-900">{viewingProofApplicant.phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">Current Status:</span>
-                  <span className="font-bold uppercase text-[#0a4d2e]">{viewingProofApplicant.status}</span>
-                </div>
-              </div>
-
-              {/* Document Preview Box */}
-              <div className="border-2 border-dashed border-[#0a4d2e]/40 rounded-2xl p-4 bg-emerald-50/40 text-center space-y-3">
-                {viewingProofApplicant.paymentReceiptPdfUrl?.startsWith('data:image/') ? (
-                  <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 shadow-xs">
-                    <img
-                      src={viewingProofApplicant.paymentReceiptPdfUrl}
-                      alt="Payment Receipt"
-                      className="w-full object-contain"
-                    />
-                  </div>
-                ) : (
-                  <div className="py-6 space-y-2">
-                    <FileText className="w-12 h-12 text-[#0a4d2e] mx-auto" />
-                    <p className="text-xs font-bold text-slate-800">
-                      Official Bank Payment Voucher (Attached)
-                    </p>
-                    <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
-                      Remita RRR Electronic Transaction Slip / Bank Branch Deposit Teller Receipt.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleClearApplicant(viewingProofApplicant.id);
-                    setViewingProofApplicant(null);
-                  }}
-                  className="flex-1 py-2.5 px-4 bg-[#0a4d2e] hover:bg-[#06321e] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Check className="w-4 h-4 text-emerald-300" />
-                  <span>CLEAR PAYMENT &amp; APPROVE</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = viewingProofApplicant;
-                    setViewingProofApplicant(null);
-                    handleOpenReject(target);
-                  }}
-                  className="py-2.5 px-4 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl border border-red-200 transition-all"
-                >
-                  REJECT
-                </button>
-              </div>
+      {activeTab==='fees' && (
+        <>
+          <div className="bg-emerald-50 border-2 border-emerald-200 p-4 rounded-xl">
+            <h3 className="font-black text-sm">Create Fee - Saved to Supabase + Shows in Dashboard Totals</h3>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 bg-white p-3 rounded-xl border">
+              <div><label className="text-[11px] font-bold">Fee Name *</label><input value={feeName} onChange={e=>setFeeName(e.target.value)} placeholder="School Fees, Acceptance..." className="w-full mt-1 px-3 py-2 border rounded-lg text-sm font-bold text-black"/></div>
+              <div><label className="text-[11px] font-bold">Amount ₦ *</label><input value={feeAmount} onChange={e=>setFeeAmount(e.target.value)} type="number" placeholder="250000" className="w-full mt-1 px-3 py-2 border-2 border-amber-300 rounded-lg font-black text-black"/></div>
+              <div><label className="text-[11px] font-bold">Apply To *</label><select value={applicantType} onChange={e=>setApplicantType(e.target.value)} className="w-full mt-1 px-3 py-2 border-2 border-blue-300 rounded-lg font-black text-black"><option value="BOTH">BOTH Student & Applicant</option><option value="STUDENT">STUDENT Only</option><option value="APPLICANT">APPLICANT Only</option></select></div>
+              <div><label className="text-[11px] font-bold">Class</label><select value={feeLevel} onChange={e=>setFeeLevel(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg font-bold text-black"><option value="ALL">ALL</option><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option></select></div>
+              <div><label className="text-[11px] font-bold">Session</label><select value={feeSession} onChange={e=>setFeeSession(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg font-bold text-black"><option>2025/2026</option><option>2026/2027</option><option>2027/2028</option></select></div>
+              <div><label className="text-[11px] font-bold">Bank</label><input value={bankName} onChange={e=>setBankName(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg font-bold text-black"/></div>
+              <div><label className="text-[11px] font-bold">Account No *</label><input value={accountNumber} onChange={e=>setAccountNumber(e.target.value)} placeholder="0123456789" className="w-full mt-1 px-3 py-2 border-2 border-red-300 rounded-lg font-black text-black"/></div>
+              <div><label className="text-[11px] font-bold">Account Name</label><input value={accountName} onChange={e=>setAccountName(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-lg font-bold text-black"/></div>
+              <button onClick={handleCreateFee} className="md:col-span-3 bg-emerald-700 text-white py-3 rounded-lg font-black">💾 Save to Supabase + Dashboard Totals</button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* REJECTION REASON MODAL */}
-      {rejectingApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in no-print">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 p-6 space-y-4">
-            <div className="flex items-center gap-3 text-red-600">
-              <AlertCircle className="w-6 h-6 shrink-0" />
-              <div>
-                <h3 className="font-bold text-sm text-slate-900 uppercase">Reject Payment Clearance</h3>
-                <p className="text-xs text-slate-500">
-                  {rejectingApplicant.fullName} ({rejectingApplicant.formNo})
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                Reason for Rejection *
-              </label>
-              <textarea
-                value={rejectionReason}
-                onChange={(e) => setRejectionReason(e.target.value)}
-                rows={3}
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-red-500"
-                placeholder="State why the payment was rejected..."
-                required
-              />
-            </div>
-
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setRejectingApplicant(null)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmReject}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
-              >
-                Confirm Rejection
-              </button>
-            </div>
-          </div>
-        </div>
+      {activeTab==='pending' && (
+        <div className="overflow-x-auto border rounded-xl"><table className="w-full text-xs"><thead className="bg-red-700 text-white"><tr><th className="p-2 text-left">User</th><th>Type</th><th>Matric</th><th>Fee</th><th>Paid</th><th>Proof PNG/PDF</th><th>Date</th><th>Action</th></tr></thead><tbody>{payments.filter(p=>p.status==='PENDING').map(p=><tr key={p.id} className="border-b bg-amber-50"><td className="p-2 font-bold">{p.user_name}</td><td className="p-2"><span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${p.user_type==='STUDENT'?'bg-emerald-500 text-white':'bg-blue-500 text-white'}`}>{p.user_type}</span></td><td className="p-2 font-mono font-bold">{p.matric_no}</td><td className="p-2">{p.fee_name}<div className="text-[10px]">₦{p.amount.toLocaleString()}</div></td><td className="p-2 font-black text-green-700">₦{p.amount_paid.toLocaleString()}<div className="text-[10px]">Bal ₦{p.balance.toLocaleString()}</div></td><td className="p-2 text-center"><button onClick={()=>setViewProof(p)} className="px-2 py-1 bg-blue-600 text-white rounded text-[11px] flex items-center gap-1 mx-auto"><Eye className="w-3 h-3"/> View {p.proof_type?.includes('pdf')?'PDF':'PNG'}</button></td><td className="p-2 text-[10px]">{new Date(p.created_at||'').toLocaleString()}</td><td className="p-2 flex gap-1 justify-center"><button onClick={()=>handleApprove(p,true)} className="p-1.5 bg-green-600 text-white rounded"><Check className="w-4 h-4"/></button><button onClick={()=>handleApprove(p,false)} className="p-1.5 bg-red-600 text-white rounded"><X className="w-4 h-4"/></button></td></tr>)}</tbody></table></div>
       )}
 
-      {/* OFFICIAL CLEARED APPLICATION SLIP MODAL */}
-      {selectedClearedSlipApplicant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-4 my-8">
-            <div className="flex items-center justify-between no-print border-b pb-3">
-              <span className="text-xs font-bold text-[#0a4d2e] uppercase flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>Bursary Stamped Registration Slip</span>
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrintSlip}
-                  className="px-3.5 py-1.5 bg-[#0a4d2e] hover:bg-[#06321e] text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-sm"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print Slip</span>
-                </button>
-                <button
-                  onClick={() => setSelectedClearedSlipApplicant(null)}
-                  className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-            {/* Slip Template */}
-            <div className="border-2 border-[#0a4d2e] rounded-xl p-6 bg-white shadow-sm print-page relative text-xs text-slate-800 space-y-4">
-              <div className="text-center pb-3 border-b-2 border-[#0a4d2e]">
-                <div className="flex items-center justify-center gap-3 mb-1">
-                  <CollegeLogo size="sm" />
-                  <div>
-                    <h2 className="text-base font-black uppercase font-serif-crest text-emerald-950">
-                      Labe College of Nursing Sciences, Gboko
-                    </h2>
-                    <p className="text-[10px] font-bold text-[#0a4d2e] uppercase">
-                      2026/2027 Admissions Screening Acknowledgement Slip
-                    </p>
-                    <p className="text-[9px] text-slate-500">
-                      Official Email: info@lcns.edu.ng | Support: 08126799565 ICT
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Details + Passport Top Right */}
-              <div className="grid grid-cols-3 gap-4 items-start">
-                <div className="col-span-2 space-y-1.5">
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Application Form No:</span>
-                    <span className="font-mono-code font-bold text-[#0a4d2e] text-sm">
-                      {selectedClearedSlipApplicant.formNo}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Candidate Full Name:</span>
-                    <span className="font-bold text-slate-900 uppercase">
-                      {selectedClearedSlipApplicant.fullName}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Course Choice 1:</span>
-                    <span className="font-bold text-[#0a4d2e]">
-                      {selectedClearedSlipApplicant.courseChoice1 || selectedClearedSlipApplicant.program}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Course Choice 2:</span>
-                    <span className="font-semibold text-slate-700">
-                      {selectedClearedSlipApplicant.courseChoice2 || 'HND Nursing Sciences'}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">JAMB UTME:</span>
-                    <span className="font-bold">
-                      {selectedClearedSlipApplicant.jambRegNo} ({selectedClearedSlipApplicant.jambScore})
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] block">Origin:</span>
-                    <span>
-                      {selectedClearedSlipApplicant.stateOfOrigin} / {selectedClearedSlipApplicant.lga}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center">
-                  <div className="w-28 h-36 border-2 border-[#0a4d2e] rounded-xl overflow-hidden shadow-sm bg-slate-100 flex items-center justify-center">
-                    {selectedClearedSlipApplicant.passportPhotoUrl ? (
-                      <img
-                        src={selectedClearedSlipApplicant.passportPhotoUrl}
-                        alt="Passport"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Users className="w-8 h-8 text-slate-300" />
-                    )}
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-bold mt-1 uppercase">Official Passport</span>
-                </div>
-              </div>
-
-              {/* Official Bursar Cleared Stamp */}
-              <div className="p-3 bg-emerald-50 border-2 border-emerald-600 rounded-xl flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] font-black uppercase text-emerald-950">
-                    BURSARY AUDIT STATUS:
-                  </div>
-                  <div className="text-xs font-black text-emerald-800">
-                    ★ BURSAR CLEARED &bull; PAYMENT VERIFIED ★
-                  </div>
-                  <div className="text-[10px] text-emerald-900 font-mono-code">
-                    Date: {selectedClearedSlipApplicant.bursarClearedDate || new Date().toISOString().split('T')[0]}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[10px] font-bold text-emerald-950">Mr. Simon T. Tyavyar (FCA)</div>
-                  <div className="text-[9px] text-emerald-700 italic">College Bursar &amp; Chief Financial Officer</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      {activeTab==='all' && (
+        <div className="overflow-x-auto border rounded-xl"><table className="w-full text-xs"><thead className="bg-green-800 text-white"><tr><th className="p-2 text-left">User</th><th>Type</th><th>Matric</th><th>Fee</th><th>Amount</th><th>Paid</th><th>Bal</th><th>Status</th><th>Date Supabase</th></tr></thead><tbody>{payments.filter(p=>p.status!=='PENDING').map(p=><tr key={p.id} className="border-b"><td className="p-2 font-bold">{p.user_name}</td><td className="p-2">{p.user_type}</td><td className="p-2 font-mono">{p.matric_no}</td><td className="p-2">{p.fee_name}</td><td className="p-2">₦{p.amount.toLocaleString()}</td><td className="p-2 font-black text-green-700">₦{p.amount_paid.toLocaleString()}</td><td className="p-2">₦{p.balance.toLocaleString()}</td><td className="p-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${p.status==='PAID'?'bg-green-600 text-white':'bg-amber-400 text-black'}`}>{p.status==='PAID'?'COMPLETED':'PARTIAL'}</span></td><td className="p-2 text-[10px]">{new Date(p.created_at||'').toLocaleDateString()} {p.reference}</td></tr>)}</tbody></table></div>
       )}
 
-      {/* OFFICIAL PRINTABLE RECEIPT MODAL */}
-      {selectedReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-4 my-8">
-            <div className="flex items-center justify-between no-print border-b pb-3">
-              <span className="text-xs font-bold text-slate-600 uppercase">Official Payment Voucher</span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrintSlip}
-                  className="px-3 py-1.5 bg-[#0a4d2e] text-white text-xs font-bold rounded-lg flex items-center gap-1"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print Receipt</span>
-                </button>
-                <button
-                  onClick={() => setSelectedReceipt(null)}
-                  className="px-3 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-            {/* Official Stamped Receipt Paper */}
-            <div className="border-4 border-double border-emerald-900 p-6 rounded-xl bg-white shadow-sm print-page space-y-4 text-xs text-slate-800 relative">
-              <div className="text-center pb-3 border-b-2 border-emerald-900">
-                <div className="flex items-center justify-center gap-3 mb-1">
-                  <CollegeLogo size="sm" />
-                  <div>
-                    <h2 className="text-base font-black uppercase font-serif-crest text-emerald-950">
-                      Labe College of Nursing Sciences, Gboko
-                    </h2>
-                    <p className="text-[10px] font-bold text-emerald-800 uppercase">
-                      Bursary &amp; Accounts Department &bull; Official Payment Receipt
-                    </p>
-                    <p className="text-[9px] text-slate-500">
-                      Official Email: info@lcns.edu.ng | Support: 08126799565 ICT
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs border-b pb-3">
-                <div>
-                  <span className="text-slate-500 block text-[10px]">Official Receipt No:</span>
-                  <span className="font-mono-code font-bold text-emerald-950 text-sm">{selectedReceipt.receiptNo}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block text-[10px]">Remita Retrieval Ref (RRR):</span>
-                  <span className="font-mono-code font-bold text-slate-900">{selectedReceipt.rrr}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">Paid By:</span>
-                  <span className="font-bold text-slate-950 uppercase">{selectedReceipt.payerName}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block text-[10px]">Matric / Form No:</span>
-                  <span className="font-mono-code font-bold text-slate-900">{selectedReceipt.matricOrFormNo}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[10px]">Transaction Date:</span>
-                  <span>{selectedReceipt.paymentDate}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-slate-500 block text-[10px]">Payment Method:</span>
-                  <span className="font-semibold">{selectedReceipt.paymentMethod}</span>
-                </div>
-              </div>
-
-              <div className="p-3 bg-emerald-50 rounded-lg flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-slate-700 block">{selectedReceipt.feeType}</span>
-                  <span className="text-[10px] text-slate-500">Session: {selectedReceipt.session} ({selectedReceipt.semester} Semester)</span>
-                </div>
-                <span className="font-mono-code font-black text-lg text-emerald-900">
-                  ₦{selectedReceipt.amount.toLocaleString()}
-                </span>
-              </div>
-
-              <div className="pt-4 flex items-center justify-between text-[11px] text-slate-500">
-                <div>
-                  <span>Verified by: </span>
-                  <strong className="text-slate-800">{selectedReceipt.verifiedBy}</strong>
-                </div>
-                <div className="text-right border-2 border-emerald-800 p-1 rounded font-mono-code text-[10px] text-emerald-900 font-bold uppercase">
-                  ✓ LCNS BURSARY CLEARED
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* RECORD PAYMENT MANUAL MODAL */}
-      {showAddPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-bold text-slate-900 text-sm uppercase">Record Bank / Remita Payment</h3>
-              <button onClick={() => setShowAddPayment(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleRecordPayment} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Student Matric or Form No *</label>
-                <input
-                  type="text"
-                  value={payerMatric}
-                  onChange={(e) => setPayerMatric(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border rounded-xl"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Payer Full Name *</label>
-                <input
-                  type="text"
-                  value={payerName}
-                  onChange={(e) => setPayerName(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border rounded-xl"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Fee Description *</label>
-                <select
-                  value={payerFeeType}
-                  onChange={(e) => setPayerFeeType(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border rounded-xl font-medium"
-                >
-                  <option value="Tuition & Academic Training Fee (First Semester)">Tuition &amp; Training (1st Semester)</option>
-                  <option value="Tuition & Academic Training Fee (Second Semester)">Tuition &amp; Training (2nd Semester)</option>
-                  <option value="Provisional Acceptance Fee">Provisional Acceptance Fee</option>
-                  <option value="Clinical Logbook & Nursing Kit Fee">Clinical Logbook &amp; Nursing Kit</option>
-                  <option value="Hostel Accommodation & Utility Levy">Hostel Accommodation &amp; Utility</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Amount (₦) *</label>
-                  <input
-                    type="number"
-                    value={payerAmount}
-                    onChange={(e) => setPayerAmount(Number(e.target.value))}
-                    className="w-full p-2 bg-slate-50 border rounded-xl font-bold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Payment Method</label>
-                  <select
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as any)}
-                    className="w-full p-2 bg-slate-50 border rounded-xl"
-                  >
-                    <option value="Remita / Card">Remita / Card</option>
-                    <option value="Bank Branch Deposit">Bank Branch Deposit</option>
-                    <option value="Direct Transfer">Direct Transfer</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddPayment(false)}
-                  className="flex-1 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 bg-[#0a4d2e] hover:bg-[#06321e] text-white font-bold rounded-xl shadow-md"
-                >
-                  Save &amp; Generate
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {viewProof && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"><div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-auto p-4 space-y-3"><div className="flex justify-between border-b pb-2"><h3 className="font-black">{viewProof.user_type} - {viewProof.user_name} - {viewProof.matric_no} - {viewProof.fee_name} ₦{viewProof.amount_paid.toLocaleString()} - Supabase</h3><button onClick={()=>setViewProof(null)} className="p-2 bg-slate-100 rounded-full"><X className="w-5 h-5"/></button></div><div className="border-2 border-dashed p-2 rounded-xl bg-slate-50 text-center">{viewProof.proof_type?.includes('pdf') ? <div><FileText className="w-12 h-12 mx-auto text-red-600"/><a href={viewProof.proof_url} download={viewProof.proof_name} target="_blank" className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-black"><Download className="w-4 h-4"/> Download PDF</a><iframe src={viewProof.proof_url} className="w-full h-[500px] mt-3 border rounded" title="PDF"/></div> : <div><img src={viewProof.proof_url} alt="Proof" className="max-w-full max-h-[600px] mx-auto rounded border shadow"/><a href={viewProof.proof_url} download={viewProof.proof_name} className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-black"><Download className="w-4 h-4"/> Download PNG</a></div>}</div><div className="flex gap-2 justify-end"><button onClick={()=>handleApprove(viewProof,false)} className="px-4 py-2 bg-red-600 text-white rounded-lg font-black flex items-center gap-1"><X className="w-4 h-4"/> Reject</button><button onClick={()=>handleApprove(viewProof,true)} className="px-4 py-2 bg-green-600 text-white rounded-lg font-black flex items-center gap-1"><Check className="w-4 h-4"/> Clear & Approve in Supabase - Adds to Totals</button></div></div></div>
       )}
     </div>
   );
