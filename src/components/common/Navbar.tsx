@@ -58,18 +58,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     window.history.pushState({}, '', '/');
   };
 
-  // FIXED SCROLL FUNCTION - makes About, Program, Values, Hostel, Gallery clickable
   const scrollToId = (id: string) => {
     setMobileOpen(false);
     setActiveView('website');
-    // Wait for website view
     setTimeout(() => {
       const el = document.getElementById(id);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         window.history.pushState({}, '', `/#${id}`);
       } else {
-        // fallback - try hash
         window.location.hash = id;
       }
     }, 100);
@@ -155,16 +152,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <CollegeLogo size="md" />
             <div className="hidden sm:block">
-              <span className="block font-black text-white text-base sm:text-lg leading-tight uppercase font-serif-crest tracking-tight group-hover:text-amber-300 transition-colors">
+              <span className="block font-black text-white text-[13px] sm:text-[15px] leading-tight uppercase font-serif-crest tracking-tight group-hover:text-amber-300 transition-colors">
                 Labe College of Nursing Sciences
               </span>
-              <span className="block text-xs font-semibold text-amber-300 tracking-wider uppercase">
-                Gboko, Benue State &bull; Learn, Serve &amp; Save
+              <span className="block text-[10px] sm:text-[11px] font-bold text-amber-300 tracking-wider uppercase leading-tight">
+                Catholic Diocese of Gboko, Benue State
+              </span>
+              <span className="block text-[9px] font-semibold text-emerald-200 tracking-widest uppercase">
+                Gboko &bull; Learn, Serve & Save
               </span>
             </div>
           </button>
 
-          {/* DESKTOP MENU - FIXED */}
           <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-white/90">
             <button onClick={() => { setActiveView('website'); window.scrollTo({top:0, behavior:'smooth'}); }} className="hover:text-amber-300 transition-colors">
               Home
