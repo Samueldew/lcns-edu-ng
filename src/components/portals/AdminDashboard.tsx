@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { StorageService } from '../../services/storage';
-import { AdminSettings } from './AdminSettings';
-import { AdminManagement } from './AdminManagement';
-import { AdminGallery } from './AdminGallery';
+import AdminSettings from './AdminSettings';
+import AdminManagement from './AdminManagement';
+import AdminGallery from './AdminGallery';
 import { CBTExamManager } from '../cbt/CBTExamManager';
-import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Calendar, Users, Database, BookOpen } from 'lucide-react';
+import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Users, Database, BookOpen } from 'lucide-react';
 import { StudentPromotion } from './StudentPromotion';
-import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
+import AdminAdmissionManager from '../admin/AdminAdmissionManager';
 
 const SUPABASE_BUCKET = 'lcns-media';
 
