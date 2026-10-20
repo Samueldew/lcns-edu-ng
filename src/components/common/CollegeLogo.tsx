@@ -17,7 +17,6 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
   variant = 'main',
 }) => {
   const settingKey = variant === 'white' ? 'school_logo_white' : 'school_logo';
-  // Use GitHub raw URL - works even without public folder
   const FALLBACK_LOGO = 'https://raw.githubusercontent.com/Samueldew/lcns-edu-ng/main/lcns-logo.png.jpg';
   
   const initialLogo = overrideLogoUrl || getLocalSettings()[settingKey] || undefined;
@@ -61,9 +60,16 @@ export const CollegeLogo: React.FC<CollegeLogoProps> = ({
         />
       </div>
       {showText && (
-        <div className="flex flex-col">
-          <span className="font-extrabold text-[#0a4d2e] text-lg uppercase">Labe College of Nursing Sciences</span>
-          <span className="text-xs font-semibold text-[#0a4d2e] uppercase">Gboko, Benue State</span>
+        <div className="flex flex-col leading-tight">
+          <span className="font-extrabold text-[#0a4d2e] text-[16px] uppercase tracking-tight">
+            Labe College of Nursing Sciences
+          </span>
+          <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">
+            Catholic Diocese of Gboko, Benue State
+          </span>
+          <span className="text-[10px] font-semibold text-[#0a4d2e] uppercase">
+            Gboko &bull; Learn, Serve & Save
+          </span>
         </div>
       )}
     </div>
