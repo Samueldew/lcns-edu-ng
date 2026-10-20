@@ -21,8 +21,9 @@ function getClient(): SupabaseClient | null {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storage: window.localStorage,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         storageKey: 'lcns-auth-token',
+        flowType: 'pkce'
       }
     }); 
     return client; 
@@ -31,9 +32,7 @@ function getClient(): SupabaseClient | null {
 
 export function getSupabase(): SupabaseClient | null { return getClient(); }
 export function isSupabaseConfigured(): boolean { return !!getEnv(); }
-export function isSupabaseUrlExpired(): boolean { return false; }
 export function getSupabaseConfig() { return { url: supabaseUrl, bucket: SUPABASE_BUCKET, configured: !!getEnv() }; }
-export const SUPABASE_SETUP_SQL = "CREATE BUCKET school-assets;";
 
 export function getPublicImageUrl(bucket: string, path: string): string {
   if (!path) return '';
@@ -42,30 +41,4 @@ export function getPublicImageUrl(bucket: string, path: string): string {
   return `${env.url}/storage/v1/object/public/${bucket}/${path}`;
 }
 
-export function getHostelImageUrl(path: string | null | undefined): string {
-  if (!path) return ''; return getPublicImageUrl(SUPABASE_BUCKET, path);
-}
-
-export function fileToDataUrl(file: File | Blob): Promise<string> {
-  return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result as string); r.onerror = reject; r.readAsDataURL(file); });
-}
-
-export function mapManagementRows(rows: any[]): any[] { return rows || []; }
-export function mapGalleryRows(rows: any[]): any[] { return rows || []; }
-
-// REAL supabase client - NOT Proxy mock
-export const supabase: SupabaseClient | any = (() => {
-  const c = getClient();
-  if (c) return c;
-  // fallback only if not configured
-  return {
-    from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }),
-    storage: { from: () => ({ getPublicUrl: () => ({ data: { publicUrl: '' } }) }) },
-    auth: {
-      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-      signInWithPassword: () => Promise.resolve({ data: null, error: { message: 'Supabase not configured' } }),
-      signOut: () => Promise.resolve({ error: null }),
-    }
-  };
-})();
+export const supabase: SupabaseClient = getClient() as any;
