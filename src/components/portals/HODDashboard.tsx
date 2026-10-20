@@ -16,11 +16,12 @@ import {
 } from 'lucide-react';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
+import { CourseRegistrationApproval } from './CourseRegistrationApproval';
 
 export const HODDashboard: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>(StorageService.getCourses());
   const [students] = useState<Student[]>(StorageService.getStudents());
-  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets'>('scoresheets');
+  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg'>('course_reg');
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
@@ -71,27 +72,30 @@ export const HODDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • Nursing Sciences • Score Sheets Submitted by Lecturers</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • Course Registration Approval - Credit Units Check + Score Sheets</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">Dr. (Mrs) Rebecca M. Chia</h1>
-            <p className="text-xs text-emerald-200">Curriculum Oversight + See Lecturers Who Submitted Scores + Download PDF - ND1 N2 HND1 HND2 - 40+60=100</p>
+            <p className="text-xs text-emerald-200">Approve Course Registration - If credit units exceed limit - MUST DISAPPROVE + See Lecturers Score Sheets - Download PDF with SCHOOL NAME + LOGO</p>
           </div>
           <button onClick={() => setShowAddCourse(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-md self-start sm:self-auto"><Plus className="w-4 h-4"/><span>Allocate New Course</span></button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
-        <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets - Lecturers Submitted - Download PDF - NEW</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">40+60</span></button>
-        <button onClick={() => setActiveTab('biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='biodata'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 All Students Biodata</span></button>
+        <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Registration Approval - HOD - If Units Exceed - DISAPPROVE - NEW</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">CREDIT</span></button>
+        <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-400 text-emerald-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets - Lecturers Submitted - Download PDF</span></button>
+        <button onClick={() => setActiveTab('biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='biodata'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Users className="w-4 h-4"/><span>👨‍🎓 All Students Biodata</span></button>
         <button onClick={() => setActiveTab('courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='courses'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><BookOpen className="w-4 h-4"/><span>Course Allocations</span><span className="ml-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px]">{courses.length}</span></button>
         <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white':'bg-purple-50 border border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 All Applicants</span></button>
       </div>
 
-      {activeTab==='scoresheets' ? (
+      {activeTab==='course_reg' ? (
+        <CourseRegistrationApproval currentUser={currentUser} />
+      ) : activeTab==='scoresheets' ? (
         <ScoreSheetViewer currentUser={currentUser} />
       ) : activeTab==='biodata' ? (
         <div className="bg-white rounded-3xl border-2 border-emerald-300 p-4 space-y-4">
           <div className="flex flex-col md:flex-row justify-between gap-3">
-            <div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata - Current Level ND1 ND2 HND1 HND2 - HOD View</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">Provost and Registrar, Exam Officer, HOD see all student biodata on dashboard with their current level: Full Name, Matric No, Photo, Program, Current Level, Session, State, Phone, Blood, CGPA</p></div>
+            <div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata - Current Level ND1 ND2 HND1 HND2 - HOD View</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">HOD see all student biodata + approve course registration - If credit units exceed limit - MUST DISAPPROVE - Print with SCHOOL FULL NAME + LOGO</p></div>
             <button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-1 self-start"><Download className="w-4 h-4"/>Print Biodata</button>
           </div>
           <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border">
