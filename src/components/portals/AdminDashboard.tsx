@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { StorageService } from '../../services/storage';
-import { SUPABASE_BUCKET } from '../../services/supabase';
 import { AdminSettings } from './AdminSettings';
 import { AdminManagement } from './AdminManagement';
 import { AdminGallery } from './AdminGallery';
@@ -9,6 +8,8 @@ import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Calend
 import { StudentPromotion } from './StudentPromotion';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 
+const SUPABASE_BUCKET = 'lcns-media';
+
 interface AdminDashboardProps {
   initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants';
 }
@@ -16,7 +17,6 @@ interface AdminDashboardProps {
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) => {
   const [users, setUsers] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>(() => JSON.parse(localStorage.getItem('lcns_courses') || '[]'));
-  const [testingConnection, setTestingConnection] = useState(false);
   const [activeAdminTab, setActiveAdminTab] = useState<
     'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants'
   >(initialTab || 'settings');
@@ -53,19 +53,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
           <span>Promote Students & New Session 2026/2027</span>
           <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-black text-amber-400 font-bold">NEW</span>
         </button>
-
         <button onClick={() => setActiveAdminTab('courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${activeAdminTab === 'courses' ? 'bg-emerald-700 text-white shadow-md ring-2 ring-emerald-300' : 'text-emerald-800 hover:bg-emerald-50 border-2 border-emerald-300'}`}>
           <BookOpen className="w-4 h-4" />
           <span>📚 Allocate Courses to Lecturers</span>
           <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-black text-white font-bold">{courses.length}</span>
         </button>
-
         <button onClick={() => setActiveAdminTab('applicants')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${activeAdminTab === 'applicants' ? 'bg-purple-700 text-white shadow-md ring-2 ring-purple-300' : 'text-purple-800 hover:bg-purple-50 border-2 border-purple-300'}`}>
           <GraduationCap className="w-4 h-4" />
           <span>🎓 All Applicants - CBT + Interview + Admit</span>
           <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black font-bold">SUPER FINE</span>
         </button>
-
         <button onClick={() => setActiveAdminTab('settings')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${activeAdminTab === 'settings' ? 'bg-[#0a4d2e] text-white shadow-sm' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
           <Sliders className="w-4 h-4 text-[#ca8a04]" />
           <span>School Settings</span>
@@ -121,7 +118,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
               <tbody>{courses.map((c:any)=><tr key={c.id} className="border-b"><td className="p-2 font-mono font-black">{c.code}</td><td className="p-2">{c.title}</td><td className="p-2">{c.lecturer}</td></tr>)}</tbody>
             </table>
           </div>
-          <p className="text-[11px] text-slate-500">Create lecturers in Users & Roles tab first, then allocate here</p>
         </div>
       )}
       {activeAdminTab === 'applicants' && (
