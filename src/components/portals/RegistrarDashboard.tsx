@@ -11,14 +11,18 @@ import {
   Download,
   Filter,
   UserCheck,
+  ArrowUpCircle,
+  Calendar,
+  GraduationCap,
 } from 'lucide-react';
 
 import { CBTExamManager } from '../cbt/CBTExamManager';
 import { AdmissionProcessingView } from './AdmissionProcessingView';
+import { StudentPromotion } from './StudentPromotion';
 
 export const RegistrarDashboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>(StorageService.getStudents());
-  const [activeTab, setActiveTab] = useState<'students' | 'admissions' | 'cbt'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'admissions' | 'cbt' | 'promotion'>('students');
   const [searchTerm, setSearchTerm] = useState('');
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [selectedStudentForLetter, setSelectedStudentForLetter] = useState<Student | null>(null);
@@ -44,13 +48,13 @@ export const RegistrarDashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">
-              Academic Registry &bull; Office of the Registrar
+              Academic Registry &bull; Office of the Registrar &bull; {localStorage.getItem('lcns_current_session') || '2025/2026'}
             </span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">
               Barr. Timothy J. Iorbee
             </h1>
             <p className="text-xs text-emerald-200">
-              Student Records, Matriculation Roll, and CBT Screening Examination Office
+              Student Records, Matriculation Roll, Promotion & CBT Screening Office
             </p>
           </div>
           <div className="bg-emerald-950/80 p-3 rounded-2xl border border-emerald-800 text-center">
@@ -62,6 +66,19 @@ export const RegistrarDashboard: React.FC = () => {
 
       {/* Navigation Sub-Tabs */}
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
+        <button
+          onClick={() => setActiveTab('promotion')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
+            activeTab === 'promotion'
+              ? 'bg-amber-500 text-black shadow-md'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-amber-50 border border-amber-200'
+          }`}
+        >
+          <ArrowUpCircle className="w-4 h-4" />
+          <span>Promote ND1→HND2 & Set 2026/2027 Session</span>
+          <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-black text-amber-400">NEW</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('students')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
@@ -83,7 +100,7 @@ export const RegistrarDashboard: React.FC = () => {
           }`}
         >
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-          <span>Admissions Committee (/admissions)</span>
+          <span>Admissions Committee</span>
         </button>
 
         <button
@@ -95,11 +112,13 @@ export const RegistrarDashboard: React.FC = () => {
           }`}
         >
           <Award className="w-4 h-4 text-amber-400" />
-          <span>Applicant CBT Screening Tests &amp; Result PDF</span>
+          <span>CBT Screening</span>
         </button>
       </div>
 
-      {activeTab === 'admissions' ? (
+      {activeTab === 'promotion' ? (
+        <StudentPromotion />
+      ) : activeTab === 'admissions' ? (
         <AdmissionProcessingView />
       ) : activeTab === 'cbt' ? (
         <CBTExamManager
