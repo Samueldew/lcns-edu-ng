@@ -1,73 +1,41 @@
 import bcrypt from 'bcryptjs';
 import {
-  User,
-  UserRole,
-  Applicant,
-  Student,
-  Course,
-  ResultScore,
-  FeeItem,
-  PaymentRecord,
-  Notice,
-  AuditLog,
-  CMSConfig,
-  GalleryItem,
-  CBTExam,
-  CBTSubmission,
-  CBTTest,
-  CBTQuestionItem,
-  CBTResult,
-  BursarAccount,
-  ScreeningScore,
+  User, UserRole, Applicant, Student, Course, ResultScore, FeeItem,
+  PaymentRecord, Notice, AuditLog, CMSConfig, GalleryItem, CBTExam,
+  CBTSubmission, CBTTest, CBTQuestionItem, CBTResult, BursarAccount, ScreeningScore,
 } from '../types';
 
 const STORAGE_KEYS = {
-  USERS: 'lcns_erp_users',
-  APPLICANTS: 'lcns_erp_applicants',
-  STUDENTS: 'lcns_erp_students',
-  COURSES: 'lcns_erp_courses',
-  RESULTS: 'lcns_erp_results',
-  FEES: 'lcns_erp_fees',
-  PAYMENTS: 'lcns_erp_payments',
-  NOTICES: 'lcns_erp_notices',
-  AUDIT_LOGS: 'lcns_erp_audit_logs',
-  CURRENT_USER: 'lcns_erp_current_user',
-  CMS: 'lcns_erp_cms_config',
-  CBT_EXAMS: 'lcns_erp_cbt_exams',
-  CBT_SUBMISSIONS: 'lcns_erp_cbt_submissions',
-  BURSAR_ACCOUNTS: 'lcns_erp_bursar_accounts',
-  CBT_TESTS: 'lcns_erp_cbt_tests',
-  CBT_QUESTIONS: 'lcns_erp_cbt_questions',
-  CBT_RESULTS: 'lcns_erp_cbt_results',
-  SCREENING_SCORES: 'lcns_erp_screening_scores',
+  USERS: 'lcns_erp_users', APPLICANTS: 'lcns_erp_applicants',
+  STUDENTS: 'lcns_erp_students', COURSES: 'lcns_erp_courses',
+  RESULTS: 'lcns_erp_results', FEES: 'lcns_erp_fees',
+  PAYMENTS: 'lcns_erp_payments', NOTICES: 'lcns_erp_notices',
+  AUDIT_LOGS: 'lcns_erp_audit_logs', CURRENT_USER: 'lcns_erp_current_user',
+  CMS: 'lcns_erp_cms_config', CBT_EXAMS: 'lcns_erp_cbt_exams',
+  CBT_SUBMISSIONS: 'lcns_erp_cbt_submissions', BURSAR_ACCOUNTS: 'lcns_erp_bursar_accounts',
+  CBT_TESTS: 'lcns_erp_cbt_tests', CBT_QUESTIONS: 'lcns_erp_cbt_questions',
+  CBT_RESULTS: 'lcns_erp_cbt_results', SCREENING_SCORES: 'lcns_erp_screening_scores',
 };
 
+// --- FINAL SECURE USERS - NO admin123 ---
 const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
-  { id: 'LCNS/2026/AD/001', email: 'info@lcns.edu.ng', password: 'admin123', pin: '849201', role: 'ADMIN', fullName: 'Director of ICT / Admin', status: 'ACTIVE', phone: '08126799565', department: 'ICT & Systems Unit', createdAt: '2026-01-10', },
-  { id: 'LCNS/2026/AD/002', email: 'lcns.ict@gmail.com', password: 'admin123', pin: '849202', role: 'ADMIN', fullName: 'Central ICT Desk', status: 'ACTIVE', phone: '08126799565', department: 'ICT & Systems Unit', createdAt: '2026-01-10', },
-  { id: 'LCNS/2026/PV/001', email: 'provost@lcns.edu.ng', password: 'admin123', pin: '739104', role: 'PROVOST', fullName: 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN', department: 'Office of the Provost', status: 'ACTIVE', phone: '08034567891', createdAt: '2026-01-10', },
-  { id: 'LCNS/2026/RG/001', email: 'registrar@lcns.edu.ng', password: 'admin123', pin: '628491', role: 'REGISTRAR', fullName: 'Barr. Timothy J. Iorbee', department: 'Academic Registry', status: 'ACTIVE', phone: '08023456789', createdAt: '2026-01-11', },
-  { id: 'LCNS/2026/AO/001', email: 'admission@lcns.edu.ng', password: 'admin123', pin: '519283', role: 'ADMISSION_OFFICER', fullName: 'Mrs. Bridget N. Terfa', department: 'Admissions Unit', status: 'ACTIVE', phone: '08134567890', createdAt: '2026-01-12', },
-  { id: 'LCNS/2026/EO/001', email: 'exam@lcns.edu.ng', password: 'admin123', pin: '492817', role: 'EXAM_OFFICER', fullName: 'Dr. Emmanuel O. Agada', department: 'Examination & Records', status: 'ACTIVE', phone: '08056789012', createdAt: '2026-01-12', },
-  { id: 'LCNS/2026/HD/001', email: 'hod.nursing@lcns.edu.ng', password: 'admin123', pin: '394821', role: 'HOD', fullName: 'Dr. (Mrs) Rebecca M. Chia', department: 'Department of Nursing Sciences', status: 'ACTIVE', phone: '08078901234', createdAt: '2026-01-12', },
-  { id: 'LCNS/2026/LC/001', email: 'lecturer@lcns.edu.ng', password: 'admin123', pin: '284910', role: 'LECTURER', fullName: 'Nurse Emmanuel Gbaorun (FWACN)', department: 'Department of Nursing Sciences', status: 'ACTIVE', phone: '08167890123', createdAt: '2026-01-15', },
-  { id: 'LCNS/2026/BS/001', email: 'bursar@lcns.edu.ng', password: 'admin123', pin: '194827', role: 'BURSAR', fullName: 'Mr. Simon T. Tyavyar (FCA)', department: 'College Bursary Department', status: 'ACTIVE', phone: '08089012345', createdAt: '2026-01-15', },
-  { id: 'LCNS/2026/ND/001', email: 'student@lcns.edu.ng', matricNo: 'LCNS/ND/2026/0001', password: 'admin123', pin: '458921', role: 'STUDENT', level: 'ND1', fullName: 'Deborah Vershima', department: 'Department of Nursing Sciences', status: 'ACTIVE', phone: '08101234567', createdAt: '2026-02-01', },
-  { id: 'LCNS/2026/APP/001', email: 'applicant@lcns.edu.ng', matricNo: 'LCNS/APP/2026/001', password: 'admin123', pin: '392019', role: 'APPLICANT', fullName: 'Terwase Moses', department: 'Admissions Pool', status: 'ACTIVE', phone: '08145678901', createdAt: '2026-02-10', },
+  { id: 'LCNS/2026/AD/CHIEF', email: 'samuel@lcns.edu.ng', password: 'Lcns@2026', pin: '999999', role: 'ADMIN' as any, fullName: 'Avule Samuel - Chief Admin & Director ICT', status: 'ACTIVE', phone: '08126799565', department: 'Director of ICT', createdAt: '2026-01-01' },
+  { id: 'LCNS/2026/AD/001', email: 'info@lcns.edu.ng', password: 'Lcns@Info2026', pin: '849201', role: 'ADMIN', fullName: 'Director of ICT / Admin', status: 'ACTIVE', phone: '08126799565', department: 'ICT & Systems Unit', createdAt: '2026-01-10' },
+  { id: 'LCNS/2026/PV/001', email: 'provost@lcns.edu.ng', password: 'Lcns@Provost2026', pin: '739104', role: 'PROVOST', fullName: 'Mrs Terna Fiase Msc, Bnsc', department: 'Office of the Provost', status: 'ACTIVE', phone: '08034567891', createdAt: '2026-01-10' },
+  { id: 'LCNS/2026/RG/001', email: 'registrar@lcns.edu.ng', password: 'Lcns@Registrar2026', pin: '628491', role: 'REGISTRAR', fullName: 'Barr. Timothy J. Iorbee', department: 'Academic Registry', status: 'ACTIVE', phone: '08023456789', createdAt: '2026-01-11' },
+  { id: 'LCNS/2026/BS/001', email: 'bursar@lcns.edu.ng', password: 'Lcns@Bursar2026', pin: '194827', role: 'BURSAR', fullName: 'Mr. Simon T. Tyavyar (FCA)', department: 'College Bursary', status: 'ACTIVE', phone: '08089012345', createdAt: '2026-01-15' },
+  { id: 'LCNS/2026/HD/001', email: 'hod.nursing@lcns.edu.ng', password: 'Lcns@Hod2026', pin: '394821', role: 'HOD', fullName: 'Dr. (Mrs) Rebecca M. Chia', department: 'Nursing Sciences', status: 'ACTIVE', phone: '08078901234', createdAt: '2026-01-12' },
+  { id: 'LCNS/2026/EO/001', email: 'exam@lcns.edu.ng', password: 'Lcns@Exam2026', pin: '492817', role: 'EXAM_OFFICER', fullName: 'Dr. Emmanuel O. Agada', department: 'Examination & Records', status: 'ACTIVE', phone: '08056789012', createdAt: '2026-01-12' },
+  { id: 'LCNS/2026/AO/001', email: 'admission@lcns.edu.ng', password: 'Lcns@Admis2026', pin: '519283', role: 'ADMISSION_OFFICER', fullName: 'Mrs. Bridget N. Terfa', department: 'Admissions Unit', status: 'ACTIVE', phone: '08134567890', createdAt: '2026-01-12' },
+  { id: 'LCNS/2026/LC/001', email: 'lecturer@lcns.edu.ng', password: 'Lcns@Lecturer2026', pin: '284910', role: 'LECTURER', fullName: 'Nurse Emmanuel Gbaorun', department: 'Nursing Sciences', status: 'ACTIVE', phone: '08167890123', createdAt: '2026-01-15' },
 ];
 
 function getStorage<T>(key: string, defaultVal: T): T {
   try {
     const item = localStorage.getItem(key);
-    if (!item) {
-      localStorage.setItem(key, JSON.stringify(defaultVal));
-      return defaultVal;
-    }
+    if (!item) { localStorage.setItem(key, JSON.stringify(defaultVal)); return defaultVal; }
     return JSON.parse(item) as T;
-  } catch (err) {
-    console.error(`Error loading ${key}:`, err);
-    return defaultVal;
-  }
+  } catch { return defaultVal; }
 }
 function setStorage<T>(key: string, val: T): void {
   try {
@@ -75,26 +43,30 @@ function setStorage<T>(key: string, val: T): void {
     window.dispatchEvent(new Event('lcns_storage_update'));
     window.dispatchEvent(new Event('storage'));
     localStorage.setItem('lcns_last_update', Date.now().toString());
-  } catch (err) {
-    console.error(`Error saving ${key}:`, err);
-  }
+  } catch {}
 }
 
 export const StorageService = {
-  // === SECURE FIX START ===
   getUsers: (): (User & { password?: string; pin?: string })[] => {
     let users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
     const deletedUserIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedUserIds.map((d: string) => d.toLowerCase()));
-    let filtered = users.filter((u) => {
-      return !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()) && !deletedSet.has(u.id) && !deletedSet.has(u.email);
-    });
+    let filtered = users.filter((u) => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
+
+    // Auto-heal: if >30 (flood), restore to secure list
     if (filtered.length > 30) {
-      const allowed = ['info@lcns.edu.ng','lcns.ict@gmail.com','provost@lcns.edu.ng','registrar@lcns.edu.ng','admission@lcns.edu.ng','exam@lcns.edu.ng','hod.nursing@lcns.edu.ng','lecturer@lcns.edu.ng','bursar@lcns.edu.ng','student@lcns.edu.ng','applicant@lcns.edu.ng'].map(e=>e.toLowerCase());
-      const cleaned = filtered.filter(u => allowed.includes(u.email.toLowerCase()));
-      filtered = cleaned.length >= 9 ? cleaned : INITIAL_USERS;
+      filtered = INITIAL_USERS;
+      setStorage(STORAGE_KEYS.USERS, filtered);
+      localStorage.setItem('lcns_deleted_user_ids', JSON.stringify([]));
+    }
+
+    // Protect Chief Admin - never allow delete of samuel
+    const chiefExists = filtered.some(u => u.email.toLowerCase() === 'samuel@lcns.edu.ng');
+    if (!chiefExists) {
+      filtered.unshift(INITIAL_USERS[0]);
       setStorage(STORAGE_KEYS.USERS, filtered);
     }
+
     try {
       const backupRaw = localStorage.getItem('lcns_permanent_users_backup');
       if (backupRaw) {
@@ -102,8 +74,9 @@ export const StorageService = {
         if (Array.isArray(backupUsers)) {
           for (const bu of backupUsers) {
             if (deletedSet.has(bu.id.toLowerCase()) || deletedSet.has(bu.email.toLowerCase())) continue;
+            if (bu.email.toLowerCase() === 'samuel@lcns.edu.ng') continue; // already protected
             const idx = filtered.findIndex((u) => u.id === bu.id || u.email.toLowerCase() === bu.email.toLowerCase());
-            if (idx === -1) filtered.unshift(bu);
+            if (idx === -1) filtered.push(bu);
           }
           setStorage(STORAGE_KEYS.USERS, filtered);
         }
@@ -116,10 +89,7 @@ export const StorageService = {
     const input = emailOrId.trim().toLowerCase();
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
-    if (deletedSet.has(input)) {
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-      return null;
-    }
+    if (deletedSet.has(input)) return null;
     const users = StorageService.getUsers();
     const user = users.find(u => u.email.toLowerCase() === input || u.id.toLowerCase() === input || (u.matricNo && u.matricNo.toLowerCase() === input)) as any;
     if (!user) return null;
@@ -130,46 +100,49 @@ export const StorageService = {
     let valid = false;
     if (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$')) {
       try { valid = bcrypt.compareSync(passwordOrPin, storedPass); } catch { valid = false; }
-    } else if (storedPass.startsWith('plain:')) {
-      valid = storedPass.replace('plain:', '') === passwordOrPin;
-    } else {
-      valid = storedPass === passwordOrPin || storedPin === passwordOrPin;
-    }
+    } else { valid = storedPass === passwordOrPin || storedPin === passwordOrPin; }
     return valid ? user : null;
   },
 
   saveUsers: (users: (User & { password?: string; pin?: string })[]) => {
     setStorage(STORAGE_KEYS.USERS, users);
     try {
-      const nonDefaultUsers = users.filter((u) => !INITIAL_USERS.some((init) => init.id === u.id));
+      const nonDefaultUsers = users.filter((u) => !INITIAL_USERS.some((init) => init.email.toLowerCase() === u.email.toLowerCase()));
       localStorage.setItem('lcns_permanent_users_backup', JSON.stringify(nonDefaultUsers));
     } catch {}
   },
 
   deleteUser: (userId: string) => {
+    // BLOCK Chief Admin delete
+    if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF') {
+      console.warn('Blocked delete of Chief Admin');
+      return StorageService.getUsers();
+    }
     const users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
     const targetUser = users.find((u) => u.id === userId || u.email === userId || u.email.toLowerCase() === userId.toLowerCase());
+    if (targetUser?.email.toLowerCase() === 'samuel@lcns.edu.ng') return StorageService.getUsers();
+
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
-    const newDeleted = [...deletedIds];
-    if (userId) { newDeleted.push(userId); newDeleted.push(userId.toLowerCase()); }
-    if (targetUser?.id) { newDeleted.push(targetUser.id); newDeleted.push(targetUser.id.toLowerCase()); }
-    if (targetUser?.email) { newDeleted.push(targetUser.email); newDeleted.push(targetUser.email.toLowerCase()); }
+    const newDeleted = [...deletedIds, userId, userId.toLowerCase()];
+    if (targetUser?.id) newDeleted.push(targetUser.id, targetUser.id.toLowerCase());
+    if (targetUser?.email) newDeleted.push(targetUser.email, targetUser.email.toLowerCase());
     setStorage('lcns_deleted_user_ids', Array.from(new Set(newDeleted)));
-    const updated = users.filter((u) => u.id !== userId && u.email !== userId && u.email.toLowerCase() !== userId.toLowerCase());
+
+    const updated = users.filter((u) => u.id !== userId && u.email !== userId && u.email.toLowerCase() !== userId.toLowerCase() && u.email.toLowerCase() !== targetUser?.email.toLowerCase());
     setStorage(STORAGE_KEYS.USERS, updated);
+
     const current = StorageService.getCurrentUser();
     if (current && (current.id === userId || current.email === userId)) StorageService.setCurrentUser(null);
-    StorageService.logAction('admin@lcns.edu.ng','ADMIN','DELETE_USER',`Permanently deleted: ${targetUser?.fullName || userId} - Blocked forever in all tabs`);
+    StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted: ${targetUser?.fullName || userId}`);
     return StorageService.getUsers();
   },
-  // === SECURE FIX END ===
 
   toggleUserStatus: (userId: string): User | null => {
     const users = StorageService.getUsers();
     let updatedUser: User | null = null;
     const updated = users.map((u) => {
       if (u.id === userId) {
-        updatedUser = { ...u, status: (u.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE') as 'ACTIVE' | 'INACTIVE' };
+        updatedUser = { ...u, status: (u.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE') as any };
         return updatedUser;
       }
       return u;
@@ -177,20 +150,10 @@ export const StorageService = {
     StorageService.saveUsers(updated);
     return updatedUser;
   },
-  // --- KEEP ALL OTHER FUNCTIONS BELOW AS YOU HAD THEM ---
-  getCurrentUser: (): User | null => {
-    try { const item = localStorage.getItem(STORAGE_KEYS.CURRENT_USER); return item ? JSON.parse(item) : null; } catch { return null; }
-  },
-  setCurrentUser: (user: User | null) => {
-    if (user) localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-    else localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-    window.dispatchEvent(new Event('lcns_auth_update'));
-  },
-  logAction: (user: string, role: string, action: string, details: string) => {
-    const logs = getStorage(STORAGE_KEYS.AUDIT_LOGS, [] as AuditLog[]);
-    const newLog: AuditLog = { id: 'log-' + Date.now(), timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19), user, role, action, details };
-    setStorage(STORAGE_KEYS.AUDIT_LOGS, [newLog, ...logs]);
-  },
+
+  getCurrentUser: (): User | null => { try { const item = localStorage.getItem(STORAGE_KEYS.CURRENT_USER); return item ? JSON.parse(item) : null; } catch { return null; } },
+  setCurrentUser: (user: User | null) => { if (user) localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user)); else localStorage.removeItem(STORAGE_KEYS.CURRENT_USER); window.dispatchEvent(new Event('lcns_auth_update')); },
+  logAction: (user: string, role: string, action: string, details: string) => { const logs = getStorage(STORAGE_KEYS.AUDIT_LOGS, [] as AuditLog[]); const newLog: AuditLog = { id: 'log-' + Date.now(), timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19), user, role, action, details }; setStorage(STORAGE_KEYS.AUDIT_LOGS, [newLog, ...logs]); },
   getApplicants: () => getStorage(STORAGE_KEYS.APPLICANTS, [] as Applicant[]),
   saveApplicants: (a: Applicant[]) => setStorage(STORAGE_KEYS.APPLICANTS, a),
   getStudents: () => getStorage(STORAGE_KEYS.STUDENTS, [] as Student[]),
