@@ -1,153 +1,132 @@
 import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storage';
-import { getSupabase } from '../../lib/supabase';
-import jsPDF from 'jspdf';
+import { CollegeLogo } from '../common/CollegeLogo';
+import { BookOpen, Plus, Trash2, Printer, AlertTriangle, Clock } from 'lucide-react';
+
+interface CourseReg {
+  id: string;
+  matricNo: string;
+  fullName: string;
+  email: string;
+  level: string;
+  session: string;
+  semester: string;
+  courses: { code: string; title: string; units: number }[];
+  totalUnits: number;
+  status: 'PENDING' | 'APPROVED' | 'DISAPPROVED' | 'PENDING_EXCEED';
+  createdAt: string;
+}
 
 export const CourseRegistration: React.FC = () => {
-  const currentUser = StorageService.getCurrentUser() || { email: 'student@lcns.edu.ng', fullName: 'Student Name', level: 'ND 1', id: 'stu-1' };
-  const [courses, setCourses] = useState<any[]>([]);
-  const [selectedCourses, setSelectedCourses] = useState<any[]>([]);
-  const [session, setSession] = useState(localStorage.getItem('lcns_current_session') || '2025/2026');
+  const currentUser = StorageService.getCurrentUser();
+  const allCourses = StorageService.getCourses() || [];
+  const students = StorageService.getStudents() || [];
+  const student = students.find((s:any) => s.email?.toLowerCase() === currentUser?.email?.toLowerCase() || s.matricNo === currentUser?.matricNo) || { fullName: currentUser?.fullName || 'Student', matricNo: currentUser?.matricNo || 'LCNS/STU/001', level: 'ND 1', email: currentUser?.email };
+
+  const [selectedCourses, setSelectedCourses] = useState<{ code: string; title: string; units: number }[]>([]);
   const [semester, setSemester] = useState<'First' | 'Second'>('First');
-  const [level, setLevel] = useState(currentUser.level || 'ND 1');
-  const [myRegistrations, setMyRegistrations] = useState<any[]>([]);
+  const [myRegs, setMyRegs] = useState<CourseReg[]>([]);
   const [status, setStatus] = useState('');
-  const [maxUnits, setMaxUnits] = useState(24); // Set by Admin
 
-  const schoolFullName = "COLLEGE OF NURSING SCIENCES, CATHOLIC DIOCESE OF GBOKO";
-  const schoolLogo = "/lcns-logo.png.jpg"; // Your logo
+  const creditLimits = {
+    ND1: parseInt(localStorage.getItem('lcns_credit_ND1') || '24'),
+    ND2: parseInt(localStorage.getItem('lcns_credit_ND2') || '26'),
+    HND1: parseInt(localStorage.getItem('lcns_credit_HND1') || '28'),
+    HND2: parseInt(localStorage.getItem('lcns_credit_HND2') || '28'),
+  };
 
-  useEffect(()=>{
-    const allCourses = JSON.parse(localStorage.getItem('lcns_courses') || '[]');
-    setCourses(allCourses);
-    const regs = JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]');
-    setMyRegistrations(regs.filter((r:any)=> r.student_email === currentUser.email));
-    const limits = JSON.parse(localStorage.getItem('lcns_credit_limits') || '{}');
-    if(limits[level]) setMaxUnits(limits[level]);
+  const getLimit = () => {
+    const l = (student.level || 'ND 1').toUpperCase().replace(' ', '');
+    if (l.includes('ND1')) return creditLimits.ND1;
+    if (l.includes('ND2')) return creditLimits.ND2;
+    if (l.includes('HND1')) return creditLimits.HND1;
+    return creditLimits.HND2;
+  };
+
+  useEffect(() => {
+    const all = JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]') as CourseReg[];
+    setMyRegs(all.filter(r => r.matricNo === student.matricNo || r.email?.toLowerCase() === student.email?.toLowerCase()));
   }, []);
 
-  const filteredCourses = courses.filter((c:any)=> 
-    (c.level === level || c.level?.replace(' ','') === level.replace(' ','') || !c.level) && 
-    (c.semester === semester || !c.semester)
-  );
+  const totalUnits = selectedCourses.reduce((s, c) => s + c.units, 0);
+  const limit = getLimit();
+  const exceeds = totalUnits > limit;
 
-  const toggleCourse = (course:any) => {
-    const exists = selectedCourses.find((sc:any)=> sc.code === course.code || sc.id === course.id);
-    if(exists){
-      setSelectedCourses(selectedCourses.filter((sc:any)=> (sc.code||sc.id) !== (course.code||course.id)));
-    } else {
-      setSelectedCourses([...selectedCourses, course]);
-    }
+  const addCourse = (course: any) => {
+    if (selectedCourses.find(c => c.code === course.code)) return;
+    setSelectedCourses([...selectedCourses, { code: course.code, title: course.title, units: course.units }]);
   };
 
-  const totalUnits = selectedCourses.reduce((sum:any, c:any)=> sum + (parseInt(c.units)||0), 0);
-  const isExceed = totalUnits > maxUnits;
+  const removeCourse = (code: string) => {
+    setSelectedCourses(selectedCourses.filter(c => c.code !== code));
+  };
 
-  const handleSubmitRegistration = async () => {
-    if(selectedCourses.length===0){ setStatus('Select at least 1 course'); return; }
-    const newReg = {
-      id: 'reg-'+Date.now(),
-      student_email: currentUser.email,
-      student_name: currentUser.fullName,
-      matric_number: currentUser.matricNumber || currentUser.id,
-      level,
-      session,
+  const handleSubmit = () => {
+    if (selectedCourses.length === 0) { setStatus('Select at least one course'); return; }
+    const newReg: CourseReg = {
+      id: 'reg-' + Date.now(),
+      matricNo: student.matricNo,
+      fullName: student.fullName,
+      email: student.email,
+      level: student.level,
+      session: localStorage.getItem('lcns_current_session') || '2025/2026',
       semester,
       courses: selectedCourses,
-      total_units: totalUnits,
-      max_allowed: maxUnits,
-      status: isExceed ? 'PENDING_EXCEED' : 'PENDING',
-      exceed_units: isExceed,
-      created_at: new Date().toISOString(),
-      approved_by: null,
-      approved_at: null
+      totalUnits,
+      status: exceeds ? 'PENDING_EXCEED' : 'PENDING',
+      createdAt: new Date().toISOString(),
     };
-    const allRegs = JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]');
-    const updated = [...allRegs.filter((r:any)=> !(r.student_email===currentUser.email && r.session===session && r.semester===semester)), newReg];
-    localStorage.setItem('lcns_course_registrations', JSON.stringify(updated));
-    setMyRegistrations(updated.filter((r:any)=> r.student_email === currentUser.email));
-    
-    const sb = getSupabase();
-    if(sb){ try{ await sb.from('course_registrations').insert([newReg]); }catch(e){ console.log(e); } }
-    
-    setStatus(isExceed ? `⚠️ SUBMITTED BUT EXCEEDS LIMIT! ${totalUnits} > ${maxUnits} - Exam Officer/HOD MUST DISAPPROVE!` : `✅ SUBMITTED! ${selectedCourses.length} courses - ${totalUnits} units - Waiting Exam Officer/HOD Approval`);
+    const all = JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]');
+    all.push(newReg);
+    localStorage.setItem('lcns_course_registrations', JSON.stringify(all));
+    setMyRegs([...myRegs, newReg]);
     setSelectedCourses([]);
+    setStatus(exceeds ? 'Submitted with ' + totalUnits + ' units - EXCEEDS limit ' + limit + ' - MUST DISAPPROVE' : 'Submitted ' + totalUnits + ' units - Pending approval');
+    window.dispatchEvent(new Event('lcns_storage_update'));
   };
 
-  const printApprovedForm = (reg:any) => {
-    if(reg.status !== 'APPROVED'){ alert('Only APPROVED forms can be printed!'); return; }
-    const doc = new jsPDF('p','mm','a4');
-    // LOGO + SCHOOL NAME
-    doc.setFontSize(16); doc.setFont('helvetica','bold');
-    doc.text(schoolFullName, 105, 15, {align:'center'});
-    doc.setFontSize(12); doc.text('COURSE REGISTRATION FORM - APPROVED', 105, 22, {align:'center'});
-    doc.setFontSize(10); doc.setFont('helvetica','normal');
-    doc.text(`Student: ${reg.student_name} (${reg.matric_number})`, 15, 32);
-    doc.text(`Level: ${reg.level} | Session: ${reg.session} | Semester: ${reg.semester}`, 15, 38);
-    doc.text(`Total Units: ${reg.total_units} / Max Allowed: ${reg.max_allowed} | Status: ${reg.status}`, 15, 44);
-    doc.text(`Approved By: ${reg.approved_by || 'Exam Officer/HOD'} on ${reg.approved_at ? new Date(reg.approved_at).toLocaleDateString() : ''}`, 15, 50);
-    
-    let y=60; doc.setFont('helvetica','bold'); doc.setFontSize(9);
-    doc.text('S/N',10,y); doc.text('Course Code',20,y); doc.text('Course Title',50,y); doc.text('Units',150,y); doc.text('Level/Sem',170,y);
-    doc.setFont('helvetica','normal'); y+=7;
-    reg.courses.forEach((c:any,i:number)=>{
-      if(y>270){ doc.addPage(); y=20; }
-      doc.text(`${i+1}`,10,y); doc.text(`${c.code}`,20,y); doc.text(`${(c.title||c.name||'').substring(0,50)}`,50,y); doc.text(`${c.units}`,152,y); doc.text(`${c.level||reg.level} / ${c.semester||reg.semester}`,170,y); y+=6;
-    });
-    y+=10; doc.setFont('helvetica','bold');
-    doc.text('_________________________',15,y); doc.text('_________________________',80,y); doc.text('_________________________',150,y);
-    y+=5; doc.setFontSize(8); doc.text('Student Signature & Date',15,y); doc.text('Exam Officer Signature',80,y); doc.text('HOD Signature & Date',150,y);
-    y+=8; doc.setFontSize(7); doc.setFont('helvetica','italic');
-    doc.text(`Official Document - ${schoolFullName} - Academic Session ${reg.session}`,15,y);
-    doc.save(`CourseRegistration_${reg.matric_number}_${reg.level}_${reg.session}_${reg.semester}_APPROVED.pdf`);
-  };
+  const filteredCourses = allCourses.filter((c:any) => !c.level || c.level === student.level || c.level.replace(' ','') === student.level.replace(' ', ''));
 
   return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-900 to-emerald-900 text-white rounded-3xl p-6">
-        <h1 className="text-xl font-black uppercase">{schoolFullName}</h1>
-        <p className="text-xs text-blue-200">Course Registration - Semester - Student Portal - {currentUser.fullName} - {currentUser.email}</p>
-        <p className="text-[11px] mt-2 bg-white/20 p-2 rounded-xl">Select courses for semester - Total units must NOT exceed {maxUnits} - If exceed, Exam Officer/HOD will DISAPPROVE</p>
-        {status && <div className="mt-3 p-3 bg-white text-slate-900 rounded-xl text-xs font-bold">{status}</div>}
+    <div className="bg-white rounded-3xl border-4 border-blue-300 p-6 space-y-6">
+      <div className="text-center border-b-4 border-double border-emerald-900 pb-3">
+        <div className="flex items-center justify-center gap-3"><CollegeLogo size="md"/><div><h1 className="text-lg font-black uppercase">College of Nursing Sciences, Catholic Diocese of Gboko</h1><p className="text-xs font-bold">Course Registration Form - Student Portal</p><p className="text-[10px]">{student.fullName} - {student.matricNo} - {student.level} - Max Units: {limit}</p></div></div>
       </div>
 
-      <div className="bg-white border-2 rounded-2xl p-4 grid md:grid-cols-4 gap-3">
-        <div><label className="text-[10px] font-black">Level</label><select value={level} onChange={e=>setLevel(e.target.value)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option value="ND 1">ND 1</option><option value="ND 2">ND 2</option><option value="HND 1">HND 1</option><option value="HND 2">HND 2</option></select></div>
-        <div><label className="text-[10px] font-black">Session</label><select value={session} onChange={e=>setSession(e.target.value)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option value="2025/2026">2025/2026</option><option value="2026/2027">2026/2027</option><option value="2024/2025">2024/2025</option></select></div>
-        <div><label className="text-[10px] font-black">Semester</label><select value={semester} onChange={e=>setSemester(e.target.value as any)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option value="First">First Semester</option><option value="Second">Second Semester</option></select></div>
-        <div className="flex flex-col justify-end"><div className={`p-2.5 rounded-xl text-center font-black text-xs ${isExceed?'bg-red-600 text-white':'bg-emerald-100 text-emerald-800'}`}>{totalUnits} / {maxUnits} Units {isExceed?'⚠️ EXCEED!':'✅ OK'}</div></div>
-      </div>
+      {status && <div className="p-3 rounded-xl text-xs font-bold text-center border-2 bg-amber-50">{status}</div>}
 
-      <div className="bg-white rounded-3xl border-2 p-4 space-y-3">
-        <h3 className="font-black text-sm flex justify-between">Available Courses - {level} - {semester} Semester - {filteredCourses.length} courses <button onClick={handleSubmitRegistration} disabled={selectedCourses.length===0} className="px-5 py-2 bg-slate-900 disabled:bg-slate-300 text-white rounded-xl text-xs font-black">SUBMIT REGISTRATION - {selectedCourses.length} courses - {totalUnits} Units</button></h3>
-        {isExceed && <div className="p-3 bg-red-50 border-2 border-red-300 rounded-xl text-xs font-black text-red-800">⚠️ CREDIT UNITS EXCEEDS LIMIT! You selected {totalUnits} units but max allowed for {level} is {maxUnits} - Exam Officer and HOD will DISAPPROVE! Remove some courses!</div>}
-        <div className="grid md:grid-cols-2 gap-3 max-h-[400px] overflow-y-auto">
-          {filteredCourses.map((c:any)=> {
-            const selected = selectedCourses.find((sc:any)=> (sc.code||sc.id) === (c.code||c.id));
-            return (
-              <div key={c.id||c.code} className={`border-2 rounded-xl p-3 flex justify-between items-center ${selected?'bg-emerald-50 border-emerald-400':'bg-white'}`}>
-                <div><p className="font-mono font-black text-xs">{c.code} - {c.title||c.name}</p><p className="text-[11px]">Units: {c.units} | Level: {c.level} | Sem: {c.semester}</p></div>
-                <button onClick={()=>toggleCourse(c)} className={`px-3 py-1.5 rounded-xl text-[11px] font-black ${selected?'bg-red-600 text-white':'bg-slate-900 text-white'}`}>{selected?'REMOVE':'ADD'}</button>
-              </div>
-            );
-          })}
-          {filteredCourses.length===0 && <p className="text-xs text-center py-8">No courses for {level} - {semester} - Ask HOD to allocate courses</p>}
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="space-y-3">
+          <h3 className="font-black text-sm">Available Courses - {student.level}</h3>
+          <div className="flex gap-2"><select value={semester} onChange={e=>setSemester(e.target.value as any)} className="px-3 py-2 border-2 rounded-xl text-xs font-bold"><option value="First">First Semester</option><option value="Second">Second Semester</option></select><div className="px-3 py-2 rounded-xl text-xs font-black bg-emerald-600 text-white">Total: {totalUnits} / {limit} {exceeds ? 'EXCEEDS' : ''}</div></div>
+          <div className="border-2 rounded-xl max-h-80 overflow-y-auto">
+            {filteredCourses.map((c:any)=>(
+              <div key={c.id} className="flex justify-between items-center p-2 border-b hover:bg-slate-50 text-xs"><div><p className="font-bold">{c.code} - {c.title}</p><p className="text-[10px]">{c.units} Units</p></div><button onClick={()=>addCourse(c)} className="px-2 py-1 bg-blue-600 text-white rounded-lg font-black text-[10px]">Add</button></div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <h3 className="font-black text-sm">Selected Courses - {selectedCourses.length}</h3>
+          {exceeds && <div className="bg-red-50 border-2 border-red-400 rounded-xl p-2 flex gap-2 text-xs font-bold text-red-700"><AlertTriangle className="w-4 h-4"/> EXCEEDS limit {totalUnits} is greater than {limit} - MUST DISAPPROVE</div>}
+          <div className="border-2 rounded-xl p-2 space-y-1 min-h-40">
+            {selectedCourses.length===0 ? <p className="text-xs text-center py-8 text-slate-400">No courses selected</p> : selectedCourses.map(c=>(
+              <div key={c.code} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg text-xs"><span className="font-bold">{c.code} - {c.title} ({c.units})</span><button onClick={()=>removeCourse(c.code)} className="w-6 h-6 bg-red-100 text-red-700 rounded-full flex items-center justify-center"><Trash2 className="w-3 h-3"/></button></div>
+            ))}
+          </div>
+          <button onClick={handleSubmit} disabled={selectedCourses.length===0} className="w-full py-3 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-300 text-white rounded-xl font-black text-sm">Submit Registration - {totalUnits} Units</button>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border-2 p-4 space-y-3">
-        <h3 className="font-black text-sm">My Registrations - {myRegistrations.length} - Print Approved Form</h3>
-        <div className="grid gap-3">
-          {myRegistrations.map((reg:any)=>(
-            <div key={reg.id} className="border-2 rounded-xl p-4 flex justify-between items-center bg-slate-50">
-              <div className="text-xs space-y-1"><p className="font-black">{reg.level} - {reg.session} - {reg.semester} Semester - {reg.courses.length} courses - {reg.total_units} Units / Max {reg.max_allowed}</p><p>Status: <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${reg.status==='APPROVED'?'bg-emerald-600 text-white':reg.status==='DISAPPROVED'?'bg-red-600 text-white':'bg-amber-400 text-black'}`}>{reg.status}</span> {reg.exceed_units && <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded-full text-[10px]">EXCEEDS {reg.total_units} > {reg.max_allowed}</span>} | By: {reg.approved_by||'Pending'}</p><p className="text-[11px]">{reg.courses.map((c:any)=>c.code).join(', ')}</p></div>
-              <div className="flex flex-col gap-2">
-                {reg.status==='APPROVED' && <button onClick={()=>printApprovedForm(reg)} className="px-4 py-2 bg-blue-700 text-white rounded-xl text-xs font-black">🖨️ PRINT APPROVED FORM - WITH SCHOOL NAME & LOGO</button>}
-                {reg.status==='DISAPPROVED' && <p className="text-[11px] font-black text-red-600">DISAPPROVED - Reason: Exceeds credit units - Re-register!</p>}
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="space-y-2">
+        <h3 className="font-black text-sm flex items-center gap-2"><Clock className="w-4 h-4"/>My Registrations</h3>
+        {myRegs.length===0 ? <p className="text-xs text-slate-500">No registrations yet</p> : myRegs.map(reg=>(
+          <div key={reg.id} className="border-2 rounded-xl p-3 text-xs bg-slate-50">
+            <div className="flex justify-between"><span className="font-bold">{reg.semester} Semester - {reg.totalUnits} Units - {reg.session}</span><span className="px-2 py-0.5 rounded-full font-black text-[10px] bg-amber-200">{reg.status}</span></div>
+            <p className="mt-1">{reg.courses.map(c=>c.code).join(', ')}</p>
+            {reg.status==='APPROVED' && <button onClick={()=>window.print()} className="mt-2 w-full py-2 bg-slate-900 text-white rounded-xl font-black text-xs flex items-center justify-center gap-1"><Printer className="w-4 h-4"/>Print Approved Form</button>}
+          </div>
+        ))}
       </div>
     </div>
   );
