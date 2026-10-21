@@ -8,8 +8,6 @@ export const ApiService = {
     const clean = password.trim();
     const slashId = rawId.replace(/\//g, '\\');
     const backSlashId = rawId.replace(/\\/g, '/');
-    const lowerSlash = slashId.toLowerCase();
-    const lowerBack = backSlashId.toLowerCase();
 
     // Admin quick login
     if ((trimmed === 'admin' || trimmed === 'info@lcns.edu.ng') && clean === 'admin123') {
@@ -28,38 +26,40 @@ export const ApiService = {
       return { success: true, user: admin };
     }
 
-    // Supabase - try all ID fields
+    // Supabase - use ONLY columns that exist: email, matric_no, staffId, loginId
     const supabase = getSupabase();
     if (supabase) {
       try {
-        const { data } = await supabase.from('users').select('*').or(`email.eq.${trimmed},matric_no.eq.${rawId},matricNumber.eq.${rawId},staffId.eq.${rawId},loginId.eq.${rawId},username.eq.${rawId}`).limit(10);
-        if (data && data.length > 0) {
-          // Find matching user with password check
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .or(`email.eq.${trimmed},matric_no.eq.${rawId},matric_no.eq.${slashId},matric_no.eq.${backSlashId},staffId.eq.${rawId},staffId.eq.${slashId},loginId.eq.${rawId},loginId.eq.${slashId}`)
+          .limit(20);
+        
+        if (!error && data && data.length > 0) {
           const matched = data.find((m:any) => 
             m.email?.toLowerCase() === trimmed ||
             m.matric_no === rawId || m.matric_no === slashId || m.matric_no === backSlashId ||
-            m.matricNumber === rawId || m.matricNumber === slashId ||
             m.staffId === rawId || m.staffId === slashId ||
-            m.loginId === rawId || m.loginId === slashId ||
-            m.id?.toLowerCase() === trimmed
-          );
-          const m = matched || data[0];
-          if (clean === '123456' || clean === 'admin123' || clean === m.password || m.password?.toLowerCase() === clean.toLowerCase()) {
+            m.loginId === rawId || m.loginId === slashId
+          ) || data[0];
+          
+          if (matched && (clean === '123456' || clean === 'admin123' || clean === matched.password || matched.password?.toLowerCase() === clean.toLowerCase())) {
             const userObj: any = {
-              id: m.id,
-              email: m.email,
-              role: m.role,
-              fullName: m.full_name || m.fullName || m.email,
-              department: m.department || 'Nursing',
+              id: matched.id,
+              email: matched.email,
+              role: matched.role,
+              fullName: matched.full_name || matched.fullName || matched.email,
+              department: matched.department || 'Nursing',
               status: 'ACTIVE',
-              phone: m.phone || '',
-              matricNo: m.matric_no || m.matricNumber,
-              matricNumber: m.matric_no || m.matricNumber,
-              staffId: m.staffId,
-              loginId: m.loginId || m.matric_no || m.staffId,
-              level: m.level,
-              password: m.password,
-              ...m
+              phone: matched.phone || '',
+              matricNo: matched.matric_no,
+              matricNumber: matched.matric_no,
+              staffId: matched.staffId,
+              loginId: matched.loginId || matched.matric_no || matched.staffId,
+              level: matched.level,
+              password: matched.password,
+              ...matched
             };
             StorageService.setCurrentUser(userObj);
             localStorage.setItem('lcns-current-user', JSON.stringify(userObj));
@@ -69,11 +69,11 @@ export const ApiService = {
           }
         }
       } catch (e) {
-        console.log(e);
+        console.log('Supabase login error', e);
       }
     }
 
-    // LocalStorage - FIXED FOR MATRIC WITH \ AND /
+    // LocalStorage fallback
     let users: any[] = [];
     try { users = StorageService.getUsers(); } catch {}
     if (users.length === 0) {
@@ -83,32 +83,28 @@ export const ApiService = {
       try { users = JSON.parse(localStorage.getItem('users') || '[]'); } catch {}
     }
 
-    const found = users.find((u: any) => {
-      const emailMatch = u.email?.toLowerCase() === trimmed;
-      const idMatch = u.id?.toLowerCase() === trimmed || u.id === rawId;
-      
-      const matricMatch = u.matricNumber === rawId || u.matricNumber === slashId || u.matricNumber === backSlashId ||
-                          u.matricNumber?.toLowerCase() === trimmed || u.matricNumber?.toLowerCase() === lowerSlash || u.matricNumber?.toLowerCase() === lowerBack ||
-                          u.matricNo === rawId || u.matricNo === slashId || u.matricNo === backSlashId ||
-                          u.matric_no === rawId;
-      
-      const staffMatch = u.staffId === rawId || u.staffId === slashId || u.staffId === backSlashId ||
-                         u.staffId?.toLowerCase() === trimmed || u.staffId?.toLowerCase() === lowerSlash;
-      
-      const loginMatch = u.loginId === rawId || u.loginId === slashId || u.loginId === backSlashId ||
-                         u.loginId?.toLowerCase() === trimmed || u.loginId?.toLowerCase() === lowerSlash;
-      
-      const usernameMatch = u.username?.toLowerCase() === trimmed || u.username === rawId;
+    const lowerSlash = slashId.toLowerCase();
+    const lowerBack = backSlashId.toLowerCase();
 
-      return emailMatch || idMatch || matricMatch || staffMatch || loginMatch || usernameMatch;
+    const found = users.find((u: any) => {
+      return (
+        u.email?.toLowerCase() === trimmed ||
+        u.id === rawId || u.id?.toLowerCase() === trimmed ||
+        u.matricNumber === rawId || u.matricNumber === slashId || u.matricNumber === backSlashId ||
+        u.matricNumber?.toLowerCase() === trimmed || u.matricNumber?.toLowerCase() === lowerSlash ||
+        u.matricNo === rawId || u.matricNo === slashId || u.matricNo === backSlashId ||
+        u.matric_no === rawId || u.matric_no === slashId ||
+        u.staffId === rawId || u.staffId === slashId ||
+        u.loginId === rawId || u.loginId === slashId ||
+        u.username === rawId || u.username?.toLowerCase() === trimmed
+      );
     });
 
     if (found) {
-      // Password check - allow LCNS@XXXX case-insensitive
       if (found.password === clean || found.password?.toLowerCase() === clean.toLowerCase() || clean === '123456' || clean === 'admin123') {
-        const userObj = { ...found, email: found.email, fullName: found.fullName || found.name, role: found.role };
+        const userObj = { ...found };
         StorageService.setCurrentUser(userObj as any);
-        localStorage.setItem('lcns_current_user', JSON.stringify(userObj));
+        localStorage.setItem('lcns-current-user', JSON.stringify(userObj));
         localStorage.setItem('lcns_current_user', JSON.stringify(userObj));
         localStorage.setItem('currentUser', JSON.stringify(userObj));
         return { success: true, user: userObj as any };
@@ -117,7 +113,7 @@ export const ApiService = {
       }
     }
 
-    return { success: false, message: 'Invalid email or Matric No. User ID ' + rawId + ' not found. Try Email or Matric LCNS\\ND1\\2026\\001' };
+    return { success: false, message: 'Invalid ID ' + rawId + ' not found' };
   },
 
   logout: async () => {
@@ -137,12 +133,12 @@ export const ApiService = {
             id: m.id,
             email: m.email,
             role: m.role,
-            fullName: m.full_name || m.fullName || m.email,
+            fullName: m.full_name || m.email,
             department: m.department,
             status: 'ACTIVE',
             phone: m.phone,
-            matricNo: m.matric_no || m.matricNumber,
-            matricNumber: m.matric_no || m.matricNumber,
+            matricNo: m.matric_no,
+            matricNumber: m.matric_no,
             staffId: m.staffId,
             loginId: m.loginId || m.matric_no || m.staffId,
             level: m.level,
@@ -157,59 +153,84 @@ export const ApiService = {
   },
 
   createUser: async (userData: any) => {
-    const plainPassword = userData.password || '123456';
+    const plainPassword = userData.password || userData.loginId || userData.matricNumber || '123456';
+    const matricNoValue = userData.matricNo || userData.matricNumber || userData.matric_no || null;
+    const staffIdValue = userData.staffId || null;
+    const loginIdValue = userData.loginId || matricNoValue || staffIdValue || userData.id;
+
     const newUser: any = {
       id: userData.id || `LCNS-${Date.now()}`,
       email: userData.email.toLowerCase().trim(),
       password: plainPassword,
       role: userData.role,
       fullName: userData.fullName,
-      department: userData.department,
+      department: userData.department || userData.staffDepartment,
       status: 'ACTIVE',
       phone: userData.phone,
-      matricNo: userData.matricNo || userData.matricNumber,
-      matricNumber: userData.matricNo || userData.matricNumber,
-      staffId: userData.staffId,
-      loginId: userData.loginId || userData.matricNo || userData.staffId || userData.id,
+      matricNo: matricNoValue,
+      matricNumber: matricNoValue,
+      matric_no: matricNoValue,
+      staffId: staffIdValue,
+      loginId: loginIdValue,
       level: userData.level,
       createdAt: new Date().toISOString().split('T')[0],
-      ...userData
+      ...userData,
+      password: plainPassword,
     };
 
     const supabase = getSupabase();
     if (supabase) {
       try {
+        // ONLY INSERT COLUMNS THAT EXIST IN YOUR SCREENSHOT TABLE
         const insertData: any = {
           id: newUser.id,
           email: newUser.email,
           password: plainPassword,
           role: newUser.role,
           full_name: newUser.fullName,
+          matric_no: matricNoValue,
+          phone: newUser.phone || null,
+          department: newUser.department || null,
+          level: newUser.level || null,
         };
-        if (newUser.department) insertData.department = newUser.department;
-        if (newUser.phone) insertData.phone = newUser.phone;
-        if (newUser.matricNo) insertData.matric_no = newUser.matricNo;
-        if (newUser.matricNumber) insertData.matricNumber = newUser.matricNumber;
-        if (newUser.staffId) insertData.staffId = newUser.staffId;
-        if (newUser.loginId) insertData.loginId = newUser.loginId;
+        // staffId and loginId exist per your screenshot
+        if (staffIdValue) insertData.staffId = staffIdValue;
+        if (loginIdValue) insertData.loginId = loginIdValue;
 
+        console.log('Saving to Supabase:', insertData);
         const { data, error } = await supabase.from('users').insert(insertData).select().single();
-        if (error) throw error;
-        newUser.id = data.id;
+        if (error) {
+          console.error('Supabase error:', error);
+          // Try minimal without staffId/loginId if they cause error
+          const minimal = {
+            id: newUser.id,
+            email: newUser.email,
+            password: plainPassword,
+            role: newUser.role,
+            full_name: newUser.fullName,
+            matric_no: matricNoValue,
+          };
+          const { data: data2, error: error2 } = await supabase.from('users').insert(minimal).select().single();
+          if (error2) throw error2;
+          newUser.id = data2.id;
+        } else {
+          newUser.id = data.id;
+        }
+        console.log('Saved to Supabase SUCCESS');
       } catch (e: any) {
-        // Don't fail if supabase fails - save locally
-        console.log('Supabase insert failed, saving locally', e.message);
+        console.log('Supabase insert failed, saving locally:', e.message);
       }
     }
 
+    // Save locally
     const users = StorageService.getUsers();
     users.unshift(newUser);
     StorageService.saveUsers(users);
-    // Also save to lcns_users for new dashboard
     try {
       const lcnsUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
       lcnsUsers.unshift(newUser);
       localStorage.setItem('lcns_users', JSON.stringify(lcnsUsers));
+      localStorage.setItem('users', JSON.stringify(lcnsUsers));
     } catch {}
 
     return { success: true, user: newUser };
@@ -226,21 +247,22 @@ export const ApiService = {
         if (updates.department) upd.department = updates.department;
         if (updates.phone) upd.phone = updates.phone;
         if (updates.matricNo) upd.matric_no = updates.matricNo;
-        if (updates.matricNumber) upd.matricNumber = updates.matricNumber;
+        if (updates.matricNumber) upd.matric_no = updates.matricNumber;
         if (updates.staffId) upd.staffId = updates.staffId;
+        if (updates.loginId) upd.loginId = updates.loginId;
         if (updates.password) upd.password = updates.password;
         await supabase.from('users').update(upd).eq('id', id);
       } catch {}
     }
     const users = StorageService.getUsers();
-    const idx = users.findIndex((u: any) => u.id === id || u.email === id || u.matricNumber === id || u.staffId === id);
+    const idx = users.findIndex((u: any) => u.id === id || u.email === id);
     if (idx !== -1) {
       users[idx] = { ...users[idx], ...updates };
       StorageService.saveUsers(users);
     }
     try {
-      const lcnsUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
-      const idx2 = lcnsUsers.findIndex((u:any) => u.id === id || u.email === id || u.matricNumber === id || u.staffId === id);
+      let lcnsUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
+      const idx2 = lcnsUsers.findIndex((u:any) => u.id === id || u.email === id);
       if (idx2 !== -1) {
         lcnsUsers[idx2] = { ...lcnsUsers[idx2], ...updates };
         localStorage.setItem('lcns_users', JSON.stringify(lcnsUsers));
@@ -259,8 +281,9 @@ export const ApiService = {
     StorageService.deleteUser(id);
     try {
       let lcnsUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
-      lcnsUsers = lcnsUsers.filter((u:any) => u.id !== id && u.email !== id && u.matricNumber !== id && u.staffId !== id && u.loginId !== id);
+      lcnsUsers = lcnsUsers.filter((u:any) => u.id !== id && u.email !== id && u.matricNumber !== id && u.matric_no !== id && u.staffId !== id && u.loginId !== id);
       localStorage.setItem('lcns_users', JSON.stringify(lcnsUsers));
+      localStorage.setItem('users', JSON.stringify(lcnsUsers));
     } catch {}
     return { success: true };
   },
