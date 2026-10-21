@@ -10,32 +10,26 @@ import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { getSupabase, getSupabaseConfig } from '../../lib/supabase';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
 
-// --- NEW: GALLERY UPLOAD & PUBLISH TO WEBSITE ---
+// --- GALLERY UPLOAD & PUBLISH TO WEBSITE - SAME AS YOURS ---
 const GalleryManager = ({ showStatus }: any) => {
   const [gallery, setGallery] = useState<any[]>(()=>JSON.parse(localStorage.getItem('lcns_gallery')||'[]'));
   const [form, setForm] = useState({ title: '', category: 'Campus Life', description: '', image: '', isPublished: true });
   const [uploading, setUploading] = useState(false);
-
   useEffect(()=>{ const s=localStorage.getItem('lcns_gallery'); if(s) setGallery(JSON.parse(s)); const h=(e:StorageEvent)=>{ if(e.key==='lcns_gallery' && e.newValue) setGallery(JSON.parse(e.newValue)); }; window.addEventListener('storage', h); return()=>window.removeEventListener('storage', h); }, []);
-
   const handleImage = (e:React.ChangeEvent<HTMLInputElement>)=>{ const f=e.target.files?.[0]; if(!f)return; setUploading(true); const r=new FileReader(); r.onload=()=>{ setForm({...form, image: r.result as string}); setUploading(false); }; r.readAsDataURL(f); };
-
   const addToGallery = async () => {
     if(!form.image){ showStatus('Upload Photo First!','error'); return; }
     if(!form.title){ showStatus('Enter Title','error'); return; }
     const newItem = { id: Date.now().toString(), title: form.title, category: form.category, description: form.description, image: form.image, image_url: form.image, is_published: form.isPublished, isPublished: form.isPublished, created_at: new Date().toISOString(), date: new Date().toISOString() };
     const updated=[newItem,...gallery]; setGallery(updated); localStorage.setItem('lcns_gallery', JSON.stringify(updated)); localStorage.setItem('gallery', JSON.stringify(updated)); window.dispatchEvent(new Event('storage'));
     const sb=getSupabase(); if(sb) try{ await sb.from('gallery').insert([newItem]); } catch {}
-    setForm({ title: '', category: 'Campus Life', description: '', image: '', isPublished: true }); showStatus(`✅ PHOTO PUBLISHED TO WEBSITE! ${newItem.title} - Now visible on HomePage Gallery`);
+    setForm({ title: '', category: 'Campus Life', description: '', image: '', isPublished: true }); showStatus(`✅ PHOTO PUBLISHED TO WEBSITE! ${newItem.title}`);
   };
-
   const togglePublish = (id:string)=>{ const up=gallery.map((g:any)=>g.id===id?{...g,is_published:!g.is_published,isPublished:!g.isPublished}:g); setGallery(up); localStorage.setItem('lcns_gallery', JSON.stringify(up)); localStorage.setItem('gallery', JSON.stringify(up)); showStatus(up.find((g:any)=>g.id===id)?.is_published?'Published':'Unpublished'); };
   const deletePhoto = (id:string)=>{ if(!confirm('Delete Photo from Website?'))return; const up=gallery.filter((g:any)=>g.id!==id); setGallery(up); localStorage.setItem('lcns_gallery', JSON.stringify(up)); localStorage.setItem('gallery', JSON.stringify(up)); const sb=getSupabase(); if(sb) try{ sb.from('gallery').delete().eq('id',id); } catch {} showStatus('Photo Deleted from Website'); };
-
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-3xl p-6"><h2 className="font-black text-xl flex gap-2"><Camera className="w-6 h-6"/> GALLERY - UPLOAD PHOTO & PUBLISH TO WEBSITE</h2><p className="text-xs opacity-90 mt-1">Upload photos here → They publish instantly to homepage gallery • Categories: Campus Life, Events, Academics, Nursing, Midwifery</p></div>
-
+      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-3xl p-6"><h2 className="font-black text-xl flex gap-2"><Camera className="w-6 h-6"/> GALLERY - UPLOAD PHOTO & PUBLISH TO WEBSITE</h2><p className="text-xs opacity-90 mt-1">Upload photos here → They publish instantly to homepage gallery</p></div>
       <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-white border-2 border-purple-200 rounded-3xl p-6 space-y-4 shadow-sm">
           <h3 className="font-black text-sm flex gap-2"><UploadCloud className="w-5 h-5 text-purple-600"/> UPLOAD NEW PHOTO</h3>
@@ -48,14 +42,13 @@ const GalleryManager = ({ showStatus }: any) => {
           <label className="flex items-center gap-2 text-[11px] font-bold"><input type="checkbox" checked={form.isPublished} onChange={e=>setForm({...form,isPublished:e.target.checked})} className="w-4 h-4"/> Publish Immediately to Website Homepage</label>
           <button onClick={addToGallery} className="w-full bg-purple-600 hover:bg-black text-white py-3 rounded-xl font-black text-xs flex justify-center gap-2"><Camera className="w-4 h-4"/> UPLOAD & PUBLISH TO WEBSITE</button>
         </div>
-
         <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black text-sm">Published Gallery - {gallery.length} Photos - Live on Website</h3><div className="grid grid-cols-2 gap-3 mt-4 max-h-[600px] overflow-y-auto">{gallery.map((g:any)=><div key={g.id} className="border-2 rounded-2xl overflow-hidden bg-slate-50"><div className="h-28 overflow-hidden"><img src={g.image||g.image_url} className="w-full h-full object-cover"/></div><div className="p-2 space-y-1"><p className="font-black text-[11px] truncate">{g.title}</p><p className="text-[10px] text-slate-500">{g.category} • {g.is_published||g.isPublished?'Published':'Draft'}</p><div className="flex gap-1"><button onClick={()=>togglePublish(g.id)} className={`flex-1 py-1 rounded-lg text-[9px] font-black ${g.is_published||g.isPublished?'bg-emerald-600 text-white':'bg-slate-300'}`}>{g.is_published||g.isPublished?'PUBLISHED':'UNPUBLISHED'}</button><button onClick={()=>deletePhoto(g.id)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[9px]"><X className="w-3 h-3"/></button></div></div></div>)}{gallery.length===0&&<p className="text-[11px] col-span-2 text-center py-10">No photos - Upload above to publish to website</p>}</div></div>
       </div>
     </div>
   );
 };
 
-// --- BISHOP & PROVOST MANAGER ---
+// --- BISHOP & PROVOST MANAGER - SAME ---
 const LeadershipManager = () => {
   const [bishop, setBishop] = useState<any>(()=>JSON.parse(localStorage.getItem('lcns_bishop')||'null')||{name:'Most Rev. Isaac B. Dugu',title:'Bishop, Catholic Diocese of Gboko',image:'',description:'Proprietor'});
   const [provost, setProvost] = useState<any>(()=>JSON.parse(localStorage.getItem('lcns_provost')||'null')||{name:'Provost Name',title:'Provost, CON Gboko',image:'',description:'Head of Institution'});
@@ -69,7 +62,7 @@ const LeadershipManager = () => {
   );
 };
 
-// --- COURSE MANAGER ---
+// --- COURSE MANAGER - SAME ---
 const CourseManager = ({ users, courses, setCourses, showStatus }: any) => {
   const [newCourse, setNewCourse] = useState({ code: '', title: '', unit: '', semester: 'First', level: 'ND1', lecturerEmail: '', lecturer: '' });
   const lecturers = users.filter((u:any)=>['LECTURER','HOD','EXAM_OFFICER','PROVOST','ADMIN'].includes(u.role));
@@ -126,21 +119,50 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
   const showStatus = (text:string, type:'success'|'error'='success') => { setStatus({text, type}); setTimeout(()=>setStatus(null), 6000); };
   const currentUser = StorageService.getCurrentUser() || { id: 'admin-001', email: 'admin@lcns.edu.ng', role: 'ADMIN', fullName: 'Admin - Director of ICT', status: 'ACTIVE', };
 
-  // FIXED: Load users from multiple sources + listen for storage changes across tabs
+  // *** FIXED ONLY THIS PART - MERGE ALL STORAGES + SUPABASE + AUTO SYNC ACROSS TABS - DONT CHANGE OTHER FEATURES ***
   useEffect(() => {
-    const loadUsers = () => {
+    const loadUsers = async () => {
       try {
-        let allUsers: any[] = [];
-        try { if (StorageService.getUsers) allUsers = StorageService.getUsers(); } catch {}
-        if (allUsers.length===0) { try { const ls = JSON.parse(localStorage.getItem('lcns_users')||'[]'); if(ls.length) allUsers=ls; } catch {} }
-        setUsers(allUsers);
+        let merged: any[] = [];
+        const addUnique = (arr:any[]) => {
+          arr.forEach((u:any) => {
+            if (!merged.find((x:any) => x.email?.toLowerCase() === u.email?.toLowerCase())) merged.push(u);
+          });
+        };
+        try { if (StorageService.getUsers) addUnique(StorageService.getUsers()||[]); } catch {}
+        try { addUnique(JSON.parse(localStorage.getItem('lcns_users')||'[]')); } catch {}
+        try { addUnique(JSON.parse(localStorage.getItem('users')||'[]')); } catch {}
+        // Supabase sync for other devices
+        const sb = getSupabase();
+        if (sb) {
+          try {
+            const { data } = await sb.from('users').select('*').order('created_at', { ascending: false }).limit(300);
+            if (data?.length) {
+              const mapped = data.map((m:any) => ({
+                id: m.id, email: m.email, fullName: m.full_name || m.fullName || m.email, name: m.full_name || m.fullName || m.email,
+                role: m.role, matricNumber: m.matric_no || m.matricNumber || '', matricNo: m.matric_no || '', staffId: m.staffId || m.staff_id || '',
+                loginId: m.loginId || m.matric_no || m.staffId || m.id, password: m.password, phone: m.phone, level: m.level,
+                department: m.department, staffDepartment: m.department, userType: m.role==='STUDENT'?'STUDENT':'STAFF', status: 'ACTIVE',
+                createdAt: m.created_at, ...m
+              }));
+              addUnique(mapped);
+            }
+          } catch {}
+        }
+        setUsers(merged);
+        if (merged.length) {
+          localStorage.setItem('lcns_users', JSON.stringify(merged));
+          localStorage.setItem('users', JSON.stringify(merged));
+          try { StorageService.saveUsers(merged); } catch {}
+        }
       } catch {}
     };
     loadUsers();
-    const handleStorage = (e: StorageEvent) => { if (e.key==='lcns_users' || e.key===null) loadUsers(); };
-    window.addEventListener('storage', handleStorage);
     loadBackend();
-    return () => window.removeEventListener('storage', handleStorage);
+    const handler = () => loadUsers();
+    window.addEventListener('storage', handler);
+    window.addEventListener('focus', handler);
+    return () => { window.removeEventListener('storage', handler); window.removeEventListener('focus', handler); };
   }, [activeAdminTab]);
 
   const loadBackend = async () => { setLoading(true); try { const sb = getSupabase(); const cfg = getSupabaseConfig(); const data: any = { supabaseUrl: cfg.url || 'https://liqwfikatnkndbdbdarx.supabase.co', connected: !!sb, tables: {} }; if (sb) { const tables = ['school_settings', 'management', 'gallery', 'users', 'profiles', 'payments', 'announcements', 'events', 'app_settings', 'students', 'student_scores']; for (const t of tables) { try { const { count } = await sb.from(t).select('*', { count: 'exact', head: true }); data.tables[t] = count ?? 0; } catch { data.tables[t] = 0; } } try { const { data: payData } = await sb.from('payments').select('*').order('created_at', { ascending: false }).limit(100); if (payData) setPayments(payData); } catch {} try { const { data: ann } = await sb.from('announcements').select('*').order('created_at', { ascending: false }); if (ann) setAnnouncements(ann); const { data: evt } = await sb.from('events').select('*').order('created_at', { ascending: false }); if (evt) setEvents(evt); } catch {} } setBackendData(data); } catch {} finally { setLoading(false); } };
@@ -150,32 +172,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
   const genPassword = () => `LCNS@${Math.floor(1000 + Math.random()*9000)}`;
   const handleStaffImage = (e:React.ChangeEvent<HTMLInputElement>)=>{ const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=()=>setNewUser({...newUser, staffImage: r.result as string}); r.readAsDataURL(f); };
 
-  // FIXED: SAVE TO ALL PLACES + FORCE RELOAD
+  // *** FIXED SAVE - SAVE TO ALL PLACES + SUPABASE WITH ONLY VALID COLUMNS - DONT CHANGE OTHER LOGIC ***
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault(); if (!newUser.fullName || !newUser.email) { showStatus('Fill Full Name and Email', 'error'); return; }
     try {
       const password = genPassword(); const loginIdRaw = userType==='STUDENT' ? generateMatricNo(newUser.level) : (newUser.staffId || generateStaffId(newUser.role));
-      const userData = { id: Date.now().toString(), email: newUser.email.toLowerCase().trim(), username: loginIdRaw, fullName: newUser.fullName, firstName: newUser.firstName, middleName: newUser.middleName, lastName: newUser.lastName, name: newUser.fullName, address: newUser.address, phone: newUser.phone, bloodGroup: newUser.bloodGroup, sex: newUser.sex, parentName: newUser.parentName, parentPhone: newUser.parentPhone, staying: newUser.staying, level: userType==='STUDENT'?newUser.level.toUpperCase():'', department: newUser.department, staffDepartment: newUser.staffDepartment, role: newUser.role.toUpperCase(), matricNumber: userType==='STUDENT'?loginIdRaw:'', staffId: userType==='STAFF'?loginIdRaw:'', qualification: newUser.qualification, courseOfStudy: newUser.courseOfStudy, staffImage: newUser.staffImage, dateOfBirth: newUser.dateOfBirth, state: newUser.state, lga: newUser.lga, userType, status: 'ACTIVE', createdAt: new Date().toISOString(), academicYear: localStorage.getItem('lcns_current_session') || '2025/2026', password, loginId: loginIdRaw };
+      const userData = { id: `LCNS-${Date.now()}`, email: newUser.email.toLowerCase().trim(), username: loginIdRaw, fullName: newUser.fullName, firstName: newUser.firstName, middleName: newUser.middleName, lastName: newUser.lastName, name: newUser.fullName, address: newUser.address, phone: newUser.phone, bloodGroup: newUser.bloodGroup, sex: newUser.sex, parentName: newUser.parentName, parentPhone: newUser.parentPhone, staying: newUser.staying, level: userType==='STUDENT'?newUser.level.toUpperCase():'', department: newUser.department, staffDepartment: newUser.staffDepartment, role: newUser.role.toUpperCase(), matricNumber: userType==='STUDENT'?loginIdRaw:'', matricNo: userType==='STUDENT'?loginIdRaw:'', staffId: userType==='STAFF'?loginIdRaw:'', qualification: newUser.qualification, courseOfStudy: newUser.courseOfStudy, staffImage: newUser.staffImage, dateOfBirth: newUser.dateOfBirth, state: newUser.state, lga: newUser.lga, userType, status: 'ACTIVE', createdAt: new Date().toISOString(), academicYear: localStorage.getItem('lcns_current_session') || '2025/2026', password, loginId: loginIdRaw };
 
-      // 1. Save to state instantly
-      const existing = JSON.parse(localStorage.getItem('lcns_users')||'[]');
-      const updated=[...existing, userData];
+      // 1. Supabase - only valid columns to avoid error
+      const sb = getSupabase(); 
+      if (sb) { 
+        try { 
+          const insertData:any = { id: userData.id, email: userData.email, password: password, role: userData.role, full_name: userData.fullName, department: userData.department || userData.staffDepartment, phone: userData.phone, matric_no: userData.matricNumber || userData.matricNo || null, level: userData.level || null };
+          const { error } = await sb.from('users').insert([insertData]);
+          if (error) { 
+            const minimal:any = { id: userData.id, email: userData.email, password: password, role: userData.role, full_name: userData.fullName };
+            await sb.from('users').insert([minimal]); 
+          }
+        } catch(err){ console.log('Supabase save failed but local will save', err); } 
+      }
       
-      // 2. Save to localStorage (multiple keys for compatibility)
+      // 2. Merge and save to all local storages
+      const existing = JSON.parse(localStorage.getItem('lcns_users')||'[]');
+      const updated=[...existing.filter((u:any)=>u.email!==userData.email), userData];
       localStorage.setItem('lcns_users', JSON.stringify(updated));
       localStorage.setItem('users', JSON.stringify(updated));
-      
-      // 3. Try StorageService
-      try { if (StorageService.saveUsers) StorageService.saveUsers(updated); else if (StorageService.setUsers) StorageService.setUsers(updated); } catch {}
-      
-      // 4. Update React state
+      try { StorageService.saveUsers(updated); } catch {}
       setUsers(updated);
-      
-      // 5. Save to Supabase
-      const sb = getSupabase(); if (sb) { try { await sb.from('users').insert([userData]); await sb.from('profiles').insert([{...userData, user_id: userData.id}]); } catch(err){ console.log('Supabase insert failed but local saved', err); } }
-      
-      // 6. Force storage event for other tabs
-      window.dispatchEvent(new StorageEvent('storage', {key: 'lcns_users', newValue: JSON.stringify(updated)}));
       window.dispatchEvent(new Event('storage'));
 
       setNewUser({ fullName: '', firstName: '', middleName: '', lastName: '', address: '', phone: '', bloodGroup: '', sex: '', parentName: '', parentPhone: '', email: '', staying: 'hostel', level: 'ND1', department: 'Nursing', role: userType==='STAFF'?'LECTURER':'STUDENT', staffId: '', qualification: '', staffDepartment: 'Nursing', courseOfStudy: 'Nursing Science', staffImage: '', dateOfBirth: '', state: '', lga: '' });
@@ -183,8 +206,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
     } catch (err:any) { showStatus('Save failed: '+err.message,'error'); }
   };
 
-  const assignRole = async (email:string, role:string)=>{ const sb=getSupabase(); const existing=JSON.parse(localStorage.getItem('lcns_users')||'[]'); const up=existing.map((u:any)=>u.email===email?{...u,role:role.toUpperCase()}:u); localStorage.setItem('lcns_users', JSON.stringify(up)); setUsers(up); if(sb) try{ await sb.from('users').update({role:role.toUpperCase()}).eq('email',email);}catch{} showStatus(`Role ${role} assigned`); };
-  const deleteUser = async (email:string, name:string)=>{ if(!confirm(`Delete ${name}?`))return; const existing=JSON.parse(localStorage.getItem('lcns_users')||'[]'); const f=existing.filter((u:any)=>u.email!==email); localStorage.setItem('lcns_users', JSON.stringify(f)); setUsers(f); const sb=getSupabase(); if(sb) try{ await sb.from('users').delete().eq('email',email);}catch{} showStatus('User Deleted'); };
+  // *** FIXED ASSIGN ROLE + DELETE - SAVE TO ALL KEYS ***
+  const assignRole = async (email:string, role:string)=>{
+    const sb=getSupabase(); 
+    const allKeys = ['lcns_users','users'];
+    allKeys.forEach(k=>{
+      try{
+        const existing=JSON.parse(localStorage.getItem(k)||'[]'); 
+        const up=existing.map((u:any)=>u.email?.toLowerCase()===email.toLowerCase()?{...u,role:role.toUpperCase()}:u); 
+        localStorage.setItem(k, JSON.stringify(up));
+      }catch{}
+    });
+    try{
+      const storageUsers = StorageService.getUsers()||[];
+      const up = storageUsers.map((u:any)=>u.email?.toLowerCase()===email.toLowerCase()?{...u,role:role.toUpperCase()}:u);
+      StorageService.saveUsers(up);
+      setUsers(up);
+    }catch{
+      const existing=JSON.parse(localStorage.getItem('lcns_users')||'[]'); 
+      const up=existing.map((u:any)=>u.email?.toLowerCase()===email.toLowerCase()?{...u,role:role.toUpperCase()}:u);
+      setUsers(up);
+    }
+    if(sb) try{ await sb.from('users').update({role:role.toUpperCase()}).eq('email',email);}catch{} 
+    showStatus(`Role ${role} assigned`);
+  };
+  const deleteUser = async (email:string, name:string)=>{
+    if(!confirm(`Delete ${name}?`))return; 
+    ['lcns_users','users'].forEach(k=>{
+      try{
+        const existing=JSON.parse(localStorage.getItem(k)||'[]'); 
+        const f=existing.filter((u:any)=>u.email?.toLowerCase()!==email.toLowerCase()); 
+        localStorage.setItem(k, JSON.stringify(f));
+      }catch{}
+    });
+    try{
+      const storageUsers = StorageService.getUsers()||[];
+      const f = storageUsers.filter((u:any)=>u.email?.toLowerCase()!==email.toLowerCase());
+      StorageService.saveUsers(f);
+      setUsers(f);
+    }catch{
+      const existing=JSON.parse(localStorage.getItem('lcns_users')||'[]'); 
+      const f=existing.filter((u:any)=>u.email?.toLowerCase()!==email.toLowerCase()); 
+      setUsers(f);
+    }
+    const sb=getSupabase(); if(sb) try{ await sb.from('users').delete().eq('email',email);}catch{} 
+    showStatus('User Deleted');
+  };
+
   const deletePayment = async (id:string)=>{ if(!confirm('Delete?'))return; const sb=getSupabase(); if(sb) await sb.from('payments').delete().eq('id',id); setPayments(p=>p.filter((x:any)=>x.id!==id)); showStatus('Deleted'); };
   const toggleApplication = async () => { const ns={...appStatus,isOpen:!appStatus.isOpen}; setAppStatus(ns); localStorage.setItem('lcns_application_status', JSON.stringify(ns)); localStorage.setItem('application_open', String(ns.isOpen)); const sb=getSupabase(); if(sb) try{ await sb.from('school_settings').upsert({key:'application_open',value:String(ns.isOpen)},{onConflict:'key'});}catch{} showStatus(ns.isOpen?'Application OPENED':'CLOSED'); };
   const saveAppSettings = async ()=>{ localStorage.setItem('lcns_application_status', JSON.stringify(appStatus)); showStatus('Saved'); };
