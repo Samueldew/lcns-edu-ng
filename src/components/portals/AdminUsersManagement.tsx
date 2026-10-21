@@ -30,22 +30,15 @@ export const AdminUsersManagement: React.FC = () => {
     StorageService.getUsers()
   );
   const [searchTerm, setSearchTerm] = useState('');
-  // FIXED: Default to STAFF so you see Registrar, Provost, HOD, Exam Officer first, not 500 students
   const [selectedRole, setSelectedRole] = useState<string>('STAFF');
   const [selectedLevel, setSelectedLevel] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
-
-  // Deletion modal state
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  // Profile modal state
   const [viewingUser, setViewingUser] = useState<User | null>(null);
   const [editingPhotoForUser, setEditingPhotoForUser] = useState<User | null>(null);
-
-  // Create User modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<{
     id: string;
@@ -56,8 +49,6 @@ export const AdminUsersManagement: React.FC = () => {
     role: string;
   } | null>(null);
   const [copiedNotification, setCopiedNotification] = useState(false);
-
-  // Create form inputs
   const [formFullName, setFormFullName] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
@@ -88,14 +79,12 @@ export const AdminUsersManagement: React.FC = () => {
             matricNo: u.matric_no || u.matricNo,
             photoUrl: u.photo_url || u.photoUrl,
           }));
-
           const merged = [...formatted];
           for (const lu of localUsers) {
             if (!merged.some((m) => m.email.toLowerCase() === lu.email.toLowerCase())) {
               merged.push(lu);
             }
           }
-          // FIXED: Sort staff first when ALL
           merged.sort((a,b) => {
             const isStaffA = ['REGISTRAR','PROVOST','HOD','EXAM_OFFICER','BURSAR','ADMIN'].includes(a.role) ? 0 : 1;
             const isStaffB = ['REGISTRAR','PROVOST','HOD','EXAM_OFFICER','BURSAR','ADMIN'].includes(b.role) ? 0 : 1;
@@ -111,18 +100,26 @@ export const AdminUsersManagement: React.FC = () => {
     setUsers(localUsers);
   };
 
+  // --- ADDED: Cross-tab sync fix ---
   useEffect(() => {
     loadUsers();
     const handleStorageUpdate = () => { loadUsers(); };
     window.addEventListener('lcns_storage_update', handleStorageUpdate);
     window.addEventListener('lcns_users_update', handleStorageUpdate);
+    // This makes Tab 2 auto-update when Tab 1 creates user
+    const handleCrossTab = (e: StorageEvent) => {
+      if (e.key === 'lcns_users' || e.key === 'lcns_last_update' || e.key === 'lcns_users_update') {
+        loadUsers();
+      }
+    };
+    window.addEventListener('storage', handleCrossTab);
     return () => {
       window.removeEventListener('lcns_storage_update', handleStorageUpdate);
       window.removeEventListener('lcns_users_update', handleStorageUpdate);
+      window.removeEventListener('storage', handleCrossTab);
     };
   }, []);
 
-  // Count for badges
   const staffCount = useMemo(() => users.filter(u => ['REGISTRAR','PROVOST','HOD','EXAM_OFFICER','BURSAR','LECTURER','ADMIN','ADMIN_OFFICER'].includes(u.role)).length, [users]);
   const studentCount = useMemo(() => users.filter(u => u.role === 'STUDENT').length, [users]);
 
@@ -134,13 +131,8 @@ export const AdminUsersManagement: React.FC = () => {
         u.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (u.matricNo && u.matricNo.toLowerCase().includes(searchTerm.toLowerCase())) ||
         u.role.toLowerCase().includes(searchTerm.toLowerCase());
-
       const matchRole = selectedRole === 'ALL' || (selectedRole === 'STAFF' ? ['REGISTRAR','PROVOST','HOD','EXAM_OFFICER','BURSAR','LECTURER','ADMIN','ADMIN_OFFICER','ADMISSION_OFFICER'].includes(u.role) : u.role === selectedRole);
-      const matchLevel =
-        selectedLevel === 'ALL' ||
-        u.level === selectedLevel ||
-        (u.role === 'STUDENT' && u.matricNo?.includes(selectedLevel));
-
+      const matchLevel = selectedLevel === 'ALL' || u.level === selectedLevel || (u.role === 'STUDENT' && u.matricNo?.includes(selectedLevel));
       return matchSearch && matchRole && matchLevel;
     });
   }, [users, searchTerm, selectedRole, selectedLevel]);
@@ -156,7 +148,8 @@ export const AdminUsersManagement: React.FC = () => {
     const updated = StorageService.toggleUserStatus(u.id);
     if (updated) {
       setUsers(StorageService.getUsers());
-      StorageService.logAction('info@lcns.edu.ng','ADMIN','USER_STATUS_CHANGE',`Changed status of ${u.fullName} (${u.id}) to ${updated.status}`);
+      localStorage.setItem('lcns_last_update', Date.now().toString());
+      window.dispatchEvent(new Event('lcns_storage_update'));
     }
   };
 
@@ -175,11 +168,16 @@ export const AdminUsersManagement: React.FC = () => {
     StorageService.deleteUser(userToDelete.id);
     const sb = getSupabase();
     if (sb) {
-      sb.from('users').delete().or(`id.eq.${userToDelete.id},email.eq.${userToDelete.email}`).then(() => loadUsers());
+      sb.from('users').delete().or(`id.eq.${userToDelete.id},email.eq.${userToDelete.email}`).then(() => {
+        loadUsers();
+        localStorage.setItem('lcns_last_update', Date.now().toString());
+      });
     }
     setUsers(StorageService.getUsers());
     setUserToDelete(null);
     setDeleteConfirmationText('');
+    localStorage.setItem('lcns_last_update', Date.now().toString());
+    window.dispatchEvent(new Event('lcns_storage_update'));
   };
 
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
@@ -189,7 +187,7 @@ export const AdminUsersManagement: React.FC = () => {
     const newPin = StorageService.generatePin();
     const newMatricNo = formRole === 'STUDENT' ? StorageService.generateMatricNumber(formLevel) : undefined;
     const finalPassword = formCustomPass.trim() || 'admin123';
-    const res = await ApiService.createUser({
+    await ApiService.createUser({
       fullName: formFullName.trim(),
       email: formEmail.trim().toLowerCase(),
       phone: formPhone.trim() || '08126799565',
@@ -201,6 +199,12 @@ export const AdminUsersManagement: React.FC = () => {
       pin: newPin,
     });
     await loadUsers();
+    // --- ADDED: Notify other tabs ---
+    localStorage.setItem('lcns_last_update', Date.now().toString());
+    localStorage.setItem('lcns_users_update', Date.now().toString());
+    window.dispatchEvent(new Event('lcns_storage_update'));
+    window.dispatchEvent(new Event('lcns_users_update'));
+    
     setCreatedCredentials({ id: newId, pin: newPin, password: finalPassword, matricNo: newMatricNo, fullName: formFullName, role: formRole });
     setFormFullName(''); setFormEmail(''); setFormPhone(''); setFormCustomPass(''); setShowCreateModal(false);
   };
@@ -222,17 +226,16 @@ export const AdminUsersManagement: React.FC = () => {
             <span>Central Identity & Role Management - Staff {staffCount} | Students {studentCount}</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase font-serif-crest">User Accounts Directory & RBAC Control</h2>
-          <p className="text-xs text-slate-500 mt-1">Default shows STAFF first — Registrar, Provost, HOD, Exam Officer now visible!</p>
+          <p className="text-xs text-slate-500 mt-1">Default shows STAFF first — Registrar, Provost, HOD, Exam Officer now visible! Cross-tab sync ON</p>
         </div>
         <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0a4d2e] hover:bg-[#073822] text-white text-xs font-bold rounded-2xl shadow-md transition-all shrink-0">
           <UserPlus className="w-4 h-4 text-amber-400" /><span>Create New User & Auto ID</span>
         </button>
       </div>
 
-      {/* FIXED FILTER TABS */}
       <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-wrap gap-2">
-          <button onClick={()=>{setSelectedRole('STAFF'); setCurrentPage(1);}} className={`px-4 py-2 rounded-xl text-xs font-black ${selectedRole==='STAFF'?'bg-[#0a4d2e] text-white':'bg-emerald-100 text-emerald-900'}`}>👥 STAFF ({staffCount}) - Show Registrar, Provost, HOD, Exam Officer</button>
+          <button onClick={()=>{setSelectedRole('STAFF'); setCurrentPage(1);}} className={`px-4 py-2 rounded-xl text-xs font-black ${selectedRole==='STAFF'?'bg-[#0a4d2e] text-white':'bg-emerald-100 text-emerald-900'}`}>👥 STAFF ({staffCount})</button>
           <button onClick={()=>{setSelectedRole('STUDENT'); setCurrentPage(1);}} className={`px-4 py-2 rounded-xl text-xs font-black ${selectedRole==='STUDENT'?'bg-[#0a4d2e] text-white':'bg-blue-100 text-blue-900'}`}>🎓 STUDENTS ({studentCount})</button>
           <button onClick={()=>{setSelectedRole('ALL'); setCurrentPage(1);}} className={`px-4 py-2 rounded-xl text-xs font-black ${selectedRole==='ALL'?'bg-[#0a4d2e] text-white':'bg-slate-100 text-slate-700'}`}>ALL ({users.length})</button>
           <button onClick={()=>{setSelectedRole('REGISTRAR'); setCurrentPage(1);}} className="px-3 py-2 rounded-xl text-xs font-bold bg-green-50 border">Registrar</button>
@@ -242,140 +245,50 @@ export const AdminUsersManagement: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-            <input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} placeholder="Search name, ID, email, role..." className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700" />
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-400 shrink-0" />
-            <select value={selectedRole} onChange={(e) => { setSelectedRole(e.target.value); setCurrentPage(1); }} className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium">
-              <option value="STAFF">STAFF - Registrar, Provost, HOD, Exam Officer etc. ({staffCount})</option>
-              <option value="ALL">All Roles ({users.length})</option>
-              <option value="STUDENT">Students ({studentCount})</option>
-              <option value="LECTURER">Lecturers</option>
-              <option value="HOD">Heads of Department</option>
-              <option value="BURSAR">Bursars</option>
-              <option value="REGISTRAR">Registrars</option>
-              <option value="PROVOST">Provosts</option>
-              <option value="ADMISSION_OFFICER">Admission Officers</option>
-              <option value="EXAM_OFFICER">Exam Officers</option>
-              <option value="ADMIN">System Admins</option>
-              <option value="APPLICANT">Applicants</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 font-bold shrink-0">Level:</span>
-            <select value={selectedLevel} onChange={(e) => { setSelectedLevel(e.target.value); setCurrentPage(1); }} className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium">
-              <option value="ALL">All Levels</option><option value="N1">N1</option><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-between sm:justify-end gap-2 text-slate-500">
-            <span>Show:</span>
-            <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium">
-              <option value={10}>10 per page</option><option value={25}>25 per page</option><option value={50}>50 per page</option><option value={100}>100 per page</option>
-            </select>
-          </div>
+          <div className="relative"><Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" /><input type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} placeholder="Search name, ID, email, role..." className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700" /></div>
+          <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-slate-400 shrink-0" /><select value={selectedRole} onChange={(e) => { setSelectedRole(e.target.value); setCurrentPage(1); }} className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium"><option value="STAFF">STAFF ({staffCount})</option><option value="ALL">All ({users.length})</option><option value="STUDENT">Students ({studentCount})</option><option value="REGISTRAR">Registrar</option><option value="PROVOST">Provost</option><option value="HOD">HOD</option><option value="BURSAR">Bursar</option><option value="EXAM_OFFICER">Exam Officer</option><option value="ADMIN">Admin</option></select></div>
+          <div className="flex items-center gap-2"><span className="text-slate-400 font-bold shrink-0">Level:</span><select value={selectedLevel} onChange={(e) => { setSelectedLevel(e.target.value); setCurrentPage(1); }} className="w-full py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700 font-medium"><option value="ALL">All Levels</option><option value="N1">N1</option><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option></select></div>
+          <div className="flex items-center justify-between sm:justify-end gap-2 text-slate-500"><span>Show:</span><select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} className="py-2.5 px-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"><option value={25}>25 per page</option><option value={50}>50 per page</option><option value={100}>100 per page</option></select></div>
         </div>
 
         <div className="overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200">
-              <tr><th className="p-3.5">Photo</th><th className="p-3.5">Student / Staff ID</th><th className="p-3.5">Full Name & Contact</th><th className="p-3.5">Email</th><th className="p-3.5">Role</th><th className="p-3.5">Level</th><th className="p-3.5">Status</th><th className="p-3.5 text-center">Login PIN</th><th className="p-3.5 text-right">Actions</th></tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedUsers.length === 0 ? (
-                <tr><td colSpan={9} className="p-8 text-center text-slate-400">No user accounts match the selected filters. Try STAFF or ALL.</td></tr>
-              ) : (
-                paginatedUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="p-3.5">
-                      <div className="relative group w-10 h-10 rounded-full overflow-hidden border border-slate-300 bg-slate-100 flex items-center justify-center shrink-0">
-                        {u.photoUrl ? <img src={u.photoUrl} alt={u.fullName} className="w-full h-full object-cover" /> : <span className="font-bold text-slate-600 text-xs">{u.fullName.charAt(0)}</span>}
-                        <button onClick={() => setEditingPhotoForUser(u)} title="Change user photo" className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Camera className="w-4 h-4" /></button>
-                      </div>
-                    </td>
-                    <td className="p-3.5 font-mono-code font-bold text-slate-900"><div>{u.id}</div>{u.matricNo && <span className="block text-[10px] text-emerald-800 font-normal">{u.matricNo}</span>}</td>
-                    <td className="p-3.5"><div className="font-bold text-slate-900">{u.fullName}</div><div className="text-[11px] text-slate-500">{u.phone || '08126799565'}</div></td>
-                    <td className="p-3.5 font-mono-code text-slate-600 truncate max-w-[180px]">{u.email}</td>
-                    <td className="p-3.5"><span className="inline-block bg-emerald-100 text-[#0a4d2e] font-black text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider">{u.role.replace('_', ' ')}</span></td>
-                    <td className="p-3.5 font-semibold text-slate-700">{u.level || (u.role === 'STUDENT' ? 'ND1' : '—')}</td>
-                    <td className="p-3.5"><span className={`inline-flex items-center gap-1 font-bold text-[11px] ${u.status === 'ACTIVE' ? 'text-emerald-700' : 'text-amber-700'}`}>{u.status === 'ACTIVE' ? <><ShieldCheck className="w-3.5 h-3.5" /><span>Active</span></> : <><ShieldAlert className="w-3.5 h-3.5" /><span>Suspended</span></>}</span></td>
-                    <td className="p-3.5 text-center"><span className="font-mono-code bg-slate-100 px-2 py-1 rounded text-slate-700 font-bold text-[11px]">{u.pin || '458921'}</span></td>
-                    <td className="p-3.5 text-right"><div className="inline-flex items-center gap-1.5 justify-end"><button onClick={() => setViewingUser(u)} title="View Profile Details" className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"><Eye className="w-3.5 h-3.5" /></button><button onClick={() => handleToggleStatus(u)} title={u.status === 'ACTIVE' ? 'Suspend Account' : 'Activate Account'} className={`p-1.5 rounded-lg transition-colors ${u.status === 'ACTIVE' ? 'bg-amber-100 hover:bg-amber-200 text-amber-800' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800'}`}>{u.status === 'ACTIVE' ? <UserX className="w-3.5 h-3.5" /> : <UserCheck className="w-3.5 h-3.5" />}</button><button onClick={() => handleOpenDelete(u)} title="Permanently Delete User" className="p-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition-colors"><Trash2 className="w-3.5 h-3.5" /></button></div></td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+          <table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200"><tr><th className="p-3.5">Photo</th><th className="p-3.5">ID</th><th className="p-3.5">Full Name</th><th className="p-3.5">Email</th><th className="p-3.5">Role</th><th className="p-3.5">Level</th><th className="p-3.5">Status</th><th className="p-3.5 text-center">PIN</th><th className="p-3.5 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{paginatedUsers.length === 0 ? (<tr><td colSpan={9} className="p-8 text-center text-slate-400">No accounts. Current count: Staff {staffCount}, Students {studentCount}. Supabase has 7 staff as in screenshot.</td></tr>) : (paginatedUsers.map((u) => (<tr key={u.id} className="hover:bg-slate-50/80 transition-colors"><td className="p-3.5"><div className="relative group w-10 h-10 rounded-full overflow-hidden border bg-slate-100 flex items-center justify-center">{u.photoUrl ? <img src={u.photoUrl} alt={u.fullName} className="w-full h-full object-cover" /> : <span className="font-bold text-slate-600 text-xs">{u.fullName.charAt(0)}</span>}<button onClick={() => setEditingPhotoForUser(u)} className="absolute inset-0 bg-slate-900/60 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center"><Camera className="w-4 h-4" /></button></div></td><td className="p-3.5 font-mono-code font-bold">{u.id}</td><td className="p-3.5 font-bold">{u.fullName}</td><td className="p-3.5 font-mono-code truncate max-w-[180px]">{u.email}</td><td className="p-3.5"><span className="bg-emerald-100 text-[#0a4d2e] font-black text-[10px] px-2.5 py-1 rounded-full uppercase">{u.role.replace('_', ' ')}</span></td><td className="p-3.5">{u.level || '—'}</td><td className="p-3.5">{u.status}</td><td className="p-3.5 text-center"><span className="bg-slate-100 px-2 py-1 rounded font-bold">{u.pin || '123456'}</span></td><td className="p-3.5 text-right"><div className="inline-flex gap-1.5"><button onClick={() => setViewingUser(u)} className="p-1.5 bg-slate-100 rounded-lg"><Eye className="w-3.5 h-3.5" /></button><button onClick={() => handleToggleStatus(u)} className="p-1.5 bg-amber-100 rounded-lg"><UserX className="w-3.5 h-3.5" /></button><button onClick={() => handleOpenDelete(u)} className="p-1.5 bg-red-100 text-red-700 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button></div></td></tr>)))}</tbody></table>
         </div>
 
-        <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
-          <div>Showing <strong className="text-slate-900">{totalUsers === 0 ? 0 : (currentPage - 1) * pageSize + 1}</strong> to <strong className="text-slate-900">{Math.min(currentPage * pageSize, totalUsers)}</strong> of <strong className="text-slate-900">{totalUsers}</strong> accounts — Staff: {staffCount}, Students: {studentCount}</div>
-          <div className="flex items-center gap-1.5 self-end sm:self-auto">
-            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronLeft className="w-4 h-4" /></button>
-            <span className="px-3 py-1 font-bold text-slate-700 bg-slate-100 rounded-xl">Page {currentPage} of {totalPages}</span>
-            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"><ChevronRight className="w-4 h-4" /></button>
-          </div>
-        </div>
+        <div className="pt-2 flex justify-between text-xs text-slate-500"><div>Showing {totalUsers === 0 ? 0 : (currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalUsers)} of {totalUsers} — Staff: {staffCount}, Students: {studentCount}</div><div className="flex gap-1.5"><button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border rounded-xl disabled:opacity-40"><ChevronLeft className="w-4 h-4" /></button><span className="px-3 py-1 font-bold bg-slate-100 rounded-xl">Page {currentPage} of {totalPages}</span><button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border rounded-xl disabled:opacity-40"><ChevronRight className="w-4 h-4" /></button></div></div>
       </div>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in no-print">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
-            <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 flex items-center justify-between">
-              <div className="flex items-center gap-2.5"><div className="p-2 bg-white/10 rounded-xl"><UserPlus className="w-5 h-5 text-amber-400" /></div><div><h3 className="font-bold uppercase font-serif-crest text-base">Create User Account & Auto Generate ID</h3><p className="text-xs text-emerald-300">Auto-assigns official ID convention & 6-digit login PIN</p></div></div>
-              <button onClick={() => setShowCreateModal(false)} className="p-1.5 text-emerald-300 hover:text-white rounded-xl hover:bg-emerald-800 transition-colors"><X className="w-5 h-5" /></button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border">
+            <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 flex items-center justify-between"><h3 className="font-bold uppercase">Create User & Auto ID</h3><button onClick={() => setShowCreateModal(false)} className="p-1.5 text-emerald-300"><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleCreateUserSubmit} className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Full Name *</label><input type="text" value={formFullName} onChange={(e) => setFormFullName(e.target.value)} placeholder="e.g. John Terver" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-700" required /></div><div><label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Email Address *</label><input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="e.g. j.terver@lcns.edu.ng" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-700" required /></div></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Assigned Role *</label><select value={formRole} onChange={(e) => setFormRole(e.target.value as UserRole)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-700 font-bold"><option value="STUDENT">STUDENT</option><option value="LECTURER">LECTURER</option><option value="HOD">HOD (Head of Department)</option><option value="BURSAR">BURSAR</option><option value="REGISTRAR">REGISTRAR</option><option value="PROVOST">PROVOST</option><option value="ADMISSION_OFFICER">ADMISSION OFFICER</option><option value="EXAM_OFFICER">EXAM OFFICER</option><option value="ADMIN">ADMINISTRATOR</option></select></div><div><label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Academic Level (for Student)</label><select value={formLevel} onChange={(e) => setFormLevel(e.target.value as any)} disabled={formRole !== 'STUDENT'} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-700 font-bold disabled:opacity-50"><option value="ND1">ND 1 (Year 1)</option><option value="ND2">ND 2 (Year 2)</option><option value="HND1">HND 1 (Year 3)</option><option value="HND2">HND 2 (Year 4)</option><option value="N1">N 1</option></select></div></div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div><label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Phone Number</label><input type="text" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="08126799565" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-700" /></div><div><label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Custom Password (Optional)</label><input type="text" value={formCustomPass} onChange={(e) => setFormCustomPass(e.target.value)} placeholder="Default: admin123" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-700" /></div></div>
-              <div><label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Department / Unit</label><input type="text" value={formDept} onChange={(e) => setFormDept(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-700" /></div>
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 space-y-1"><span className="font-bold block">Automatic System Conventions:</span><p>&bull; User ID: Format <code>LCNS/2026/[ROLE]/XXX</code></p><p>&bull; Login PIN: Auto-generated 6-digit random code</p>{formRole === 'STUDENT' && <p>&bull; Matric Number: Auto-generated <code>LCNS/ND/2026/XXXX</code></p>}</div>
-              <div className="pt-2 flex justify-end gap-2"><button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2.5 border border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-50">Cancel</button><button type="submit" className="px-5 py-2.5 bg-[#0a4d2e] hover:bg-[#073822] text-white rounded-xl font-bold shadow-md">Create & Generate Credentials</button></div>
+              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Full Name *</label><input type="text" value={formFullName} onChange={(e) => setFormFullName(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" required /></div><div><label className="block font-bold mb-1">Email *</label><input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" required /></div></div>
+              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Role *</label><select value={formRole} onChange={(e) => setFormRole(e.target.value as UserRole)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold"><option value="STUDENT">STUDENT</option><option value="LECTURER">LECTURER</option><option value="HOD">HOD</option><option value="BURSAR">BURSAR</option><option value="REGISTRAR">REGISTRAR</option><option value="PROVOST">PROVOST</option><option value="EXAM_OFFICER">EXAM OFFICER</option><option value="ADMIN">ADMIN</option></select></div><div><label className="block font-bold mb-1">Level</label><select value={formLevel} onChange={(e) => setFormLevel(e.target.value as any)} disabled={formRole !== 'STUDENT'} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold disabled:opacity-50"><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option></select></div></div>
+              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Phone</label><input type="text" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div><div><label className="block font-bold mb-1">Password</label><input type="text" value={formCustomPass} onChange={(e) => setFormCustomPass(e.target.value)} placeholder="admin123" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div></div>
+              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2.5 border rounded-xl font-bold">Cancel</button><button type="submit" className="px-5 py-2.5 bg-[#0a4d2e] text-white rounded-xl font-bold">Create & Notify All Tabs</button></div>
             </form>
           </div>
         </div>
       )}
 
       {createdCredentials && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in no-print">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200 p-6 space-y-5">
-            <div className="text-center space-y-2"><div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-2xl flex items-center justify-center mx-auto"><CheckCircle2 className="w-6 h-6 text-[#22c55e]" /></div><h3 className="text-lg font-black uppercase font-serif-crest text-slate-900">User Account Created Successfully!</h3><p className="text-xs text-slate-500">Please copy and securely deliver these login credentials to the user.</p></div>
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3 text-xs"><div className="flex items-center justify-between pb-2 border-b border-slate-200"><span className="text-slate-500">Full Name:</span><strong className="text-slate-900">{createdCredentials.fullName}</strong></div><div className="flex items-center justify-between pb-2 border-b border-slate-200"><span className="text-slate-500">Role:</span><span className="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-bold uppercase text-[10px]">{createdCredentials.role}</span></div><div className="flex items-center justify-between pb-2 border-b border-slate-200"><span className="text-slate-500">Official User ID:</span><span className="font-mono-code font-black text-[#0a4d2e] text-sm">{createdCredentials.id}</span></div><div className="flex items-center justify-between pb-2 border-b border-slate-200"><span className="text-slate-500">6-Digit Login PIN:</span><span className="font-mono-code font-black text-amber-700 text-sm">{createdCredentials.pin}</span></div><div className="flex items-center justify-between pb-2 border-b border-slate-200"><span className="text-slate-500">Password:</span><span className="font-mono-code font-bold text-slate-800">{createdCredentials.password}</span></div>{createdCredentials.matricNo && <div className="flex items-center justify-between"><span className="text-slate-500">Matriculation No:</span><span className="font-mono-code font-bold text-emerald-900">{createdCredentials.matricNo}</span></div>}</div>
-            {copiedNotification && <div className="p-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-center text-xs font-bold flex items-center justify-center gap-1.5"><CheckCircle2 className="w-4 h-4 text-[#22c55e]" /><span>Credentials copied to clipboard!</span></div>}
-            <div className="flex gap-2"><button onClick={handleCopyCredentials} className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-xs transition-all"><Copy className="w-4 h-4" /><span>Copy Credentials</span></button><button onClick={() => setCreatedCredentials(null)} className="flex-1 py-2.5 bg-[#0a4d2e] hover:bg-[#073822] text-white font-bold rounded-xl text-xs shadow-xs transition-all">Done</button></div>
-          </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4 text-xs"><div className="text-center"><CheckCircle2 className="w-10 h-10 mx-auto text-green-500" /><h3 className="font-black text-lg uppercase mt-2">User Created!</h3><p>Other tabs will auto-update</p></div><div className="bg-slate-50 p-4 rounded-2xl border space-y-2"><div className="flex justify-between"><span>Name:</span><strong>{createdCredentials.fullName}</strong></div><div className="flex justify-between"><span>Role:</span><span className="bg-emerald-100 px-2 py-0.5 rounded font-bold">{createdCredentials.role}</span></div><div className="flex justify-between"><span>ID:</span><span className="font-mono font-black text-[#0a4d2e]">{createdCredentials.id}</span></div><div className="flex justify-between"><span>PIN:</span><span className="font-mono font-black text-amber-700">{createdCredentials.pin}</span></div></div><div className="flex gap-2"><button onClick={handleCopyCredentials} className="flex-1 py-2.5 bg-amber-500 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-2"><Copy className="w-4 h-4" />Copy</button><button onClick={() => setCreatedCredentials(null)} className="flex-1 py-2.5 bg-[#0a4d2e] text-white font-bold rounded-xl">Done</button></div></div>
         </div>
       )}
 
       {viewingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in no-print">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-slate-200">
-            <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 relative">
-              <button onClick={() => setViewingUser(null)} className="absolute top-4 right-4 text-emerald-300 hover:text-white p-1 rounded-xl hover:bg-emerald-800 transition-colors"><X className="w-5 h-5" /></button>
-              <div className="flex items-center gap-4"><div className="relative group w-16 h-16 rounded-2xl overflow-hidden border-2 border-amber-400 bg-slate-900 shrink-0">{viewingUser.photoUrl ? <img src={viewingUser.photoUrl} alt={viewingUser.fullName} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-black text-xl">{viewingUser.fullName.charAt(0)}</div>}<button onClick={() => { const target = viewingUser; setViewingUser(null); setEditingPhotoForUser(target); }} className="absolute inset-0 bg-slate-950/70 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><Camera className="w-5 h-5" /></button></div><div><h3 className="font-bold text-base font-serif-crest text-white leading-tight">{viewingUser.fullName}</h3><span className="text-[10px] bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded uppercase inline-block mt-1">{viewingUser.role.replace('_', ' ')}</span><div className="text-xs text-emerald-300 font-mono-code mt-0.5">{viewingUser.id}</div></div></div>
-            </div>
-            <div className="p-6 space-y-3 text-xs"><div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200"><div><span className="text-slate-400 block text-[10px] uppercase">Email:</span><strong className="text-slate-800 break-all">{viewingUser.email}</strong></div><div><span className="text-slate-400 block text-[10px] uppercase">Phone:</span><strong className="text-slate-800">{viewingUser.phone || '08126799565'}</strong></div><div><span className="text-slate-400 block text-[10px] uppercase">Level:</span><strong className="text-slate-800">{viewingUser.level || 'ND1'}</strong></div><div><span className="text-slate-400 block text-[10px] uppercase">Status:</span><span className={`font-bold ${viewingUser.status === 'ACTIVE' ? 'text-emerald-700' : 'text-amber-700'}`}>{viewingUser.status}</span></div>{viewingUser.matricNo && <div className="col-span-2"><span className="text-slate-400 block text-[10px] uppercase">Matric No:</span><strong className="text-emerald-900 font-mono-code">{viewingUser.matricNo}</strong></div>}<div><span className="text-slate-400 block text-[10px] uppercase">Login PIN:</span><strong className="font-mono-code text-amber-800">{viewingUser.pin || '458921'}</strong></div><div><span className="text-slate-400 block text-[10px] uppercase">Password:</span><strong className="font-mono-code text-slate-700">{viewingUser.password || 'admin123'}</strong></div></div><div className="pt-2 flex justify-between items-center"><button onClick={() => { const target = viewingUser; setViewingUser(null); setEditingPhotoForUser(target); }} className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-[#0a4d2e] rounded-xl font-bold flex items-center gap-1.5 transition-colors"><Camera className="w-4 h-4" /><span>Upload / Change Photo</span></button><button onClick={() => setViewingUser(null)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-colors">Close</button></div></div>
-          </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border"><div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 flex items-center justify-between"><h3 className="font-bold">{viewingUser.fullName}</h3><button onClick={() => setViewingUser(null)}><X className="w-5 h-5" /></button></div><div className="p-6 text-xs space-y-2"><p>Email: {viewingUser.email}</p><p>ID: {viewingUser.id}</p><p>Role: {viewingUser.role}</p><button onClick={() => setViewingUser(null)} className="mt-4 px-4 py-2 bg-slate-100 rounded-xl font-bold">Close</button></div></div>
         </div>
       )}
 
       {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in no-print">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-red-300 p-6 space-y-4">
-            <div className="flex items-center gap-3 text-red-600"><div className="p-3 bg-red-100 rounded-2xl"><AlertTriangle className="w-6 h-6" /></div><div><h3 className="text-base font-black uppercase font-serif-crest text-red-950">Delete User Account</h3><span className="text-xs text-red-600 font-semibold">This action is permanent and cannot be undone.</span></div></div>
-            <div className="p-4 bg-red-50 rounded-2xl border border-red-200 text-xs text-red-900 space-y-2"><p>Are you sure you want to permanently delete user account for <strong>{userToDelete.fullName}</strong> ({userToDelete.id} &bull; {userToDelete.email})?</p><p className="text-[11px] text-red-700">The account will be permanently erased and will not return back even upon refresh or data reload.</p></div>
-            {deleteError && <div className="p-2.5 bg-red-100 text-red-800 rounded-xl text-xs font-bold">{deleteError}</div>}
-            <div className="space-y-1.5"><label className="block text-xs font-bold text-slate-700">To confirm, type <span className="text-red-700 font-mono-code">DELETE</span> in the box below:</label><input type="text" value={deleteConfirmationText} onChange={(e) => setDeleteConfirmationText(e.target.value)} placeholder="Type DELETE" className="w-full p-2.5 border-2 border-red-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-red-600" /></div>
-            <div className="flex gap-2 pt-2"><button type="button" onClick={() => setUserToDelete(null)} className="flex-1 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs">Cancel</button><button type="button" onClick={handleConfirmDelete} disabled={deleteConfirmationText.trim().toUpperCase() !== 'DELETE'} className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-xs shadow-md disabled:opacity-40 transition-all flex items-center justify-center gap-1.5"><Trash2 className="w-4 h-4" /><span>Confirm & Delete User</span></button></div>
-          </div>
-        </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80"><div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4"><h3 className="font-black uppercase text-red-950">Delete {userToDelete.fullName}?</h3><input type="text" value={deleteConfirmationText} onChange={(e) => setDeleteConfirmationText(e.target.value)} placeholder="Type DELETE" className="w-full p-2.5 border-2 border-red-300 rounded-xl font-bold" /><div className="flex gap-2"><button onClick={() => setUserToDelete(null)} className="flex-1 py-2.5 border rounded-xl font-bold">Cancel</button><button onClick={handleConfirmDelete} disabled={deleteConfirmationText.trim().toUpperCase() !== 'DELETE'} className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold disabled:opacity-40">Confirm Delete</button></div></div></div>
       )}
 
-      {editingPhotoForUser && (
-        <UserProfilePhotoModal isOpen={true} onClose={() => setEditingPhotoForUser(null)} currentUser={editingPhotoForUser} onPhotoUpdated={(newUrl) => { setUsers(StorageService.getUsers()); setEditingPhotoForUser(null); }} />
-      )}
+      {editingPhotoForUser && (<UserProfilePhotoModal isOpen={true} onClose={() => setEditingPhotoForUser(null)} currentUser={editingPhotoForUser} onPhotoUpdated={() => { setUsers(StorageService.getUsers()); setEditingPhotoForUser(null); }} />)}
     </div>
   );
 };
