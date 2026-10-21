@@ -167,6 +167,22 @@ export default function App() {
       setCurrentUser(StorageService.getCurrentUser());
     };
 
+    const handleStorageSync = (e: StorageEvent) => {
+      if (
+        e.key === 'lcns_erp_users' ||
+        e.key === 'lcns_users' ||
+        e.key === 'users' ||
+        e.key === 'lcns_deleted_user_ids' ||
+        e.key === 'lcns_last_update' ||
+        e.key === 'lcns_erp_current_user' ||
+        e.key === 'lcns-current-user'
+      ) {
+        console.log('🔄 Sync from other tab:', e.key);
+        handleAuthUpdate();
+        window.dispatchEvent(new Event('lcns_storage_update'));
+      }
+    };
+
     const handleLinkClick = (e: MouseEvent) => {
       const target = (e.target as HTMLElement).closest('a');
       if (!target) return;
@@ -193,16 +209,30 @@ export default function App() {
 
     window.addEventListener('lcns_auth_update', handleAuthUpdate);
     window.addEventListener('lcns_storage_update', handleAuthUpdate);
+    window.addEventListener('storage', handleStorageSync);
     window.addEventListener('popstate', syncRouteFromUrl);
     document.addEventListener('click', handleLinkClick);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel('lcns_sync');
+      bc.onmessage = (msg) => {
+        if (msg.data?.type === 'users_updated' || msg.data?.type === 'user_deleted') {
+          handleAuthUpdate();
+          window.dispatchEvent(new Event('lcns_storage_update'));
+        }
+      };
+    } catch {}
 
     syncRouteFromUrl();
 
     return () => {
       window.removeEventListener('lcns_auth_update', handleAuthUpdate);
       window.removeEventListener('lcns_storage_update', handleAuthUpdate);
+      window.removeEventListener('storage', handleStorageSync);
       window.removeEventListener('popstate', syncRouteFromUrl);
       document.removeEventListener('click', handleLinkClick);
+      if (bc) bc.close();
     };
   }, []);
 
