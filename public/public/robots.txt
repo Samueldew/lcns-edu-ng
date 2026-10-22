@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://lcns.edu.ng/sitemap.xml
