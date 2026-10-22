@@ -1,7 +1,7 @@
 import React from 'react';
 import { CollegeLogo } from './CollegeLogo';
 import { COLLEGE_CONFIG } from '../../types';
-import { MapPin, Phone, Mail, Globe, Shield, Award, CheckCircle } from 'lucide-react';
+import { MapPin, Phone, Mail, Globe, CheckCircle } from 'lucide-react';
 
 interface FooterProps {
   onOpenLogin: () => void;
@@ -14,176 +14,104 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenLogin,
   onOpenApplication,
   onOpenAdmissionChecker,
-  setActiveView,
 }) => {
+  const scrollTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
-    <footer className="bg-slate-950 text-slate-300 pt-16 pb-12 border-t-4 border-[#ca8a04] no-print">
+    <footer className="bg-[#021a0e] text-emerald-100 pt-16 pb-12 border-t-4 border-[#ca8a04] no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-          {/* Col 1: Crest & Mission */}
+          {/* Col 1: Crest */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <CollegeLogo size="lg" />
               <div>
-                <h3 className="text-white font-extrabold text-base uppercase font-serif-crest leading-snug">
+                <h3 className="text-white font-extrabold text-base uppercase leading-snug">
                   Labe College of Nursing Sciences
                 </h3>
-                <p className="text-[11px] text-amber-300 font-bold tracking-wider uppercase">
-                  Catholic Diocese of Gboko
-                </p>
-                <p className="text-xs text-[#22c55e] font-semibold tracking-wider uppercase">
-                  Gboko, Benue State &bull; Nigeria
-                </p>
-                <p className="text-[11px] text-[#ca8a04] italic font-serif">"Learn, Serve & Save"</p>
+                <p className="text-[11px] text-[#ca8a04] font-bold uppercase">Catholic Diocese of Gboko</p>
+                <p className="text-xs text-[#22c55e] font-semibold uppercase">Gboko, Benue State • Nigeria</p>
+                <p className="text-[11px] text-[#ca8a04] italic">Learn, Serve & Save</p>
               </div>
             </div>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              A faith-based institution of the Catholic Diocese of Gboko, committed to training compassionate, highly competent, globally competitive nursing professionals and midwives equipped with modern clinical simulation skills and medical ethics.
+            <p className="text-xs text-emerald-200 leading-relaxed">
+              A faith-based institution of the Catholic Diocese of Gboko, committed to training compassionate, highly competent nursing professionals.
             </p>
             <div className="flex items-center gap-2 pt-2">
               <span className="inline-flex items-center gap-1 bg-[#0a4d2e] border border-[#22c55e]/40 text-[#22c55e] text-[10px] font-bold px-2 py-1 rounded">
-                <CheckCircle className="w-3 h-3 text-[#22c55e]" /> NMCN Approved
+                <CheckCircle className="w-3 h-3" /> NMCN Approved
               </span>
               <span className="inline-flex items-center gap-1 bg-[#0a4d2e] border border-[#22c55e]/40 text-[#22c55e] text-[10px] font-bold px-2 py-1 rounded">
-                <CheckCircle className="w-3 h-3 text-[#22c55e]" /> NBTE Accredited
-              </span>
-              <span className="inline-flex items-center gap-1 bg-[#06321e] border border-[#ca8a04]/40 text-[#ca8a04] text-[10px] font-bold px-2 py-1 rounded">
-                Catholic Diocese
+                <CheckCircle className="w-3 h-3" /> NBTE Accredited
               </span>
             </div>
           </div>
 
-          {/* Col 2: Academic Programmes */}
+          {/* Col 2: About + Program - LINKED */}
           <div className="space-y-3">
-            <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-emerald-800 pb-2">
-              Academic Curricula (4 Years)
+            <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-[#0a4d2e] pb-2">
+              About & Academics
             </h4>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li className="text-emerald-300 font-bold flex items-center gap-1.5">
-                <span className="text-amber-400 font-bold">&bull;</span>
-                <strong className="text-white font-black">ND/HND Nursing Science 4years</strong>
-              </li>
-              <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
-                <span className="text-emerald-500 font-bold">&bull;</span>
-                Registered Nurse (RN) Licensing (NMCN)
-              </li>
-              <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
-                <span className="text-emerald-500 font-bold">&bull;</span>
-                Registered Public Health Nurse (RPHN)
-              </li>
-              <li className="hover:text-emerald-400 transition-colors flex items-center gap-1.5 pl-2">
-                <span className="text-emerald-500 font-bold">&bull;</span>
-                Clinical Skills Simulation & Laboratory Excellence
-              </li>
+            <ul className="space-y-2 text-xs text-emerald-200">
+              <li><button onClick={() => scrollTo('about-college')} className="hover:text-[#ca8a04] text-left">• About the College</button></li>
+              <li><button onClick={() => scrollTo('history')} className="hover:text-[#ca8a04] text-left">• Historical Background</button></li>
+              <li><button onClick={() => scrollTo('leadership')} className="hover:text-[#ca8a04] text-left">• Bishop & Provost Messages</button></li>
+              <li><button onClick={() => scrollTo('vision')} className="hover:text-[#ca8a04] text-left">• Vision & Mission</button></li>
+              <li><button onClick={() => scrollTo('programmes')} className="hover:text-[#ca8a04] text-left font-bold text-white">• ND/HND Nursing Science 4 Years</button></li>
+              <li><button onClick={() => scrollTo('facilities')} className="hover:text-[#ca8a04] text-left">• College Facilities</button></li>
             </ul>
           </div>
 
-          {/* Col 3: Portal Links */}
+          {/* Col 3: Portal Links - LINKED */}
           <div className="space-y-3">
-            <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-emerald-800 pb-2">
-              Quick ERP & Portal
+            <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-[#0a4d2e] pb-2">
+              Quick Portal
             </h4>
-            <ul className="space-y-2 text-xs text-slate-400">
-              <li>
-                <button
-                  onClick={onOpenApplication}
-                  className="hover:text-emerald-400 transition-colors text-left flex items-center gap-1.5"
-                >
-                  <span className="text-emerald-500 font-bold">&bull;</span>
-                  2026/2027 Online Application Form
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={onOpenAdmissionChecker}
-                  className="hover:text-emerald-400 transition-colors text-left flex items-center gap-1.5"
-                >
-                  <span className="text-emerald-500 font-bold">&bull;</span>
-                  Check Admission Status & Print Letter
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={onOpenLogin}
-                  className="hover:text-emerald-400 transition-colors text-left flex items-center gap-1.5"
-                >
-                  <span className="text-emerald-500 font-bold">&bull;</span>
-                  Login (Student & Staff)
-                </button>
-              </li>
-
-              <li>
-                <a
-                  href="#hostel"
-                  className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
-                >
-                  <span className="text-emerald-500 font-bold">&bull;</span>
-                  Girls' Hostel Accommodation
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#gallery"
-                  className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
-                >
-                  <span className="text-emerald-500 font-bold">&bull;</span>
-                  Campus & Clinical Photo Gallery
-                </a>
-              </li>
-              <li>
-                <a
-                  href="#contact"
-                  className="hover:text-emerald-400 transition-colors flex items-center gap-1.5"
-                >
-                  <span className="text-emerald-500 font-bold">&bull;</span>
-                  ICT Support & Help Desk
-                </a>
-              </li>
+            <ul className="space-y-2 text-xs text-emerald-200">
+              <li><button onClick={onOpenApplication} className="hover:text-[#ca8a04] text-left">• 2026/2027 Online Application Form</button></li>
+              <li><button onClick={onOpenAdmissionChecker} className="hover:text-[#ca8a04] text-left">• Check Admission Status</button></li>
+              <li><button onClick={onOpenLogin} className="hover:text-[#ca8a04] text-left">• Login (Student & Staff)</button></li>
+              <li><button onClick={() => scrollTo('hostel')} className="hover:text-[#ca8a04] text-left">• Girls Hostel Accommodation</button></li>
+              <li><button onClick={() => scrollTo('gallery')} className="hover:text-[#ca8a04] text-left">• Campus Photo Gallery</button></li>
+              <li><button onClick={() => scrollTo('motto')} className="hover:text-[#ca8a04] text-left">• Our Motto Learn Serve Save</button></li>
             </ul>
           </div>
 
-          {/* Col 4: Official Contacts */}
+          {/* Col 4: Contacts */}
           <div className="space-y-3">
-            <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-emerald-800 pb-2">
+            <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-[#0a4d2e] pb-2">
               College Contacts
             </h4>
-            <div className="space-y-2.5 text-xs text-slate-400">
+            <div className="space-y-2.5 text-xs text-emerald-200">
               <div className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-[#ca8a04] shrink-0 mt-0.5" />
-                <span>
-                  Off Gboko Hill, Along Agbile Road, Gboko, Benue State, Nigeria<br/>
-                  <span className="text-amber-300 font-semibold">Catholic Diocese of Gboko</span>
-                </span>
+                <span>Off Gboko Hill, Along Agbile Road, Gboko, Benue State, Nigeria<br/><span className="text-[#ca8a04] font-semibold">Catholic Diocese of Gboko</span></span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[#22c55e] shrink-0" />
-                <a href={`mailto:${COLLEGE_CONFIG.OFFICIAL_EMAIL}`} className="hover:text-[#22c55e]">
-                  {COLLEGE_CONFIG.OFFICIAL_EMAIL}
-                </a>
+                <span>lcnsgboko@gmail.com</span>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-[#22c55e] shrink-0" />
-                <span>{COLLEGE_CONFIG.SUPPORT_PHONE}</span>
+                <span>08126799565</span>
               </div>
               <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
+                <Globe className="w-4 h-4 text-[#22c55e] shrink-0" />
                 <span>lcns.edu.ng</span>
               </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-500">
-              Office Hours: Monday - Friday: 8:00 AM - 4:00 PM
             </div>
           </div>
         </div>
 
-        {/* Bottom copyright */}
-        <div className="mt-12 pt-6 border-t border-slate-900 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3">
-          <p>&copy; {new Date().getFullYear()} Labe College of Nursing Sciences, Catholic Diocese of Gboko, Benue State. All Rights Reserved.</p>
+        <div className="mt-12 pt-6 border-t border-[#0a4d2e] flex flex-col sm:flex-row items-center justify-between text-xs text-emerald-300 gap-3">
+          <p>© {new Date().getFullYear()} Labe College of Nursing Sciences, Catholic Diocese of Gboko. All Rights Reserved.</p>
           <p className="flex items-center gap-2">
             <span>Powered by LCNS ICT Directorate</span>
-            <span>&bull;</span>
-            <span className="text-emerald-400">Learn, Serve & Save</span>
+            <span>•</span>
+            <span className="text-[#ca8a04]">Learn, Serve & Save</span>
           </p>
         </div>
       </div>
