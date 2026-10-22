@@ -4,13 +4,55 @@ import { AdminSettings } from './AdminSettings';
 import AdminManagement from './AdminManagement';
 import { AdminGallery } from './AdminGallery';
 import { CBTExamManager } from '../cbt/CBTExamManager';
-import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Users, Database, BookOpen, ShieldCheck, DollarSign, Crown, Trash2, Link2, Megaphone, CheckCircle2, RefreshCw, Eye, EyeOff, Server, UserPlus, Phone, Briefcase, Key, IdCard, BookMarked, Copy, Image as ImageIcon, UploadCloud, X } from 'lucide-react';
+import { Sliders, Camera, Award, UserCheck, ArrowUpCircle, GraduationCap, Users, Database, BookOpen, ShieldCheck, DollarSign, Crown, Trash2, Link2, Megaphone, CheckCircle2, RefreshCw, Eye, EyeOff, Server, UserPlus, Phone, Briefcase, Key, IdCard, BookMarked, Copy, Image as ImageIcon, UploadCloud, X, ShieldAlert, Timer, Clock, Monitor, Plus } from 'lucide-react';
 import { StudentPromotion } from './StudentPromotion';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { getSupabase, getSupabaseConfig } from '../../lib/supabase';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
 
-// --- GALLERY UPLOAD & PUBLISH TO WEBSITE - SAME AS YOURS ---
+// ===== ADMIN APPLICANT ENTRANCE CBT MANAGER - NEW - ADMIN CAN ALSO SET EXAMS =====
+const AdminApplicantCBTManager = ({ showStatus }: any) => {
+  const [exams, setExams] = useState<any[]>(()=>{ try{ return JSON.parse(localStorage.getItem('lcns_applicant_exams')||'[]'); }catch{ return []; }});
+  const [title, setTitle] = useState('Post-UTME Entrance CBT 2026/2027 - ND/HND Nursing - Admin Set');
+  const [academicYear, setAcademicYear] = useState('2026/2027');
+  const [duration, setDuration] = useState(40);
+  const [startTime, setStartTime] = useState(''); const [endTime, setEndTime] = useState('');
+  const [maxTabSwitch, setMaxTabSwitch] = useState(10); const [fullScreen, setFullScreen] = useState(true);
+  const [questions, setQuestions] = useState<any[]>(()=>{ try{ return JSON.parse(localStorage.getItem('lcns_entrance_questions')||localStorage.getItem('lcns_cbt_questions')||'[]'); }catch{ return []; }});
+  const [qText, setQText] = useState(''); const [optA, setOptA] = useState(''); const [optB, setOptB] = useState(''); const [optC, setOptC] = useState(''); const [optD, setOptD] = useState(''); const [correct, setCorrect] = useState('A');
+  const [attempts, setAttempts] = useState<any[]>(()=>{ try{ return JSON.parse(localStorage.getItem('lcns_cbt_attempts')||'[]'); }catch{ return []; }});
+
+  const saveExams = (newExams:any[])=>{ setExams(newExams); localStorage.setItem('lcns_applicant_exams', JSON.stringify(newExams)); localStorage.setItem('lcns_cbt_exams', JSON.stringify(newExams)); window.dispatchEvent(new Event('storage')); };
+  const saveQuestions = (newQs:any[])=>{ setQuestions(newQs); localStorage.setItem('lcns_entrance_questions', JSON.stringify(newQs)); localStorage.setItem('lcns_cbt_questions', JSON.stringify(newQs)); window.dispatchEvent(new Event('storage')); };
+
+  const createExam = ()=>{
+    const newExam={ id:'EXAM-'+Date.now(), title, academic_year: academicYear, academicYear, duration_minutes: duration, duration, start_time: startTime, end_time: endTime, max_tab_switches: maxTabSwitch, anti_cheat_warnings: maxTabSwitch, full_screen_required: fullScreen, fullScreen, status:'published', result_status:'published', created_at:new Date().toISOString(), created_by:'ADMIN', shuffle_questions:true };
+    saveExams([newExam, ...exams]);
+    showStatus(`✅ ADMIN SET ENTRANCE EXAM PUBLISHED! ${title} - Time: ${startTime} to ${endTime} - Anti-cheat 10 warnings - Fullscreen ${fullScreen?'ON':'OFF'}`);
+  };
+  const updateStatus = (id:string, st:'published'|'unpublished')=>{ const up=exams.map((e:any)=>e.id===id?{...e,status:st,result_status:st}:e); saveExams(up); showStatus(st==='published'?'✅ Exam PUBLISHED - Applicants can write now':'⏸️ Exam UNPUBLISHED'); };
+  const addQuestion=()=>{ if(!qText||!optA||!optB){ showStatus('Fill Question + A + B','error'); return; } const newQ={ id:'Q-'+Date.now(), exam_id: exams[0]?.id||'default', question_text:qText, option_a:optA, option_b:optB, option_c:optC, option_d:optD, correct_option:correct }; saveQuestions([...questions,newQ]); setQText(''); setOptA(''); setOptB(''); setOptC(''); setOptD(''); showStatus('✅ Question Added - Correct: '+correct); };
+  const updateCorrect=(qId:string, corr:string)=>{ const up=questions.map((q:any)=>q.id===qId?{...q,correct_option:corr}:q); saveQuestions(up); showStatus('✅ Correct Answer Updated to '+corr+' - After submit you can still change'); };
+  const delQ=(id:string)=>{ if(!confirm('Delete?'))return; saveQuestions(questions.filter((q:any)=>q.id!==id)); };
+  const publishScore=(a:any)=>{ let score=a.score; const promptScore=prompt(`Set final score for ${a.applicant_name||a.jamb_no} - App No: ${a.application_number} - Current ${a.score}/${a.total} - Enter new score (0-${a.total}):`, String(a.score)); if(promptScore===null)return; score=parseInt(promptScore); const total=a.total||questions.length; const perc=Math.round(score/total*100); const published={...a,score,total,percentage:perc,published_at:new Date().toISOString(),published_by:'ADMIN'}; localStorage.setItem('lcns_cbt_published_'+(a.application_number||a.jamb_no), JSON.stringify(published)); try{ const allApp=JSON.parse(localStorage.getItem('lcns_applicants')||'[]'); const up=allApp.map((ap:any)=>ap.application_number===a.application_number||ap.jamb_reg_number===a.jamb_no?{...ap,cbt_published:true,cbt_score:score,cbt_total:total,cbt_percentage:perc,cbt_published_by:'ADMIN'}:ap); localStorage.setItem('lcns_applicants', JSON.stringify(up)); }catch{} showStatus(`✅ SCORE PUBLISHED for ${a.applicant_name}! ${score}/${total} (${perc}%) - Applicant sees now`); };
+  const unpublishScore=(a:any)=>{ localStorage.removeItem('lcns_cbt_published_'+(a.application_number||a.jamb_no)); showStatus('⏸️ Score UNPUBLISHED for '+a.applicant_name); };
+  useEffect(()=>{ const load=()=>{ try{ setAttempts(JSON.parse(localStorage.getItem('lcns_cbt_attempts')||'[]')); }catch{} }; load(); window.addEventListener('focus',load); return()=>window.removeEventListener('focus',load); }, []);
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-red-700 to-orange-600 text-white rounded-3xl p-6"><h2 className="font-black text-xl flex gap-2"><ShieldAlert className="w-6 h-6"/> ADMIN - APPLICANT ENTRANCE CBT - Set Exams for Applicants</h2><p className="text-xs opacity-90 mt-1">Admin can also set applicant exams: Set time, anti-cheat 10 warnings, fullscreen, publish/unpublish, set correct answer after submit, publish scores applicant sees</p></div>
+      <div className="bg-[#f0faf0] border-2 border-[#0f4c2e] rounded-2xl p-5 space-y-4">
+        <h3 className="font-black text-sm">SET APPLICANT EXAM - Admin Authority</h3>
+        <div className="grid md:grid-cols-2 gap-3"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Exam Title" className="border-2 px-3 py-2.5 rounded-xl text-sm font-bold col-span-2"/><input value={academicYear} onChange={e=>setAcademicYear(e.target.value)} placeholder="Academic Year" className="border px-3 py-2 rounded-xl text-sm"/><div className="flex gap-2 border px-3 py-2 rounded-xl bg-white"><Timer size={16}/><label className="text-xs font-bold">Duration:</label><input type="number" value={duration} onChange={e=>setDuration(parseInt(e.target.value)||40)} className="flex-1 font-black outline-none"/></div><div className="flex gap-2 border px-3 py-2 rounded-xl bg-white"><Clock size={16}/><label className="text-xs font-bold">Start:</label><input type="datetime-local" value={startTime} onChange={e=>setStartTime(e.target.value)} className="flex-1 text-xs outline-none"/></div><div className="flex gap-2 border px-3 py-2 rounded-xl bg-white"><Clock size={16}/><label className="text-xs font-bold">End:</label><input type="datetime-local" value={endTime} onChange={e=>setEndTime(e.target.value)} className="flex-1 text-xs outline-none"/></div><div className="flex gap-2 border-2 border-red-300 px-3 py-2 rounded-xl bg-red-50"><ShieldAlert size={16} className="text-red-600"/><label className="text-xs font-black">Warnings:</label><input type="number" value={maxTabSwitch} onChange={e=>setMaxTabSwitch(parseInt(e.target.value)||10)} className="w-16 font-black text-center border rounded"/><span className="text-xs">10 = fail</span></div><div className="flex gap-2 border-2 border-blue-300 px-3 py-2 rounded-xl bg-blue-50"><Monitor size={16} className="text-blue-600"/><label className="text-xs font-black">Fullscreen:</label><select value={fullScreen?'yes':'no'} onChange={e=>setFullScreen(e.target.value==='yes')} className="font-black border rounded px-2"><option value="yes">Enabled</option><option value="no">Disabled</option></select></div></div>
+        <button onClick={createExam} className="px-6 py-3 bg-[#0f4c2e] text-white rounded-full font-black text-sm flex gap-2"><Plus size={16}/> Create & Publish Entrance Exam</button>
+        <div className="space-y-2">{exams.map((ex:any)=><div key={ex.id} className="flex justify-between bg-white p-3 rounded-xl border text-xs"><span className="font-bold">{ex.title} - {ex.academic_year} - {ex.duration_minutes} mins - {ex.status} - Anti-cheat {ex.max_tab_switches} warnings - Fullscreen {ex.full_screen_required?'ON':'OFF'}</span><div className="flex gap-1"><button onClick={()=>updateStatus(ex.id,'published')} className="px-2 py-1 bg-green-600 text-white rounded">Publish</button><button onClick={()=>updateStatus(ex.id,'unpublished')} className="px-2 py-1 bg-amber-500 text-black rounded">Unpublish</button></div></div>)}</div>
+      </div>
+      <div className="bg-white border-2 rounded-2xl p-5 space-y-4"><h3 className="font-black text-sm">ADD QUESTIONS - Set Correct Answer Even After Applicant Submitted</h3><div className="grid gap-3"><textarea value={qText} onChange={e=>setQText(e.target.value)} placeholder="Question Text" className="border-2 px-3 py-2 rounded-xl text-sm"/><div className="grid md:grid-cols-2 gap-2"><input value={optA} onChange={e=>setOptA(e.target.value)} placeholder="Option A" className="border px-3 py-2 rounded-xl text-sm"/><input value={optB} onChange={e=>setOptB(e.target.value)} placeholder="Option B" className="border px-3 py-2 rounded-xl text-sm"/><input value={optC} onChange={e=>setOptC(e.target.value)} placeholder="Option C" className="border px-3 py-2 rounded-xl text-sm"/><input value={optD} onChange={e=>setOptD(e.target.value)} placeholder="Option D" className="border px-3 py-2 rounded-xl text-sm"/></div><div className="flex gap-2 items-center"><label className="text-xs font-black">Correct:</label><select value={correct} onChange={e=>setCorrect(e.target.value)} className="border-2 border-green-500 px-3 py-2 rounded-xl font-black"><option>A</option><option>B</option><option>C</option><option>D</option></select><button onClick={addQuestion} className="px-6 py-2.5 bg-blue-700 text-white rounded-full font-black text-sm">Add Question</button></div></div><div className="space-y-2 max-h-[300px] overflow-auto">{questions.map((q:any,i:number)=><div key={q.id} className="border p-3 rounded-xl flex justify-between gap-3 text-xs bg-slate-50"><div className="flex-1"><p className="font-bold">{i+1}. {q.question_text}</p><p className="mt-1">A:{q.option_a} B:{q.option_b} C:{q.option_c} D:{q.option_d} <b className="bg-green-200 px-2 rounded">Correct {q.correct_option}</b></p></div><div className="flex flex-col gap-1"><select value={q.correct_option} onChange={e=>updateCorrect(q.id,e.target.value)} className="border px-2 py-1 rounded font-black"><option>A</option><option>B</option><option>C</option><option>D</option></select><button onClick={()=>delQ(q.id)} className="px-2 py-1 bg-red-600 text-white rounded text-[10px]">DEL</button></div></div>)}</div></div>
+      <div className="bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-5"><h3 className="font-black text-sm">Applicant Attempts - Publish/Unpublish Scores - Applicant Sees Scores</h3><div className="overflow-x-auto border rounded-xl bg-white mt-3"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Applicant JAMB No</th><th className="p-2">App No</th><th className="p-2">Score</th><th className="p-2">Tab Switches</th><th className="p-2">Publish</th></tr></thead><tbody>{attempts.map((a:any,idx:number)=><tr key={idx} className="border-b"><td className="p-2 font-bold">{a.applicant_name||a.jamb_no}<br/><span className="font-mono text-[10px]">JAMB: {a.jamb_no}</span></td><td className="p-2 font-mono">{a.application_number||'-'}</td><td className="p-2 font-black">{a.score}/{a.total} ({a.percentage}%)</td><td className="p-2">{a.tab_switches||0}/10 warnings</td><td className="p-2 flex gap-1"><button onClick={()=>publishScore(a)} className="px-3 py-1 bg-green-700 text-white rounded-full text-[10px] font-black">Publish</button><button onClick={()=>unpublishScore(a)} className="px-3 py-1 bg-slate-200 rounded-full text-[10px]">Unpublish</button></td></tr>)}{attempts.length===0&&<tr><td colSpan={5} className="p-4 text-center text-slate-500">No attempts yet</td></tr>}</tbody></table></div></div>
+    </div>
+  );
+};
+
+// --- GALLERY UPLOAD & PUBLISH TO WEBSITE - MAINTAINED ---
 const GalleryManager = ({ showStatus }: any) => {
   const [gallery, setGallery] = useState<any[]>(()=>JSON.parse(localStorage.getItem('lcns_gallery')||'[]'));
   const [form, setForm] = useState({ title: '', category: 'Campus Life', description: '', image: '', isPublished: true });
@@ -25,8 +67,8 @@ const GalleryManager = ({ showStatus }: any) => {
     const sb=getSupabase(); if(sb) try{ await sb.from('gallery').insert([newItem]); } catch {}
     setForm({ title: '', category: 'Campus Life', description: '', image: '', isPublished: true }); showStatus(`✅ PHOTO PUBLISHED TO WEBSITE! ${newItem.title}`);
   };
-  const togglePublish = (id:string)=>{ const up=gallery.map((g:any)=>g.id===id?{...g,is_published:!g.is_published,isPublished:!g.isPublished}:g); setGallery(up); localStorage.setItem('lcns_gallery', JSON.stringify(up)); localStorage.setItem('gallery', JSON.stringify(up)); showStatus(up.find((g:any)=>g.id===id)?.is_published?'Published':'Unpublished'); };
-  const deletePhoto = (id:string)=>{ if(!confirm('Delete Photo from Website?'))return; const up=gallery.filter((g:any)=>g.id!==id); setGallery(up); localStorage.setItem('lcns_gallery', JSON.stringify(up)); localStorage.setItem('gallery', JSON.stringify(up)); const sb=getSupabase(); if(sb) try{ sb.from('gallery').delete().eq('id',id); } catch {} showStatus('Photo Deleted from Website'); };
+  const togglePublish = (id:string)=>{ const up=gallery.map((g:any)=>g.id===id?{...g,is_published:!g.is_published,isPublished:!g.isPublished}:g); setGallery(up); localStorage.setItem('lcns_gallery', JSON.stringify(up)); localStorage.setItem('gallery', JSON.stringify(up)); window.dispatchEvent(new Event('storage')); showStatus(up.find((g:any)=>g.id===id)?.is_published?'Published':'Unpublished'); };
+  const deletePhoto = (id:string)=>{ if(!confirm('Delete Photo from Website?'))return; const up=gallery.filter((g:any)=>g.id!==id); setGallery(up); localStorage.setItem('lcns_gallery', JSON.stringify(up)); localStorage.setItem('gallery', JSON.stringify(up)); window.dispatchEvent(new Event('storage')); const sb=getSupabase(); if(sb) try{ sb.from('gallery').delete().eq('id',id); } catch {} showStatus('Photo Deleted from Website'); };
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-3xl p-6"><h2 className="font-black text-xl flex gap-2"><Camera className="w-6 h-6"/> GALLERY - UPLOAD PHOTO & PUBLISH TO WEBSITE</h2><p className="text-xs opacity-90 mt-1">Upload photos here → They publish instantly to homepage gallery</p></div>
@@ -48,21 +90,44 @@ const GalleryManager = ({ showStatus }: any) => {
   );
 };
 
-// --- BISHOP & PROVOST MANAGER - SAME ---
-const LeadershipManager = () => {
+// --- BISHOP & PROVOST MANAGER - FIXED TO PUBLISH TO WEBSITE - MAINTAINED ---
+const LeadershipManager = ({ showStatus }: any) => {
   const [bishop, setBishop] = useState<any>(()=>JSON.parse(localStorage.getItem('lcns_bishop')||'null')||{name:'Most Rev. Isaac B. Dugu',title:'Bishop, Catholic Diocese of Gboko',image:'',description:'Proprietor'});
   const [provost, setProvost] = useState<any>(()=>JSON.parse(localStorage.getItem('lcns_provost')||'null')||{name:'Provost Name',title:'Provost, CON Gboko',image:'',description:'Head of Institution'});
-  const handleImg = (e:React.ChangeEvent<HTMLInputElement>, t:'bishop'|'provost')=>{ const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ const b64=r.result as string; if(t==='bishop'){ const u={...bishop,image:b64}; setBishop(u); localStorage.setItem('lcns_bishop',JSON.stringify(u)); } else { const u={...provost,image:b64}; setProvost(u); localStorage.setItem('lcns_provost',JSON.stringify(u)); } }; r.readAsDataURL(f); };
-  const save = (t:'bishop'|'provost')=>{ localStorage.setItem(t==='bishop'?'lcns_bishop':'lcns_provost', JSON.stringify(t==='bishop'?bishop:provost)); alert(`${t.toUpperCase()} Saved! Visible on HomePage`); window.dispatchEvent(new Event('storage')); };
+  const handleImg = (e:React.ChangeEvent<HTMLInputElement>, t:'bishop'|'provost')=>{ const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=()=>{ const b64=r.result as string; if(t==='bishop'){ const u={...bishop,image:b64}; setBishop(u); } else { const u={...provost,image:b64}; setProvost(u); } }; r.readAsDataURL(f); };
+  const save = (t:'bishop'|'provost')=>{ 
+    if(t==='bishop'){ 
+      localStorage.setItem('lcns_bishop',JSON.stringify(bishop)); 
+      // PUBLISH TO WEBSITE - Homepage uses these keys
+      localStorage.setItem('lcns_proprietor_image', bishop.image); 
+      localStorage.setItem('proprietor_image', bishop.image);
+      localStorage.setItem('lcns_bishop_image', bishop.image);
+      // Save to settings object for CollegeWebsite component
+      const settings = JSON.parse(localStorage.getItem('lcns_settings')||'{}');
+      settings.proprietor_image = bishop.image; settings.bishop_image = bishop.image;
+      localStorage.setItem('lcns_settings', JSON.stringify(settings));
+      localStorage.setItem('college_settings', JSON.stringify(settings));
+    } else { 
+      localStorage.setItem('lcns_provost',JSON.stringify(provost)); 
+      localStorage.setItem('lcns_provost_image', provost.image); 
+      localStorage.setItem('provost_image', provost.image);
+      const settings = JSON.parse(localStorage.getItem('lcns_settings')||'{}');
+      settings.provost_image = provost.image;
+      localStorage.setItem('lcns_settings', JSON.stringify(settings));
+      localStorage.setItem('college_settings', JSON.stringify(settings));
+    }
+    window.dispatchEvent(new Event('storage')); 
+    showStatus(`✅ ${t.toUpperCase()} PICTURE PUBLISHED TO WEBSITE HOMEPAGE! - Visible in Top Diocese Bar / Provost Message`);
+  };
   return (
     <div className="grid md:grid-cols-2 gap-6">
-      <div className="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-300 rounded-3xl p-6"><h3 className="font-black text-amber-900 flex gap-2"><Crown className="w-5 h-5"/> BISHOP - PROPRIETOR</h3><div className="mt-4 space-y-3"><div className="h-64 bg-white border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{bishop.image?<img src={bishop.image} className="w-full h-full object-cover"/>:<span className="text-[11px]">No Image</span>}</div><input type="file" accept="image/*" onChange={e=>handleImg(e,'bishop')} className="w-full text-[11px] file:bg-amber-900 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/><input value={bishop.name} onChange={e=>setBishop({...bishop,name:e.target.value})} placeholder="Bishop Full Name" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><input value={bishop.title} onChange={e=>setBishop({...bishop,title:e.target.value})} placeholder="Title" className="w-full p-3 border-2 rounded-xl text-xs"/><textarea value={bishop.description} onChange={e=>setBishop({...bishop,description:e.target.value})} placeholder="Short Bio" className="w-full p-3 border-2 rounded-xl text-xs h-20"/><button onClick={()=>save('bishop')} className="w-full bg-amber-900 text-white py-3 rounded-xl font-black text-xs">SAVE BISHOP</button></div></div>
-      <div className="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-300 rounded-3xl p-6"><h3 className="font-black text-emerald-900 flex gap-2"><UserCheck className="w-5 h-5"/> PROVOST</h3><div className="mt-4 space-y-3"><div className="h-64 bg-white border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{provost.image?<img src={provost.image} className="w-full h-full object-cover"/>:<span className="text-[11px]">No Image</span>}</div><input type="file" accept="image/*" onChange={e=>handleImg(e,'provost')} className="w-full text-[11px] file:bg-emerald-800 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/><input value={provost.name} onChange={e=>setProvost({...provost,name:e.target.value})} placeholder="Provost Full Name" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><input value={provost.title} onChange={e=>setProvost({...provost,title:e.target.value})} placeholder="Title" className="w-full p-3 border-2 rounded-xl text-xs"/><textarea value={provost.description} onChange={e=>setProvost({...provost,description:e.target.value})} placeholder="Short Bio" className="w-full p-3 border-2 rounded-xl text-xs h-20"/><button onClick={()=>save('provost')} className="w-full bg-emerald-800 text-white py-3 rounded-xl font-black text-xs">SAVE PROVOST</button></div></div>
+      <div className="bg-gradient-to-br from-amber-50 to-orange-100 border-2 border-amber-300 rounded-3xl p-6"><h3 className="font-black text-amber-900 flex gap-2"><Crown className="w-5 h-5"/> BISHOP - PROPRIETOR - PUBLISHES TO WEBSITE</h3><div className="mt-4 space-y-3"><div className="h-64 bg-white border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{bishop.image?<img src={bishop.image} className="w-full h-full object-cover"/>:<span className="text-[11px]">No Image</span>}</div><input type="file" accept="image/*" onChange={e=>handleImg(e,'bishop')} className="w-full text-[11px] file:bg-amber-900 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/><input value={bishop.name} onChange={e=>setBishop({...bishop,name:e.target.value})} placeholder="Bishop Full Name" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><input value={bishop.title} onChange={e=>setBishop({...bishop,title:e.target.value})} placeholder="Title" className="w-full p-3 border-2 rounded-xl text-xs"/><textarea value={bishop.description} onChange={e=>setBishop({...bishop,description:e.target.value})} placeholder="Short Bio" className="w-full p-3 border-2 rounded-xl text-xs h-20"/><button onClick={()=>save('bishop')} className="w-full bg-amber-900 text-white py-3 rounded-xl font-black text-xs">SAVE & PUBLISH BISHOP TO WEBSITE</button><p className="text-[10px] text-amber-800 font-bold">Once saved, picture appears on Homepage - Proprietor section automatically</p></div></div>
+      <div className="bg-gradient-to-br from-emerald-50 to-teal-100 border-2 border-emerald-300 rounded-3xl p-6"><h3 className="font-black text-emerald-900 flex gap-2"><UserCheck className="w-5 h-5"/> PROVOST - PUBLISHES TO WEBSITE</h3><div className="mt-4 space-y-3"><div className="h-64 bg-white border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{provost.image?<img src={provost.image} className="w-full h-full object-cover"/>:<span className="text-[11px]">No Image</span>}</div><input type="file" accept="image/*" onChange={e=>handleImg(e,'provost')} className="w-full text-[11px] file:bg-emerald-800 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/><input value={provost.name} onChange={e=>setProvost({...provost,name:e.target.value})} placeholder="Provost Full Name" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><input value={provost.title} onChange={e=>setProvost({...provost,title:e.target.value})} placeholder="Title" className="w-full p-3 border-2 rounded-xl text-xs"/><textarea value={provost.description} onChange={e=>setProvost({...provost,description:e.target.value})} placeholder="Short Bio" className="w-full p-3 border-2 rounded-xl text-xs h-20"/><button onClick={()=>save('provost')} className="w-full bg-emerald-800 text-white py-3 rounded-xl font-black text-xs">SAVE & PUBLISH PROVOST TO WEBSITE</button><p className="text-[10px] text-emerald-800 font-bold">Once saved, picture appears on Homepage - Provost Message section automatically</p></div></div>
     </div>
   );
 };
 
-// --- COURSE MANAGER - SAME ---
+// --- COURSE MANAGER - MAINTAINED ---
 const CourseManager = ({ users, courses, setCourses, showStatus }: any) => {
   const [newCourse, setNewCourse] = useState({ code: '', title: '', unit: '', semester: 'First', level: 'ND1', lecturerEmail: '', lecturer: '' });
   const lecturers = users.filter((u:any)=>['LECTURER','HOD','EXAM_OFFICER','PROVOST','ADMIN'].includes(u.role));
@@ -92,7 +157,7 @@ const CourseManager = ({ users, courses, setCourses, showStatus }: any) => {
 const ALL_ROLES = [
   { value: 'STUDENT', label: 'STUDENT', color: 'bg-blue-100 text-blue-800', category: 'Student' },
   { value: 'LECTURER', label: 'LECTURER', color: 'bg-purple-100 text-purple-800', category: 'Staff' },
-  { value: 'HOD', label: 'HOD - Head of Department', color: 'bg-indigo-100 text-indigo-800', category: 'Staff' },
+  { value: 'HOD', label: 'HOD', color: 'bg-indigo-100 text-indigo-800', category: 'Staff' },
   { value: 'EXAM_OFFICER', label: 'EXAM OFFICER', color: 'bg-orange-100 text-orange-800', category: 'Staff' },
   { value: 'PROVOST', label: 'PROVOST', color: 'bg-amber-100 text-amber-800', category: 'Principal' },
   { value: 'REGISTRAR', label: 'REGISTRAR', color: 'bg-teal-100 text-teal-800', category: 'Principal' },
@@ -101,13 +166,14 @@ const ALL_ROLES = [
   { value: 'ADMISSION_OFFICER', label: 'ADMISSION OFFICER', color: 'bg-pink-100 text-pink-800', category: 'Staff' },
   { value: 'ICT_OFFICER', label: 'ICT OFFICER', color: 'bg-slate-800 text-white', category: 'Staff' },
   { value: 'DEAN', label: 'DEAN', color: 'bg-yellow-100 text-yellow-800', category: 'Principal' },
-  { value: 'ADMIN', label: 'ADMIN - Full Access', color: 'bg-red-100 text-red-800', category: 'Admin' },
+  { value: 'ADMIN', label: 'ADMIN', color: 'bg-red-100 text-red-800', category: 'Admin' },
 ];
 
-interface AdminDashboardProps { initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants' | 'backend' | 'bursar' | 'application' | 'announcements' | 'scoresheets' | 'leadership'; }
+interface AdminDashboardProps { initialTab?: 'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants' | 'backend' | 'bursar' | 'application' | 'announcements' | 'scoresheets' | 'leadership' | 'applicant_cbt'; }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) => {
   const [users, setUsers] = useState<any[]>([]);
+  const [userFilter, setUserFilter] = useState<'ALL'|'STUDENT'|'STAFF'>('ALL');
   const [courses, setCourses] = useState<any[]>(() => JSON.parse(localStorage.getItem('lcns_courses') || '[]'));
   const [payments, setPayments] = useState<any[]>([]); const [announcements, setAnnouncements] = useState<any[]>([]); const [events, setEvents] = useState<any[]>([]); const [backendData, setBackendData] = useState<any>({}); const [loading, setLoading] = useState(false); const [status, setStatus] = useState<{text:string, type:'success'|'error'}|null>(null);
   const [appStatus, setAppStatus] = useState<{isOpen: boolean, link: string, deadline: string, message: string}>({ isOpen: true, link: '/apply', deadline: '', message: 'Admissions open for 2025/2026 - Apply Now!' });
@@ -115,53 +181,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
   const [showCreateUser, setShowCreateUser] = useState(false); const [userType, setUserType] = useState<'STUDENT' | 'STAFF'>('STUDENT'); const [showPasswords, setShowPasswords] = useState<{[k:string]:boolean}>({});
   const [newUser, setNewUser] = useState({ fullName: '', firstName: '', middleName: '', lastName: '', address: '', phone: '', bloodGroup: '', sex: '', parentName: '', parentPhone: '', email: '', staying: 'hostel', level: 'ND1', department: 'Nursing', role: 'STUDENT', staffId: '', qualification: '', staffDepartment: 'Nursing', courseOfStudy: 'Nursing Science', staffImage: '', dateOfBirth: '', state: '', lga: '' });
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system' | 'cms' | 'promotion' | 'courses' | 'applicants' | 'backend' | 'bursar' | 'application' | 'announcements' | 'scoresheets' | 'leadership'>(initialTab || 'scoresheets');
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminDashboardProps['initialTab']>(initialTab || 'scoresheets');
   const showStatus = (text:string, type:'success'|'error'='success') => { setStatus({text, type}); setTimeout(()=>setStatus(null), 6000); };
   const currentUser = StorageService.getCurrentUser() || { id: 'admin-001', email: 'admin@lcns.edu.ng', role: 'ADMIN', fullName: 'Admin - Director of ICT', status: 'ACTIVE', };
 
-  // *** FIXED ONLY THIS PART - MERGE ALL STORAGES + SUPABASE + AUTO SYNC ACROSS TABS - DONT CHANGE OTHER FEATURES ***
   useEffect(() => {
     const loadUsers = async () => {
       try {
         let merged: any[] = [];
-        const addUnique = (arr:any[]) => {
-          arr.forEach((u:any) => {
-            if (!merged.find((x:any) => x.email?.toLowerCase() === u.email?.toLowerCase())) merged.push(u);
-          });
-        };
+        const addUnique = (arr:any[]) => { arr.forEach((u:any) => { if (!merged.find((x:any) => x.email?.toLowerCase() === u.email?.toLowerCase())) merged.push(u); }); };
         try { if (StorageService.getUsers) addUnique(StorageService.getUsers()||[]); } catch {}
         try { addUnique(JSON.parse(localStorage.getItem('lcns_users')||'[]')); } catch {}
         try { addUnique(JSON.parse(localStorage.getItem('users')||'[]')); } catch {}
-        // Supabase sync for other devices
         const sb = getSupabase();
         if (sb) {
           try {
             const { data } = await sb.from('users').select('*').order('created_at', { ascending: false }).limit(300);
             if (data?.length) {
-              const mapped = data.map((m:any) => ({
-                id: m.id, email: m.email, fullName: m.full_name || m.fullName || m.email, name: m.full_name || m.fullName || m.email,
-                role: m.role, matricNumber: m.matric_no || m.matricNumber || '', matricNo: m.matric_no || '', staffId: m.staffId || m.staff_id || '',
-                loginId: m.loginId || m.matric_no || m.staffId || m.id, password: m.password, phone: m.phone, level: m.level,
-                department: m.department, staffDepartment: m.department, userType: m.role==='STUDENT'?'STUDENT':'STAFF', status: 'ACTIVE',
-                createdAt: m.created_at, ...m
-              }));
+              const mapped = data.map((m:any) => ({ id: m.id, email: m.email, fullName: m.full_name || m.fullName || m.email, name: m.full_name || m.fullName || m.email, role: m.role, matricNumber: m.matric_no || m.matricNumber || '', matricNo: m.matric_no || '', staffId: m.staffId || m.staff_id || '', loginId: m.loginId || m.matric_no || m.staffId || m.id, password: m.password, phone: m.phone, level: m.level, department: m.department, staffDepartment: m.department, userType: m.role==='STUDENT'?'STUDENT':'STAFF', status: 'ACTIVE', createdAt: m.created_at, ...m }));
               addUnique(mapped);
             }
           } catch {}
         }
         setUsers(merged);
-        if (merged.length) {
-          localStorage.setItem('lcns_users', JSON.stringify(merged));
-          localStorage.setItem('users', JSON.stringify(merged));
-          try { StorageService.saveUsers(merged); } catch {}
-        }
+        if (merged.length) { localStorage.setItem('lcns_users', JSON.stringify(merged)); localStorage.setItem('users', JSON.stringify(merged)); try { StorageService.saveUsers(merged); } catch {} }
       } catch {}
     };
-    loadUsers();
-    loadBackend();
+    loadUsers(); loadBackend();
     const handler = () => loadUsers();
-    window.addEventListener('storage', handler);
-    window.addEventListener('focus', handler);
+    window.addEventListener('storage', handler); window.addEventListener('focus', handler);
     return () => { window.removeEventListener('storage', handler); window.removeEventListener('focus', handler); };
   }, [activeAdminTab]);
 
@@ -172,14 +220,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
   const genPassword = () => `LCNS@${Math.floor(1000 + Math.random()*9000)}`;
   const handleStaffImage = (e:React.ChangeEvent<HTMLInputElement>)=>{ const f=e.target.files?.[0]; if(!f)return; const r=new FileReader(); r.onload=()=>setNewUser({...newUser, staffImage: r.result as string}); r.readAsDataURL(f); };
 
-  // *** FIXED SAVE - SAVE TO ALL PLACES + SUPABASE WITH ONLY VALID COLUMNS - DONT CHANGE OTHER LOGIC ***
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault(); if (!newUser.fullName || !newUser.email) { showStatus('Fill Full Name and Email', 'error'); return; }
     try {
       const password = genPassword(); const loginIdRaw = userType==='STUDENT' ? generateMatricNo(newUser.level) : (newUser.staffId || generateStaffId(newUser.role));
       const userData = { id: `LCNS-${Date.now()}`, email: newUser.email.toLowerCase().trim(), username: loginIdRaw, fullName: newUser.fullName, firstName: newUser.firstName, middleName: newUser.middleName, lastName: newUser.lastName, name: newUser.fullName, address: newUser.address, phone: newUser.phone, bloodGroup: newUser.bloodGroup, sex: newUser.sex, parentName: newUser.parentName, parentPhone: newUser.parentPhone, staying: newUser.staying, level: userType==='STUDENT'?newUser.level.toUpperCase():'', department: newUser.department, staffDepartment: newUser.staffDepartment, role: newUser.role.toUpperCase(), matricNumber: userType==='STUDENT'?loginIdRaw:'', matricNo: userType==='STUDENT'?loginIdRaw:'', staffId: userType==='STAFF'?loginIdRaw:'', qualification: newUser.qualification, courseOfStudy: newUser.courseOfStudy, staffImage: newUser.staffImage, dateOfBirth: newUser.dateOfBirth, state: newUser.state, lga: newUser.lga, userType, status: 'ACTIVE', createdAt: new Date().toISOString(), academicYear: localStorage.getItem('lcns_current_session') || '2025/2026', password, loginId: loginIdRaw };
-
-      // 1. Supabase - only valid columns to avoid error
       const sb = getSupabase(); 
       if (sb) { 
         try { 
@@ -191,8 +236,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
           }
         } catch(err){ console.log('Supabase save failed but local will save', err); } 
       }
-      
-      // 2. Merge and save to all local storages
       const existing = JSON.parse(localStorage.getItem('lcns_users')||'[]');
       const updated=[...existing.filter((u:any)=>u.email!==userData.email), userData];
       localStorage.setItem('lcns_users', JSON.stringify(updated));
@@ -200,13 +243,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
       try { StorageService.saveUsers(updated); } catch {}
       setUsers(updated);
       window.dispatchEvent(new Event('storage'));
-
       setNewUser({ fullName: '', firstName: '', middleName: '', lastName: '', address: '', phone: '', bloodGroup: '', sex: '', parentName: '', parentPhone: '', email: '', staying: 'hostel', level: 'ND1', department: 'Nursing', role: userType==='STAFF'?'LECTURER':'STUDENT', staffId: '', qualification: '', staffDepartment: 'Nursing', courseOfStudy: 'Nursing Science', staffImage: '', dateOfBirth: '', state: '', lga: '' });
       setShowCreateUser(false); showStatus(`✅ SAVED! ${userType} Login: ${userData.loginId} | Pass: ${password} - Now visible in ALL tabs & to Provost/Bursar/Registrar!`);
     } catch (err:any) { showStatus('Save failed: '+err.message,'error'); }
   };
 
-  // *** FIXED ASSIGN ROLE + DELETE - SAVE TO ALL KEYS ***
   const assignRole = async (email:string, role:string)=>{
     const sb=getSupabase(); 
     const allKeys = ['lcns_users','users'];
@@ -260,18 +301,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
   const publishEvent = async (e:React.FormEvent)=>{ e.preventDefault(); if(!eventForm.title){ showStatus('Enter title','error'); return;} const n={id:Date.now().toString(), title:eventForm.title, description:eventForm.description, date:eventForm.date, location:eventForm.location, is_published:eventForm.is_published, created_at:new Date().toISOString()}; const up=[n,...events]; setEvents(up); localStorage.setItem('lcns_events', JSON.stringify(up)); const sb=getSupabase(); if(sb) try{ await sb.from('events').insert([n]);}catch{} setEventForm({title:'',description:'',date:'',location:'',is_published:true}); showStatus('Event Published'); };
   const deleteAnnouncement = async (id:string)=>{ if(!confirm('Delete?'))return; setAnnouncements(p=>p.filter((a:any)=>a.id!==id)); setEvents(p=>p.filter((e:any)=>e.id!==id)); showStatus('Deleted'); };
 
-  const currentSession = localStorage.getItem('lcns_current_session') || '2025/2026'; const currentYear = currentSession.split('/')[0] || '2026'; const getRoleColor = (r:string)=>ALL_ROLES.find(x=>x.value===r)?.color||'bg-slate-100';
+  const currentSession = localStorage.getItem('lcns_current_session') || '2025/2026'; const getRoleColor = (r:string)=>ALL_ROLES.find(x=>x.value===r)?.color||'bg-slate-100';
+  
+  // FILTER LOGIC - STUDENT / STAFF
+  const filteredUsers = users.filter((u:any)=>{
+    if(userFilter==='ALL') return true;
+    if(userFilter==='STUDENT') return u.role==='STUDENT' || u.userType==='STUDENT' || u.matricNumber || u.matricNo;
+    if(userFilter==='STAFF') return u.role!=='STUDENT' && (u.userType==='STAFF' || u.staffId || ['LECTURER','HOD','EXAM_OFFICER','PROVOST','REGISTRAR','BURSAR','ADMIN','LIBRARIAN','ADMISSION_OFFICER','ICT_OFFICER','DEAN'].includes(u.role));
+    return true;
+  });
 
   return (
     <div className="space-y-6">
       {status && <div className={`fixed top-4 right-4 z-50 p-4 rounded-2xl border shadow-xl flex gap-3 ${status.type==='success'?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}`}><CheckCircle2 className="w-5 h-5 text-emerald-600"/><span className="text-xs font-bold">{status.text}</span></div>}
-      <div className="bg-gradient-to-r from-slate-900 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 shadow-xl border border-emerald-900"><div className="flex flex-col md:flex-row justify-between gap-4"><div><span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - Fixed Save + Gallery Publish</span><h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard</h1><p className="text-xs text-emerald-200 mt-1">Session: {currentSession} • Users: {users.length} • Courses: {courses.length} • Gallery: Published to Website • Score Sheets: {backendData.tables?.student_scores||0}</p></div><div className="flex gap-2"><div className={`px-4 py-2 rounded-xl text-xs font-black ${backendData.connected?'bg-emerald-600':'bg-red-600'}`}>{backendData.connected?'● CONNECTED':'● OFFLINE'}</div><button onClick={loadBackend} className="px-4 py-2 bg-white/10 rounded-xl text-xs font-bold flex gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/> REFRESH</button></div></div></div>
+      <div className="bg-gradient-to-r from-slate-900 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 shadow-xl border border-emerald-900"><div className="flex flex-col md:flex-row justify-between gap-4"><div><span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - Fixed Save + Gallery Publish + Applicant CBT</span><h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard</h1><p className="text-xs text-emerald-200 mt-1">Session: {currentSession} • Users: {users.length} • Students: {users.filter((u:any)=>u.role==='STUDENT').length} • Staff: {users.filter((u:any)=>u.role!=='STUDENT').length} • Courses: {courses.length} • Gallery: Published • Score Sheets: {backendData.tables?.student_scores||0} • Entrance CBT: Admin + Registrar can set</p></div><div className="flex gap-2"><div className={`px-4 py-2 rounded-xl text-xs font-black ${backendData.connected?'bg-emerald-600':'bg-red-600'}`}>{backendData.connected?'● CONNECTED':'● OFFLINE'}</div><button onClick={loadBackend} className="px-4 py-2 bg-white/10 rounded-xl text-xs font-bold flex gap-2"><RefreshCw className={`w-4 h-4 ${loading?'animate-spin':''}`}/> REFRESH</button></div></div></div>
 
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border shadow-xs">
+        <button onClick={()=>setActiveAdminTab('applicant_cbt')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='applicant_cbt'?'bg-red-700 text-white ring-2 ring-red-300 animate-pulse':'border-2 border-red-400 bg-red-50 text-red-800'}`}><ShieldAlert className="w-4 h-4 inline mr-1"/>🚨 ADMIN APPLICANT ENTRANCE CBT</button>
         <button onClick={()=>setActiveAdminTab('scoresheets')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='scoresheets'?'bg-blue-700 text-white':'border-2 border-blue-300'}`}><BookOpen className="w-4 h-4 inline mr-1"/>Score Sheets</button>
-        <button onClick={()=>setActiveAdminTab('gallery')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='gallery'?'bg-purple-600 text-white ring-2 ring-purple-300':'border-2 border-purple-300 bg-purple-50 text-purple-800'}`}><Camera className="w-4 h-4 inline mr-1"/>📸 GALLERY - UPLOAD & PUBLISH</button>
-        <button onClick={()=>setActiveAdminTab('leadership')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='leadership'?'bg-amber-900 text-white':'border-2 border-amber-300 bg-amber-50'}`}><Crown className="w-4 h-4 inline mr-1"/>BISHOP & PROVOST</button>
-        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-[#0a4d2e] text-white':'border-2'}`}><UserCheck className="w-4 h-4 inline mr-1"/>Users FIXED SAVE ({users.length})</button>
+        <button onClick={()=>setActiveAdminTab('gallery')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='gallery'?'bg-purple-600 text-white ring-2 ring-purple-300':'border-2 border-purple-300 bg-purple-50 text-purple-800'}`}><Camera className="w-4 h-4 inline mr-1"/>📸 GALLERY PUBLISH</button>
+        <button onClick={()=>setActiveAdminTab('leadership')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='leadership'?'bg-amber-900 text-white':'border-2 border-amber-300 bg-amber-50'}`}><Crown className="w-4 h-4 inline mr-1"/>BISHOP & PROVOST PUBLISH TO WEBSITE</button>
+        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-[#0a4d2e] text-white':'border-2'}`}><UserCheck className="w-4 h-4 inline mr-1"/>Users ({users.length}) - Filter Student/Staff</button>
         <button onClick={()=>setActiveAdminTab('courses')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='courses'?'bg-emerald-700 text-white':'border-2 border-emerald-300'}`}><BookMarked className="w-4 h-4 inline mr-1"/>Courses ({courses.length})</button>
         <button onClick={()=>setActiveAdminTab('backend')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='backend'?'bg-slate-900 text-white':'border'}`}><Server className="w-4 h-4 inline mr-1"/>Backend</button>
         <button onClick={()=>setActiveAdminTab('application')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='application'?'bg-red-700 text-white':'border-2 border-red-300'}`}>App {appStatus.isOpen?'OPEN':'CLOSED'}</button>
@@ -280,18 +330,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
         <button onClick={()=>setActiveAdminTab('promotion')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='promotion'?'bg-amber-500 text-black':'border'}`}>Promote</button>
       </div>
 
+      {activeAdminTab==='applicant_cbt' && <AdminApplicantCBTManager showStatus={showStatus} />}
       {activeAdminTab==='scoresheets' && <ScoreSheetViewer currentUser={currentUser} />}
       {activeAdminTab==='gallery' && <GalleryManager showStatus={showStatus} />}
-      {activeAdminTab==='leadership' && <LeadershipManager />}
+      {activeAdminTab==='leadership' && <LeadershipManager showStatus={showStatus} />}
       {activeAdminTab==='courses' && <CourseManager users={users} courses={courses} setCourses={setCourses} showStatus={showStatus} />}
-      {activeAdminTab==='backend' && <div className="grid md:grid-cols-3 gap-4"><div className="bg-white rounded-2xl p-5 border-2"><h3 className="font-black text-xs">SUPABASE URL</h3><p className="text-[11px] break-all bg-slate-50 p-2 rounded-lg mt-2">{backendData.supabaseUrl}</p></div><div className="bg-white rounded-2xl p-5 border"><h3 className="font-black text-xs">TABLES</h3><div className="mt-3 space-y-1 text-[11px]">{Object.entries(backendData.tables||{}).map(([t,c])=><div key={t} className="flex justify-between bg-slate-50 px-2 py-1 rounded-lg"><span>{t}</span><span className="bg-emerald-600 text-white px-2 rounded-full">{String(c)}</span></div>)}</div></div><div className="bg-white rounded-2xl p-5 border"><h3 className="font-black text-xs">STATS</h3><div className="mt-3 text-[11px] space-y-2"><div className="flex justify-between"><span>Users</span><span>{users.length}</span></div><div className="flex justify-between"><span>Courses</span><span>{courses.length}</span></div></div></div></div>}
+      {activeAdminTab==='backend' && <div className="grid md:grid-cols-3 gap-4"><div className="bg-white rounded-2xl p-5 border-2"><h3 className="font-black text-xs">SUPABASE URL</h3><p className="text-[11px] break-all bg-slate-50 p-2 rounded-lg mt-2">{backendData.supabaseUrl}</p></div><div className="bg-white rounded-2xl p-5 border"><h3 className="font-black text-xs">TABLES</h3><div className="mt-3 space-y-1 text-[11px]">{Object.entries(backendData.tables||{}).map(([t,c])=><div key={t} className="flex justify-between bg-slate-50 px-2 py-1 rounded-lg"><span>{t}</span><span className="bg-emerald-600 text-white px-2 rounded-full">{String(c)}</span></div>)}</div></div><div className="bg-white rounded-2xl p-5 border"><h3 className="font-black text-xs">STATS</h3><div className="mt-3 text-[11px] space-y-2"><div className="flex justify-between"><span>Users</span><span>{users.length}</span></div><div className="flex justify-between"><span>Students</span><span>{users.filter((u:any)=>u.role==='STUDENT').length}</span></div><div className="flex justify-between"><span>Staff</span><span>{users.filter((u:any)=>u.role!=='STUDENT').length}</span></div><div className="flex justify-between"><span>Courses</span><span>{courses.length}</span></div></div></div></div>}
       {activeAdminTab==='application' && <div className="space-y-4"><div className={`rounded-3xl p-6 border-2 ${appStatus.isOpen?'bg-emerald-50 border-emerald-300':'bg-red-50 border-red-300'}`}><div className="flex justify-between"><h2 className="font-black">APPLICATION {appStatus.isOpen?'OPEN':'CLOSED'}</h2><button onClick={toggleApplication} className={`px-8 py-3 rounded-xl font-black ${appStatus.isOpen?'bg-red-600 text-white':'bg-emerald-600 text-white'}`}>{appStatus.isOpen?'CLOSE NOW':'OPEN NOW'}</button></div></div><button onClick={saveAppSettings} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-black">SAVE</button></div>}
       {activeAdminTab==='announcements' && <div className="space-y-4"><div className="grid md:grid-cols-2 gap-4"><div className="bg-white border-2 rounded-3xl p-5"><form onSubmit={publishAnnouncement} className="space-y-3"><input value={annForm.title} onChange={e=>setAnnForm({...annForm,title:e.target.value})} placeholder="Title" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={annForm.message} onChange={e=>setAnnForm({...annForm,message:e.target.value})} placeholder="Message" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><button className="w-full bg-blue-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH</button></form></div><div className="bg-white border-2 rounded-3xl p-5"><form onSubmit={publishEvent} className="space-y-3"><input value={eventForm.title} onChange={e=>setEventForm({...eventForm,title:e.target.value})} placeholder="Event Title" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><div className="grid grid-cols-2 gap-3"><input type="date" value={eventForm.date} onChange={e=>setEventForm({...eventForm,date:e.target.value})} className="w-full p-3 border-2 rounded-xl text-xs"/><input value={eventForm.location} onChange={e=>setEventForm({...eventForm,location:e.target.value})} placeholder="Location" className="w-full p-3 border-2 rounded-xl text-xs"/></div><textarea value={eventForm.description} onChange={e=>setEventForm({...eventForm,description:e.target.value})} placeholder="Description" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><button className="w-full bg-emerald-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH EVENT</button></form></div></div><div className="bg-white rounded-3xl border p-4"><div className="grid gap-2">{[...announcements,...events].map((it:any)=><div key={it.id} className="flex justify-between bg-slate-50 p-3 rounded-xl border text-[11px]"><span><b>{it.title}</b></span><button onClick={()=>deleteAnnouncement(it.id)} className="bg-red-600 text-white p-1 rounded-lg"><Trash2 className="w-3 h-3"/></button></div>)}</div></div></div>}
       {activeAdminTab==='bursar' && <div className="bg-white rounded-3xl border-2 p-6"><table className="w-full text-xs"><thead><tr className="bg-emerald-900 text-white"><th className="p-3">Student</th><th className="p-3">Amount</th><th className="p-3">Del</th></tr></thead><tbody>{payments.map((p:any)=><tr key={p.id} className="border-b"><td className="p-3">{p.student_name||p.email}</td><td className="p-3">₦{p.amount}</td><td className="p-3"><button onClick={()=>deletePayment(p.id)} className="bg-red-600 text-white px-3 py-1 rounded-xl text-[10px]">DELETE</button></td></tr>)}</tbody></table></div>}
 
       {activeAdminTab==='users' && (
         <div className="bg-white rounded-3xl border-2 p-6 shadow-sm space-y-6">
-          <div className="flex flex-col md:flex-row justify-between gap-3"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Professional User Management - FIXED SAVE ACROSS TABS</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">✅ FIXED: Now saves to localStorage + Supabase + All Tabs sync automatically. Student: Full Biodata → Matric as ID + Password. Staff: Picture, Qualification, Course, Role.</p></div><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-6 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/>{showCreateUser?'CLOSE':'CREATE USER'}</button></div>
+          <div className="flex flex-col md:flex-row justify-between gap-3"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Professional User Management - FILTER STUDENT/STAFF</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">✅ FIXED: Now saves to localStorage + Supabase + All Tabs sync. Filter by Student / Staff. Student: Full Biodata → Matric as ID + Password. Staff: Picture, Qualification, Course, Role. Bishop & Provost publish to website.</p></div><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-6 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/>{showCreateUser?'CLOSE':'CREATE USER'}</button></div>
+
+          {/* FILTER STUDENT / STAFF - NEW */}
+          <div className="flex gap-2 bg-slate-50 p-2 rounded-2xl border">
+            <button onClick={()=>setUserFilter('ALL')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='ALL'?'bg-slate-900 text-white':'bg-white border'}`}>ALL ({users.length})</button>
+            <button onClick={()=>setUserFilter('STUDENT')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='STUDENT'?'bg-blue-700 text-white':'bg-white border text-blue-800'}`}>STUDENT ({users.filter((u:any)=>u.role==='STUDENT'||u.userType==='STUDENT').length})</button>
+            <button onClick={()=>setUserFilter('STAFF')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='STAFF'?'bg-emerald-700 text-white':'bg-white border text-emerald-800'}`}>STAFF ({users.filter((u:any)=>u.role!=='STUDENT').length})</button>
+          </div>
 
           {showCreateUser && (
             <div className="bg-gradient-to-br from-slate-50 to-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 space-y-5">
@@ -317,7 +375,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
                       <div><label className="text-[11px] font-bold">Parent Phone *</label><input value={newUser.parentPhone} onChange={e=>setNewUser({...newUser,parentPhone:e.target.value})} placeholder="Parent Phone" className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-blue-700 hover:bg-black text-white py-3 rounded-xl font-black text-xs flex justify-center gap-2"><Key className="w-4 h-4"/> CREATE STUDENT - AUTO MATRIC + PASSWORD - FIXED SAVE</button>
+                  <button type="submit" className="w-full bg-blue-700 hover:bg-black text-white py-3 rounded-xl font-black text-xs flex justify-center gap-2"><Key className="w-4 h-4"/> CREATE STUDENT - AUTO MATRIC + PASSWORD</button>
                 </form>
               ) : (
                 <form onSubmit={handleCreateUser} className="space-y-4">
@@ -333,21 +391,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
                       <div><label className="text-[11px] font-bold">Role *</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-black"><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option></select></div>
                     </div>
                   </div>
-                  <button type="submit" className="w-full bg-[#0a4d2e] hover:bg-black text-white py-3 rounded-xl font-black text-xs flex justify-center gap-2"><Key className="w-4 h-4"/> CREATE STAFF - AUTO ID + PASSWORD - FIXED SAVE</button>
+                  <button type="submit" className="w-full bg-[#0a4d2e] hover:bg-black text-white py-3 rounded-xl font-black text-xs flex justify-center gap-2"><Key className="w-4 h-4"/> CREATE STAFF - AUTO ID + PASSWORD</button>
                 </form>
               )}
             </div>
           )}
 
           <div className="space-y-3">
-            <div className="flex justify-between"><h4 className="font-black text-sm">All Users - FIXED - Visible in All Tabs & to Provost/Bursar/Registrar ({users.length})</h4></div>
+            <div className="flex justify-between"><h4 className="font-black text-sm">All Users - Filter: {userFilter} - {filteredUsers.length} Found - Visible in All Tabs & to Provost/Bursar/Registrar</h4></div>
             <div className="grid gap-3 max-h-[700px] overflow-y-auto">
-              {users.map((u:any)=>(
+              {filteredUsers.map((u:any)=>(
                 <div key={u.email} className="border-2 p-4 rounded-2xl bg-gradient-to-br from-white to-slate-50 space-y-3">
                   <div className="flex gap-3">
                     <div className="w-14 h-14 bg-slate-200 rounded-2xl overflow-hidden flex items-center justify-center border-2">{u.staffImage?<img src={u.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-6 h-6 text-slate-400"/>}</div>
                     <div className="flex-1 space-y-1">
-                      <div className="flex flex-wrap gap-2 items-center"><span className="font-black text-sm">{u.fullName}</span><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-900 text-white font-mono">{u.matricNumber||u.staffId}</span></div>
+                      <div className="flex flex-wrap gap-2 items-center"><span className="font-black text-sm">{u.fullName}</span><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-900 text-white font-mono">{u.matricNumber||u.staffId}</span><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${u.userType==='STUDENT'||u.role==='STUDENT'?'bg-blue-100 text-blue-800':'bg-emerald-100 text-emerald-800'}`}>{u.userType|| (u.role==='STUDENT'?'STUDENT':'STAFF')}</span></div>
                       <div className="text-[11px] text-slate-600">{u.email} • {u.phone} • {u.qualification||u.level} • {u.courseOfStudy||''}</div>
                       <div className="flex flex-wrap gap-2 p-2 bg-slate-900 text-white rounded-xl text-[10px]"><span className="flex gap-1"><IdCard className="w-3 h-3 text-amber-300"/> ID: <b className="font-mono">{u.loginId||u.matricNumber||u.staffId}</b></span><span className="flex gap-1"><Key className="w-3 h-3 text-emerald-300"/> PASS: <b className="font-mono">{showPasswords[u.email]?u.password:'••••'}</b><button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 bg-white/20 p-1 rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></div>
                     </div>
@@ -355,6 +413,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialTab }) =>
                   <div className="flex flex-wrap gap-1">{ALL_ROLES.map(r=><button key={r.value} onClick={()=>assignRole(u.email,r.value)} className={`px-2 py-1 rounded-lg text-[9px] font-black border ${u.role===r.value?'bg-slate-900 text-white':'bg-white'}`}>{r.value}</button>)}<button onClick={()=>deleteUser(u.email,u.fullName)} className="px-3 py-1 bg-red-600 text-white rounded-lg text-[9px] font-black">DELETE</button></div>
                 </div>
               ))}
+              {filteredUsers.length===0&&<p className="text-center text-xs text-slate-500 py-10">No users in {userFilter} filter</p>}
             </div>
           </div>
         </div>
