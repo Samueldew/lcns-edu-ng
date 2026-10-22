@@ -79,7 +79,28 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleRoleQuickSwitch = (role: UserRole) => { const users = StorageService.getUsers(); const target = users.find(u=>u.role===role); if(target){ const {password:_,...safe}=target; StorageService.setCurrentUser(safe as User); setActiveView('portal'); setShowRoleMenu(false); setMobileOpen(false);} };
   const handleLogout = () => { StorageService.setCurrentUser(null); setActiveView('website'); window.history.pushState({}, '', '/'); };
-  const scrollToId = (id: string) => { setMobileOpen(false); setActiveView('website'); setTimeout(()=>{ const el=document.getElementById(id); if(el){ el.scrollIntoView({behavior:'smooth'}); window.history.pushState({}, '', `/#${id}`);} else window.location.hash=id; },100); };
+  
+  // FIXED SCROLL - NOW LINKS TO CORRECT GREEN IDs
+  const scrollToId = (id: string) => { 
+    setMobileOpen(false); 
+    setActiveView('website'); 
+    setTimeout(()=>{
+      let targetId = id;
+      if(id === 'about') targetId = 'about-college'; // FIX ABOUT
+      if(id === 'programmes' || id === 'program') targetId = 'programmes'; // FIX PROGRAM
+      const el=document.getElementById(targetId); 
+      if(el){ 
+        el.scrollIntoView({behavior:'smooth', block: 'start'}); 
+        window.history.pushState({}, '', `/#${targetId}`);
+      } else {
+        // fallback try original id
+        const fallback = document.getElementById(id);
+        if(fallback) fallback.scrollIntoView({behavior:'smooth'});
+        else window.location.hash=id; 
+      }
+    },100); 
+  };
+  
   const rolesList: { role: UserRole; label: string; desc: string }[] = [
     { role: 'ADMIN', label: 'ICT Administrator', desc: 'System config' }, { role: 'PROVOST', label: 'College Provost', desc: 'Executive oversight' },
     { role: 'REGISTRAR', label: 'Academic Registrar', desc: 'Student records' }, { role: 'ADMISSION_OFFICER', label: 'Admission Officer', desc: 'Screening' },
@@ -129,9 +150,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); window.history.pushState({},'','/'); setMobileOpen(false);}} className="flex items-center gap-3 text-left group"><CollegeLogo size="md"/><div className="hidden sm:block"><span className="block font-black text-white text-[13px] sm:text-[15px] leading-tight uppercase tracking-tight group-hover:text-amber-300">Labe College of Nursing Sciences</span><span className="block text-[10px] sm:text-[11px] font-bold text-amber-300 uppercase">Catholic Diocese of Gboko, Benue State</span><span className="block text-[9px] font-semibold text-emerald-200 uppercase">Gboko • Learn, Serve & Save • {admissionSettings.session}</span></div></button>
           <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-white/90">
             <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'});}} className="hover:text-amber-300">Home</button>
-            <button onClick={()=>scrollToId('about')} className="hover:text-amber-300">About</button>
+            <button onClick={()=>scrollToId('about-college')} className="hover:text-amber-300 font-bold">About</button>
             <button onClick={()=>scrollToId('programmes')} className="hover:text-amber-300">Programmes</button>
             <button onClick={()=>scrollToId('gallery')} className="hover:text-amber-300 font-bold text-amber-300">Gallery</button>
+            <button onClick={()=>scrollToId('facilities')} className="hover:text-amber-300">Facilities</button>
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={onOpenAdmissionChecker} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 border border-white/20 rounded-lg"><FileText className="w-3.5 h-3.5 text-amber-300"/><span>Check Admission</span></button>
@@ -148,7 +170,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="lg:hidden bg-[#06321e] border-t px-4 py-4 space-y-1">
           <div className={`p-2 rounded-lg text-center text-xs font-black ${admissionSettings.isOpen?'bg-green-500 text-black':'bg-red-500 text-white'}`}>{admissionSettings.isOpen?`✅ ADMISSION OPEN ${admissionSettings.session}`:`🚫 ADMISSION CLOSED ${admissionSettings.session}`}</div>
           <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); setMobileOpen(false);}} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Home</button>
-          <button onClick={()=>scrollToId('about')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">About</button>
+          <button onClick={()=>scrollToId('about-college')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg bg-[#0a4d2e] border border-[#22c55e]/20">About - Who We Are</button>
+          <button onClick={()=>scrollToId('programmes')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Programmes</button>
+          <button onClick={()=>scrollToId('facilities')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Facilities</button>
           <button onClick={()=>scrollToId('gallery')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase bg-amber-500/20 text-amber-300 rounded-lg">Gallery</button>
           <div className="pt-3 border-t border-white/10 space-y-2">
             <button onClick={handleApplyClick} className={`w-full py-3 text-xs font-black uppercase rounded-lg ${admissionSettings.isOpen?'bg-amber-400 text-black':'bg-gray-500 text-white'}`}>{admissionSettings.isOpen?`Apply ${admissionSettings.session}`:'Admission Closed'}</button>
@@ -180,24 +204,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
                   <label className="text-xs font-black uppercase">Admission Session Year (e.g. 2026/2027)</label>
                   <input value={newSession} onChange={e=>setNewSession(e.target.value)} placeholder="2026/2027" className="w-full px-3 py-2.5 border rounded-lg text-sm font-bold text-black"/>
-                  <label className="text-xs font-black uppercase">Message When Closed (shown to applicants)</label>
-                  <textarea value={closedMsg} onChange={e=>setClosedMsg(e.target.value)} placeholder="Admission is currently closed for 2026/2027. Please check back later." rows={2} className="w-full px-3 py-2 border rounded-lg text-sm text-black"/>
+                  <label className="text-xs font-black uppercase">Message When Closed</label>
+                  <textarea value={closedMsg} onChange={e=>setClosedMsg(e.target.value)} placeholder="Admission is currently closed..." rows={2} className="w-full px-3 py-2 border rounded-lg text-sm text-black"/>
                   <div className="flex gap-2">
                     <button onClick={handleUpdateSession} className="flex-1 bg-slate-800 text-white py-2.5 rounded-lg text-xs font-black uppercase">Update Session Year</button>
-                    <button onClick={handleToggleAdmission} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase ${admissionSettings.isOpen?'bg-red-600 hover:bg-red-700 text-white':'bg-green-600 hover:bg-green-700 text-white'}`}>{admissionSettings.isOpen?`🔒 CLOSE ADMISSION ${newSession}`:`🔓 OPEN ADMISSION ${newSession}`}</button>
+                    <button onClick={handleToggleAdmission} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase ${admissionSettings.isOpen?'bg-red-600 text-white':'bg-green-600 text-white'}`}>{admissionSettings.isOpen?`🔒 CLOSE ${newSession}`:`🔓 OPEN ${newSession}`}</button>
                   </div>
-                  <p className="text-[11px] text-slate-500">When closed, Apply button will be disabled and show "{closedMsg || admissionSettings.closedMessage}"</p>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
-                  <p className="text-xs font-bold text-amber-900">How it works:</p>
-                  <ul className="text-[11px] text-amber-800 list-disc ml-4 mt-1 space-y-1">
-                    <li>Set session year to 2026/2027 or 2027/2028</li>
-                    <li>Click CLOSE to stop applicants from applying</li>
-                    <li>Click OPEN to allow applicants to apply</li>
-                    <li>Moving top bar will show OPEN/CLOSED automatically</li>
-                    <li>Apply button changes to "Admission Closed" when closed</li>
-                  </ul>
                 </div>
               </div>
             ) : (
