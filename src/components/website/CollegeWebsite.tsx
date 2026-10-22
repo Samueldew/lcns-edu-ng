@@ -60,7 +60,6 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
     (g) => g.category?.toLowerCase() === 'hostel' || g.title?.toLowerCase().includes('hostel')
   );
   const hostelImageUrl = hostelItem?.image_url || getHostelImageUrl();
-  const hostelImage = hostelImageUrl;
 
   const loadData = async () => {
     try {
@@ -80,13 +79,9 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
           const fallbackMgmt = await getManagementMembers();
           setManagementList(fallbackMgmt);
         }
-      } else {
-        const [members, gallery] = await Promise.all([getManagementMembers(), getGalleryItems('All')]);
-        setManagementList(members);
-        setGalleryList(gallery);
       }
     } catch (err) {
-      console.warn('Error loading management / gallery in website:', err);
+      console.warn('Error loading:', err);
     }
   };
 
@@ -113,69 +108,91 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
     {
       id: 'nd-hnd-programme',
       title: 'ND/HND Nursing Science 4years',
-      isBoldTitle: true,
       duration: '4 Years (Uninterrupted Collegiate Track)',
       icon: Stethoscope,
-      desc: 'Accredited 4-year collegiate nursing curriculum by NBTE & NMCN. Covers Foundational Nursing, Gross Anatomy, Physiology, Medical Biochemistry, Microbiology, and Clinical Skills Simulation leading directly to higher clinical mastery and council registration.',
-      entry: 'JAMB UTME minimum score of 150+ with Use of English, Biology, Chemistry, Physics + 5 O\'Level credits in WAEC/NECO/NABTEB.',
+      desc: 'Accredited 4-year collegiate nursing curriculum by NBTE & NMCN.',
+      entry: 'JAMB UTME minimum score of 150+ with Use of English, Biology, Chemistry, Physics + 5 O\'Level credits.',
       tag: '4-Year Collegiate Track',
-      color: 'emerald',
     },
     {
       id: 'licensing',
       title: 'Professional Licensing & Dual Council Certifications',
       duration: 'NMCN & NBTE Collegiate Awards',
       icon: HeartPulse,
-      desc: 'Graduates receive the National Diploma (ND) & Higher National Diploma (HND) in Nursing Sciences, Registered Nurse (RN) license from the Nursing and Midwifery Council of Nigeria (NMCN), and Registered Public Health Nurse (RPHN) license.',
-      entry: 'Awarded upon passing the mandatory Nursing and Midwifery Council of Nigeria Professional Qualifying Examinations.',
+      desc: 'Graduates receive ND & HND in Nursing Sciences, RN and RPHN license.',
+      entry: 'Awarded upon passing NMCN Professional Qualifying Examinations.',
       tag: 'RN & RPHN Licenses',
-      color: 'blue',
     },
   ];
 
   return (
     <div className="min-h-screen bg-white text-slate-800">
-      {/* HERO, ABOUT, LEADERSHIP, PROGRAMMES, VALUES sections remain same as your file */}
-      {/* ... KEEP ALL YOUR EXISTING SECTIONS UP TO GALLERY ... */}
-
-      {/* GIRLS' HOSTEL ACCOMMODATION */}
-      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" id="hostel">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
-          {hostelImage ? (
-            <img src={hostelImage} alt="LCNS Girls Hostel" className="w-full h-[400px] object-cover rounded-xl shadow-lg" />
-          ) : (
-            <div>No hostel image yet</div>
-          )}
-          <div>
-            <h2 className="text-3xl font-bold mb-4">GIRLS' HOSTEL ACCOMMODATION</h2>
-            <p className="text-gray-700 leading-relaxed mb-4">
-              Labe College of Nursing Sciences, Gboko, provides a safe, comfortable, and conducive hostel environment for female students.
-            </p>
-            <p className="font-semibold text-[#0a4d2e]">Learn, Grow, and Excel in a Safe Environment.</p>
+      {/* HERO - RESTORED */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#0a4d2e] via-[#06321e] to-[#042114] text-white pt-12 pb-20 lg:pt-20 lg:pb-28">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#06321e] border border-[#22c55e]/30 text-emerald-200 text-xs font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-[#ca8a04]" />
+                <span>2026/2027 Admissions Now Open • Apply Today</span>
+              </div>
+              <h1 className="text-3xl sm:text-5xl font-black uppercase leading-tight">
+                Labe College of <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#facc15] via-[#ca8a04] to-[#fef08a]">Nursing Sciences, Gboko</span>
+              </h1>
+              <p className="text-emerald-100 text-base max-w-2xl">Pioneering excellence in collegiate nursing education in Benue State through our comprehensive 4-Year ND/HND.</p>
+              <div className="flex flex-wrap gap-4 justify-center lg:justify-start">
+                <button onClick={onOpenApplication} className="px-6 py-3.5 bg-[#ca8a04] text-slate-950 font-black rounded-xl text-sm flex items-center gap-2"><GraduationCap className="w-5 h-5" /> Apply for 4-Year ND/HND</button>
+                <button onClick={onOpenAdmissionChecker} className="px-5 py-3.5 bg-[#0a4d2e] border border-[#22c55e]/40 text-white font-bold rounded-xl text-sm flex items-center gap-2"><FileText className="w-4 h-4 text-[#22c55e]" /> Check Admission Status</button>
+                <button onClick={onOpenLogin} className="px-4 py-3.5 bg-white/10 border border-white/20 text-emerald-100 font-semibold rounded-xl text-sm">Student & Staff Portal →</button>
+              </div>
+            </div>
+            <div className="lg:col-span-5 flex justify-center">
+              <div className="w-full max-w-md bg-gradient-to-br from-[#0a4d2e]/90 to-[#042114]/90 p-8 rounded-3xl border border-[#22c55e]/30 text-center">
+                <CollegeLogo size="xl" />
+                <h3 className="text-xl font-black text-white uppercase mt-4">LCNS Gboko</h3>
+                <p className="text-xs text-[#ca8a04] font-bold uppercase">Motto: Learn, Serve & Save</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CAMPUS MEDIA GALLERY - ONLY PICTURES, NO TEXT */}
+      {/* HOSTEL */}
+      <section className="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" id="hostel">
+        <div className="grid md:grid-cols-2 gap-8 items-center">
+          {hostelImageUrl ? <img src={hostelImageUrl} alt="LCNS Girls Hostel" className="w-full h-[400px] object-cover rounded-xl shadow-lg" /> : <div>No hostel image yet</div>}
+          <div>
+            <h2 className="text-3xl font-bold mb-4">GIRLS' HOSTEL ACCOMMODATION</h2>
+            <p className="text-gray-700 leading-relaxed">Safe, comfortable, and conducive hostel environment for female students.</p>
+            <p className="font-semibold text-[#0a4d2e] mt-2">Learn, Grow, and Excel in a Safe Environment.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* GALLERY - ONLY PICTURES NOW */}
       <section id="gallery" className="py-16 bg-slate-100/70 border-t border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
             <div>
               <span className="text-xs font-bold text-emerald-800 uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full">Visual Tour</span>
-              <h2 className="text-2xl sm:text-4xl font-black text-slate-950 uppercase font-serif-crest mt-2">Campus & Clinical Media Gallery</h2>
+              <h2 className="text-2xl sm:text-4xl font-black text-slate-950 uppercase mt-2">Campus & Clinical Media Gallery</h2>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5 bg-white p-1 rounded-2xl border border-slate-200 shadow-xs text-xs font-bold">
+            <div className="flex flex-wrap items-center gap-1.5 bg-white p-1 rounded-2xl border border-slate-200 text-xs font-bold">
               {['All', 'General', 'Events', 'Campus', 'Hostel', 'Students'].map((cat) => (
-                <button key={cat} onClick={() => setGalleryFilter(cat)} className={`px-3 py-1.5 rounded-xl transition-all ${galleryFilter === cat ? 'bg-[#0a4d2e] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>{cat}</button>
+                <button key={cat} onClick={() => setGalleryFilter(cat)} className={`px-3 py-1.5 rounded-xl ${galleryFilter === cat ? 'bg-[#0a4d2e] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{cat}</button>
               ))}
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {(galleryFilter === 'All' ? galleryList : galleryList.filter((g) => g.category === galleryFilter)).map((item) => (
-              <div key={item.id} onClick={() => setSelectedGalleryPhoto(item)} className="rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 group cursor-pointer border border-slate-200 bg-white">
+            {(galleryFilter === 'All' ? galleryList : galleryList.filter((g) => g.category === galleryFilter)).length > 0
+              ? galleryFilter === 'All' ? galleryList : galleryList.filter((g) => g.category === galleryFilter)
+              : galleryList
+            ).map((item) => (
+              <div key={item.id} onClick={() => setSelectedGalleryPhoto(item)} className="rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all group cursor-pointer border border-slate-200 bg-white">
                 <div className="relative h-72 overflow-hidden bg-slate-900">
-                  <img src={item.image_url} alt="LCNS" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <img src={item.image_url} alt="LCNS Gboko" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
                     <div className="p-3 bg-white/90 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"><Maximize2 className="w-5 h-5 text-slate-900" /></div>
                   </div>
@@ -186,7 +203,23 @@ export const CollegeWebsite: React.FC<CollegeWebsiteProps> = ({
         </div>
       </section>
 
-      {/* KEEP YOUR CONTACT SECTION BELOW */}
+      {/* LIGHTBOX */}
+      {selectedGalleryPhoto && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setSelectedGalleryPhoto(null)}>
+          <div className="relative max-w-4xl w-full">
+            <button onClick={() => setSelectedGalleryPhoto(null)} className="absolute -top-10 right-0 text-white bg-white/20 p-2 rounded-full"><X className="w-6 h-6" /></button>
+            <img src={selectedGalleryPhoto.image_url} alt="LCNS" className="w-full h-auto max-h-[80vh] object-contain rounded-xl" />
+          </div>
+        </div>
+      )}
+
+      {/* CONTACT */}
+      <section id="contact" className="py-16 bg-slate-900 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl font-black uppercase">Contact LCNS Gboko</h2>
+          <p className="text-sm text-slate-300 mt-2">Off Gboko Hill, Along Agbile Road, Gboko, Benue State | 08126799565 | info@lcns.edu.ng</p>
+        </div>
+      </section>
     </div>
   );
 };
