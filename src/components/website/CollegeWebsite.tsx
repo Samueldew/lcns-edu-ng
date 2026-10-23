@@ -15,6 +15,7 @@ const LCNSWebsite = () => {
   const [gallery, setGallery] = useState<any[]>([]);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [logo, setLogo] = useState<string | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
     const loadCMS = async () => {
@@ -34,14 +35,16 @@ const LCNSWebsite = () => {
             }catch{ const raw=localStorage.getItem(k); if(raw?.startsWith('data:image')) setLogo(raw); }
           }
           try{
-            let bImg = null; let bName = 'Most Rev. William A. Avenya'; let bTitle = 'Catholic Bishop of Gboko Diocese • Proprietor, LCNS'; let bDesc = 'As proprietor and pastoral guide, His Lordship supports growth of professional nursing education rooted in faith, discipline, compassion and service.';
+            let bImg = null; let bName = 'Most Rev. William A. Avenya'; let bTitle = 'Catholic Bishop of Gboko Diocese • Proprietor, LCNS'; 
+            let bDesc = 'The College is the brainchild of the Bishop, Catholic Diocese of Gboko, Most Rev. William A. Avenya, and is named after a humanitarian, late Pharmacist Ternenge Labe in a bid to immortalize him for the selfless services he rendered to people within Gboko Diocese, Benue state and beyond. The institution has an objective of training the teeming Nigerian youths with compassion and fear of God, on the best global nursing practices. The program will enhance their skills and widen their horizon to be the best nursing practitioners in the world, especially the indigent ones who cannot afford the cost of travelling outside the country for further studies.';
             const b1 = JSON.parse(localStorage.getItem('lcns_bishop')||'null'); const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}'); const m = JSON.parse(localStorage.getItem('lcns_management')||'[]'); const mBishop = m.find((x:any)=>x.role==='Proprietor' || x.role==='Bishop');
-            if(b1?.image) { bImg=b1.image; bName=b1.name||bName; } else if(s1?.proprietor_image) { bImg=s1.proprietor_image; } else if(localStorage.getItem('proprietor_image')) { bImg=localStorage.getItem('proprietor_image'); } else if(mBishop?.image) { bImg=mBishop.image; }
-            if(bImg){ setProprietorImg(bImg); setBishopData({name:bName, title:bTitle, description:bDesc, image:bImg}); }
-            let pImg = null; let pName = 'Mrs Terna Fiase'; let pTitle = 'MSc, BNSc, Dip Nursing Education, RNE, RM, RN • Provost'; let pDesc = 'On behalf of Catholic Diocese of Gboko and Governing Council, I warmly welcome you to LCNS.';
+            if(b1?.image) { bImg=b1.image; bName=b1.name||bName; bDesc=b1.description||bDesc; } else if(s1?.proprietor_image) { bImg=s1.proprietor_image; bDesc=s1.proprietor_message||bDesc; } else if(localStorage.getItem('proprietor_image')) { bImg=localStorage.getItem('proprietor_image'); } else if(mBishop?.image) { bImg=mBishop.image; bDesc=mBishop.description||bDesc; }
+            if(bImg || true){ if(bImg) setProprietorImg(bImg); setBishopData({name:bName, title:bTitle, description:bDesc, image:bImg}); }
+            let pImg = null; let pName = 'Mrs Terna Fiase'; let pTitle = 'MSc, BNSc, Dip Nursing Education, RNE, RM, RN • Provost'; 
+            let pDesc = 'On behalf of Catholic Diocese of Gboko and Governing Council, I warmly welcome you to Labe College of Nursing Sciences, Gboko. The College is the brainchild of the Bishop, Catholic Diocese of Gboko, Most Rev. William A. Avenya, and is named after a humanitarian, late Pharmacist Ternenge Labe. Our objective is training Nigerian youths with compassion and fear of God on best global nursing practices. We are committed to excellence, integrity and service. Learn, Serve & Save.';
             const p1 = JSON.parse(localStorage.getItem('lcns_provost')||'null'); const pMgmt = m.find((x:any)=>x.role==='Provost');
-            if(p1?.image) { pImg=p1.image; pName=p1.name||pName; } else if(s1?.provost_image) { pImg=s1.provost_image; } else if(pMgmt?.image) { pImg=pMgmt.image; }
-            if(pImg){ setProvostImg(pImg); setProvostData({name:pName, title:pTitle, description:pDesc, image:pImg}); } else { setProvostData({name:pName, title:pTitle, description:pDesc}); }
+            if(p1?.image) { pImg=p1.image; pName=p1.name||pName; pDesc=p1.message||p1.description||pDesc; } else if(s1?.provost_image) { pImg=s1.provost_image; pDesc=s1.provost_message||pDesc; } else if(pMgmt?.image) { pImg=pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
+            if(pImg){ setProvostImg(pImg); } setProvostData({name:pName, title:pTitle, description:pDesc, image:pImg});
             const gKeys = ['lcns_gallery','college_gallery','gallery','official_gallery']; let allGallery:any[] = []; for(const gk of gKeys){ try{ const gv=JSON.parse(localStorage.getItem(gk)||'[]'); if(Array.isArray(gv) && gv.length) allGallery=[...allGallery, ...gv]; }catch{} } if(allGallery.length) setGallery(allGallery);
             const fKeys = ['lcns_facilities','college_facilities']; let allFac:any[] = []; for(const fk of fKeys){ try{ const fv=JSON.parse(localStorage.getItem(fk)||'[]'); if(Array.isArray(fv) && fv.length) allFac=[...allFac, ...fv]; }catch{} } if(allFac.length) setFacilities(allFac);
           } catch {}
@@ -49,6 +52,15 @@ const LCNSWebsite = () => {
       } catch {}
     }; loadCMS();
   }, []);
+
+  // ADDED: Auto slideshow every 15 seconds for all gallery pictures
+  useEffect(() => {
+    if(gallery.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % gallery.length);
+    }, 15000);
+    return () => clearInterval(timer);
+  }, [gallery.length]);
 
   const scrollTo = (id:string) => { document.getElementById(id)?.scrollIntoView({behavior:'smooth'}); setMenuOpen(false); };
 
@@ -120,7 +132,22 @@ const LCNSWebsite = () => {
           </div>
           <div className="relative">
             <div className="bg-white rounded-[2rem] p-2 shadow-2xl">
-              <img src={gallery[0]?.image || "https://images.unsplash.com/photo-1580281657527-47f24907b016?auto=format&fit=crop&q=80&w=800"} className="rounded-[1.6rem] h-[460px] w-full object-cover" alt="Campus"/>
+              {/* CHANGED: Slideshow every 15 seconds */}
+              <div className="relative rounded-[1.6rem] h-[460px] w-full overflow-hidden">
+                {gallery.length > 0 ? (
+                  <>
+                    <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_url || gallery[0]?.image} className="h-full w-full object-cover transition-all duration-1000" alt="Campus"/>
+                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 px-3 py-1.5 rounded-full">
+                      {gallery.map((_:any, idx:number)=>(
+                        <button key={idx} onClick={()=>setCurrentSlide(idx)} className={`w-2 h-2 rounded-full transition-all ${idx===currentSlide ? 'bg-yellow-400 w-6' : 'bg-white/60'}`}/>
+                      ))}
+                    </div>
+                    <div className="absolute top-3 right-3 bg-black/50 text-white text-[10px] px-3 py-1 rounded-full">{currentSlide+1}/{gallery.length} • Auto changes every 15s</div>
+                  </>
+                ) : (
+                  <img src="https://images.unsplash.com/photo-1580281657527-47f24907b016?auto=format&fit=crop&q=80&w=800" className="rounded-[1.6rem] h-full w-full object-cover" alt="Campus"/>
+                )}
+              </div>
               <div className="absolute -bottom-4 -left-4 bg-white text-[#0f4c2e] p-4 rounded-2xl shadow-xl"><p className="font-black flex items-center gap-2"><MapPin size={16}/> Off Gboko Hill Road, Gboko</p><p className="text-xs text-slate-500">Opposite Sinai College, Gboko Hills</p></div>
             </div>
           </div>
@@ -173,24 +200,83 @@ const LCNSWebsite = () => {
         </div>
       </section>
 
-      <section id="about" className="py-12 bg-[#f8fdf8]">
-        <div className="max-w-7xl mx-auto px-4"><h2 className="text-3xl font-black text-[#0f4c2e] mb-3">About and History</h2><p className="text-slate-600 leading-relaxed">Established by Catholic Diocese of Gboko, named after late Pharmacist Ternenge Labe, to address shortage of qualified nurses. Located off Gboko Hill Road opposite Sinai College.</p></div>
-      </section>
+      <section id="about" className="py-16 bg-[#f8fdf8] scroll-mt-24">
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl md:text-4xl font-black text-[#0f4c2e] mb-6">About and History</h2>
+          <div className="bg-white border-2 border-green-100 rounded-[2rem] p-8 leading-relaxed text-slate-700">
+            <p className="text-[15px]">The College is the brainchild of the Bishop, Catholic Diocese of Gboko, Most Rev. William A. Avenya, and is named after a humanitarian, late Pharmacist Ternenge Labe in a bid to immortalize him for the selfless services he rendered to people within Gboko Diocese, Benue state and beyond. The institution has an objective of training the teeming Nigerian youths with compassion and fear of God, on the best global nursing practices. The program will enhance their skills and widen their horizon to be the best nursing practitioners in the world, especially the indigent ones who cannot afford the cost of travelling outside the country for further studies.</p>
+            <p className="mt-4 text-sm">Established by Catholic Diocese of Gboko, located off Gboko Hill Road opposite Sinai College, Gboko Hills.</p>
+          </div>
 
-      <section className="py-12 bg-white">
-        <div className="max-w-7xl mx-auto px-4 grid md:grid-cols-2 gap-8">
-          <div className="bg-[#f0faf0] border border-green-100 rounded-[2rem] p-6">
-            <p className="text-xs font-bold tracking-widest text-[#2e8b57] mb-3">PROPRIETOR</p>
-            <div className="flex gap-4 items-start">
-              <div className="w-24 h-24 rounded-2xl bg-[#0f4c2e] overflow-hidden shrink-0 border-2 border-yellow-400">{proprietorImg ? <img src={proprietorImg} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-black">BISHOP</div>}</div>
-              <div><h3 className="font-black text-lg text-[#0f4c2e]">{bishopData?.name || 'Most Rev. William A. Avenya'}</h3><p className="text-xs text-[#2e8b57] font-semibold">{bishopData?.title || 'Catholic Bishop of Gboko Diocese • Proprietor'}</p></div>
+          <div className="grid md:grid-cols-2 gap-6 mt-10">
+            <div className="bg-[#f0faf0] border border-green-100 rounded-[2rem] p-6">
+              <p className="text-xs font-bold tracking-widest text-[#2e8b57] mb-3">PROPRIETOR MESSAGE</p>
+              <div className="flex gap-4 items-start">
+                <div className="w-24 h-24 rounded-2xl bg-[#0f4c2e] overflow-hidden shrink-0 border-2 border-yellow-400">
+                  {proprietorImg || bishopData?.image ? <img src={proprietorImg || bishopData?.image} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-black">BISHOP</div>}
+                </div>
+                <div><h3 className="font-black text-lg text-[#0f4c2e]">{bishopData?.name || 'Most Rev. William A. Avenya'}</h3><p className="text-xs text-[#2e8b57] font-semibold mb-2">{bishopData?.title || 'Catholic Bishop of Gboko Diocese • Proprietor, LCNS'}</p><p className="text-[13px] text-slate-700 leading-relaxed">{bishopData?.description}</p></div>
+              </div>
+            </div>
+            <div className="bg-[#0f4c2e] text-white rounded-[2rem] p-6">
+              <p className="text-xs font-bold tracking-widest text-yellow-300 mb-3">PROVOST MESSAGE</p>
+              <div className="flex gap-4 items-start">
+                <div className="w-24 h-24 rounded-2xl bg-white overflow-hidden shrink-0 border-2 border-yellow-400">
+                  {provostImg || provostData?.image ? <img src={provostImg || provostData?.image} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#0f4c2e] font-black text-[10px]">PROVOST</div>}
+                </div>
+                <div><h3 className="font-black text-lg">{provostData?.name || 'Mrs Terna Fiase'}</h3><p className="text-xs text-yellow-200 font-semibold mb-2">{provostData?.title || 'MSc, BNSc, Dip Nursing Education, RNE, RM, RN • Provost'}</p><p className="text-[13px] text-green-100 leading-relaxed">{provostData?.description}</p></div>
+              </div>
             </div>
           </div>
-          <div className="bg-[#0f4c2e] text-white rounded-[2rem] p-6">
-            <p className="text-xs font-bold tracking-widest text-yellow-300 mb-3">PROVOST MESSAGE</p>
-            <div className="flex gap-4 items-start">
-              <div className="w-24 h-24 rounded-2xl bg-white overflow-hidden shrink-0 border-2 border-yellow-400">{provostImg ? <img src={provostImg} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#0f4c2e] font-black text-[10px]">PROVOST</div>}</div>
-              <div><h3 className="font-black text-lg">{provostData?.name || 'Mrs Terna Fiase'}</h3><p className="text-xs text-yellow-200">{provostData?.title || 'Provost'}</p></div>
+
+          {/* ADDED: PHILOSOPHY, MISSION, VISION, VALUES */}
+          <div className="mt-12 grid gap-8">
+            <div className="bg-white border-2 border-[#0f4c2e] rounded-[2rem] p-8">
+              <h3 className="text-2xl font-black text-[#0f4c2e] flex items-center gap-2"><Target className="text-yellow-600"/> PHILOSOPHY OF THE SCHOOL</h3>
+              <p className="mt-4 text-sm leading-relaxed text-slate-700">Health Care Education is a life-long process that begins with the basics, and progresses all through to core and advanced levels of learning, whereby professional developments could be achieved. Advancing the art and sciences of Nursing ultimately upgrades the health status of individuals, families, communities, nations and the world in general.</p>
+              <p className="mt-3 text-sm leading-relaxed text-slate-700">A solid Nursing education, therefore, equips nurses to be evidence-based in their practice, to fully engage in their scholarly and research activities, and to translate knowledge in health care and sciences into health services improvements, for the benefit of all humanity. By embracing diversity and equity perspectives in raising the professional and social conscience of our students, they would always seek best practice standards, and become top notch health services leaders.</p>
+              <div className="mt-6 space-y-3 text-[13px] text-slate-700 leading-relaxed">
+                <p><b>vii) That nursing</b> is a human science vocation and a discipline that is focused on diagnosis and treatment of human responses to actual and potential health problems; and that the client is conceptualized as an individual, family, group or community. This is the focus of the nursing profession.</p>
+                <p><b>viii) That each client</b> and every member of the community is unique and holds values and beliefs reflective of their culture, sense of life experiences, and nurses must respect this fact.</p>
+                <p><b>ix) That there are core competences</b> that enable a nurse to provide “safe passage” for clients. These core competences which include but not limited are clinical judgments, advocacy, caring practice, systems thinking response to diversity, facilitation of learning, clinical inquiry/ collaboration and the like, are the basis of nurses ability to provide, design, manage and coordinate the caring practice process.</p>
+                <p><b>x) That together we serve students</b> by being strong role models through commitment to excellence as teachers, students and clinicians. The faculty is committed to cultivating an organizational sense of professional empowerment, a desire for long-life learning and a passion for social justice and social cultural harmony as a way of belonging in our school and as an integral part of our school community. Therefore, the school uses an innovative curriculum based on the changing health and socioeconomic/ cultural needs of the population and the health caring delivery system, which is integral to the dedication of the faculty as well as the student’s learning and development.</p>
+                <p><b>xi) That we all learn best</b> when actively engaged in the learning process. The faculty desires to work with students as a community of learners in which all function at a high level of accountability, flexibility and integrity.</p>
+                <p><b>vi) That since we are in a system,</b> we will collaborate with relevant cooperate organizations for effective teaching and learning process, be they local or international, government or non government.</p>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="bg-[#0f4c2e] text-white rounded-[2rem] p-8">
+                <h3 className="font-black text-xl flex items-center gap-2"><Target className="text-yellow-300"/> Mission</h3>
+                <p className="mt-3 text-sm leading-relaxed text-green-100">Our mission is to provide high-quality nursing training and service that fosters compassionate, competent, and innovative healthcare professionals who improve healthcare outcomes and promote wellness with the fear of God, within the Diocese and beyond.</p>
+              </div>
+              <div className="bg-yellow-400 text-[#0f2e1f] rounded-[2rem] p-8">
+                <h3 className="font-black text-xl flex items-center gap-2"><Eye className="text-[#0f4c2e]"/> Vision</h3>
+                <p className="mt-3 text-sm leading-relaxed font-medium">Labe College of Nursing Sciences (LCNS) is committed to be an outstanding College of Nursing Sciences, recognized for excellence in healthcare training and practice, with a commitment to improving health care delivery, promoting social justice, and advancing the medical profession.</p>
+              </div>
+            </div>
+
+            <div className="bg-white border rounded-[2rem] p-8">
+              <h3 className="text-xl font-black text-[#0f4c2e]">Our Core Values</h3>
+              <p className="mt-2 text-sm text-slate-600">Our values are through commitment to the under mentioned to promote excellence in Nursing education practice and services, using the five Cs of best practice Nursing, which are Commitment, Conscience, Competence, Compassion, and Confidence.</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-4">
+                {['Commitment','Conscience','Competence','Compassion','Confidence'].map(v=>(
+                  <div key={v} className="bg-[#f0faf0] border border-green-200 rounded-xl p-3 text-center font-black text-[#0f4c2e] text-sm">{v}</div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white border rounded-[2rem] p-8">
+              <h3 className="text-xl font-black text-[#0f4c2e]">School Colors and Logo</h3>
+              <p className="mt-2 text-sm text-slate-600">The logo for Labe College of Nursing Sciences, Gboko uses a combination of green, white, black, red, orange, and brown colours.</p>
+              <div className="grid md:grid-cols-2 gap-4 mt-4 text-[13px] leading-relaxed">
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-green-700 shrink-0"></span><span><b>Green</b> symbolizes health, healing, life, growth, and renewal. This represents the nurturing aspect of nursing at LCNS and the hope they’ll bring to patients.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-white border shrink-0"></span><span><b>White</b> symbolizes purity, cleanliness, peace, and integrity. White is traditionally associated with nursing profession to signify cleanliness, ethics, and professionalism.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-black shrink-0"></span><span><b>Black</b> symbolizes the rich culture of our Diocese, strength, seriousness and professionalism. Used in Rod of Asclepius and tagline ribbon.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-red-600 shrink-0"></span><span><b>Red</b> symbolizes passion, energy, urgency, and care and reflects love, sacrifice, lifesaving nature. Motto “Learn, Serve & Save” in red.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-orange-400 shrink-0"></span><span><b>Orange (Outline)</b> symbolizes enthusiasm, creativity, and encouragement. Represents motivation to inspire next generation.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-amber-800 shrink-0"></span><span><b>Brown (Oil Lamp)</b> symbolizes tradition, wisdom, reliability. Oil lamp historic symbol of nursing, made famous by Florence Nightingale.</span></div>
+              </div>
             </div>
           </div>
         </div>
@@ -201,12 +287,43 @@ const LCNSWebsite = () => {
       </section>
 
       <section id="gallery" className="py-12 bg-[#f8fdf8] scroll-mt-24">
-        <div className="max-w-7xl mx-auto px-4"><h2 className="text-3xl font-black text-[#0f4c2e]">Official Campus Gallery</h2>{gallery.length ? <div className="grid md:grid-cols-3 gap-4 mt-6">{gallery.map((g:any,i:number)=>(<div key={i} className="bg-white border rounded-2xl overflow-hidden"><img src={g.image || g.image_url} className="h-56 w-full object-cover"/></div>))}</div> : <div className="bg-white border-2 border-dashed rounded-2xl p-8 text-center text-sm text-slate-400 mt-6">Upload from Admin CMS Gallery</div>}</div>
+        <div className="max-w-7xl mx-auto px-4">
+          <h2 className="text-3xl font-black text-[#0f4c2e]">Official Campus Gallery — Auto Changes Every 15 Seconds</h2>
+          {gallery.length ? (
+            <>
+              {/* Big slideshow */}
+              <div className="mt-6 bg-white border-2 rounded-[2rem] p-2 shadow-xl">
+                <div className="relative h-[420px] md:h-[520px] rounded-[1.6rem] overflow-hidden">
+                  <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_url} className="h-full w-full object-cover transition-all duration-1000" alt={gallery[currentSlide]?.title}/>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+                    <p className="text-white font-black text-lg">{gallery[currentSlide]?.title || `Campus Image ${currentSlide+1}`}</p>
+                    <p className="text-green-200 text-xs">{gallery[currentSlide]?.description || gallery[currentSlide]?.category || 'Labe College of Nursing Sciences, Gboko'}</p>
+                  </div>
+                  <button onClick={()=>setCurrentSlide((currentSlide-1+gallery.length)%gallery.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 w-10 h-10 rounded-full flex items-center justify-center font-black">‹</button>
+                  <button onClick={()=>setCurrentSlide((currentSlide+1)%gallery.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 w-10 h-10 rounded-full flex items-center justify-center font-black">›</button>
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/40 px-4 py-2 rounded-full">
+                    {gallery.map((_:any, idx:number)=>(
+                      <div key={idx} className={`h-2 rounded-full transition-all ${idx===currentSlide ? 'w-8 bg-yellow-400' : 'w-2 bg-white/60'}`}/>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {/* Thumbnails */}
+              <div className="grid md:grid-cols-6 gap-3 mt-4">
+                {gallery.map((g:any,i:number)=>(
+                  <button key={i} onClick={()=>setCurrentSlide(i)} className={`border-2 rounded-xl overflow-hidden transition-all ${i===currentSlide ? 'border-yellow-400 ring-2 ring-yellow-200' : 'border-green-100'}`}>
+                    <img src={g.image || g.image_url} className="h-24 w-full object-cover"/>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : <div className="bg-white border-2 border-dashed rounded-2xl p-8 text-center text-sm text-slate-400 mt-6">Upload from Admin CMS Gallery — Will auto-change every 15 seconds</div>}
+        </div>
       </section>
 
       <section id="admission" className="py-16 bg-yellow-400 text-[#0f2e1f] text-center"><div className="max-w-7xl mx-auto px-4"><h2 className="text-3xl font-black">ND HND Nursing Science — Admission Open</h2><p className="font-bold mt-2">Four Years Full-Time National Diploma Higher National Diploma • NMCN Accredited • Five O-Level Credits including English, Maths, Biology, Chemistry, Physics plus Valid JAMB UTME</p></div></section>
 
-      <section id="contact" className="py-10 bg-[#0f2e1f] text-white text-center text-xs text-green-200">© Labe College of Nursing Sciences, Gboko. Catholic Diocese of Gboko.</section>
+      <section id="contact" className="py-10 bg-[#0f2e1f] text-white text-center text-xs text-green-200">© Labe College of Nursing Sciences, Gboko. Catholic Diocese of Gboko. Learn • Serve • Save</section>
     </div>
   );
 };
