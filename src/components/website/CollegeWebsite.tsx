@@ -35,16 +35,22 @@ const LCNSWebsite = () => {
             }catch{ const raw=localStorage.getItem(k); if(raw?.startsWith('data:image')) setLogo(raw); }
           }
           try{
-            let bImg = null; let bName = 'Most Rev. William A. Avenya'; let bTitle = 'Catholic Bishop of Gboko Diocese • Proprietor, LCNS'; 
-            let bDesc = 'The College is the brainchild of the Bishop, Catholic Diocese of Gboko, Most Rev. William A. Avenya, and is named after a humanitarian, late Pharmacist Ternenge Labe in a bid to immortalize him for the selfless services he rendered to people within Gboko Diocese, Benue state and beyond. The institution has an objective of training the teeming Nigerian youths with compassion and fear of God, on the best global nursing practices. The program will enhance their skills and widen their horizon to be the best nursing practitioners in the world, especially the indigent ones who cannot afford the cost of travelling outside the country for further studies.';
+            let bImg = null; 
+            let bName = 'Most Rev. William A. Avenya'; 
+            let bTitle = 'Proprietor - Bishop of Catholic Diocese of Gboko'; 
+            let bDesc = 'As proprietor and pastoral guide of the College, His Lordship supports the growth of professional nursing education rooted in faith, discipline, compassion and service. Labe College of Nursing Sciences is called to form competent nurses who learn with excellence, serve with compassion and save lives with integrity.';
             const b1 = JSON.parse(localStorage.getItem('lcns_bishop')||'null'); const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}'); const m = JSON.parse(localStorage.getItem('lcns_management')||'[]'); const mBishop = m.find((x:any)=>x.role==='Proprietor' || x.role==='Bishop');
-            if(b1?.image) { bImg=b1.image; bName=b1.name||bName; bDesc=b1.description||bDesc; } else if(s1?.proprietor_image) { bImg=s1.proprietor_image; bDesc=s1.proprietor_message||bDesc; } else if(localStorage.getItem('proprietor_image')) { bImg=localStorage.getItem('proprietor_image'); } else if(mBishop?.image) { bImg=mBishop.image; bDesc=mBishop.description||bDesc; }
+            if(b1?.image) { bImg=b1.image; bName=b1.name||bName; bTitle=b1.title||bTitle; bDesc=b1.description||bDesc; } else if(s1?.proprietor_image) { bImg=s1.proprietor_image; bDesc=s1.proprietor_message||bDesc; } else if(localStorage.getItem('proprietor_image')) { bImg=localStorage.getItem('proprietor_image'); } else if(mBishop?.image) { bImg=mBishop.image; bDesc=mBishop.description||bDesc; }
             if(bImg || true){ if(bImg) setProprietorImg(bImg); setBishopData({name:bName, title:bTitle, description:bDesc, image:bImg}); }
-            let pImg = null; let pName = 'Mrs Terna Fiase'; let pTitle = 'MSc, BNSc, Dip Nursing Education, RNE, RM, RN • Provost'; 
-            let pDesc = 'On behalf of Catholic Diocese of Gboko and Governing Council, I warmly welcome you to Labe College of Nursing Sciences, Gboko. The College is the brainchild of the Bishop, Catholic Diocese of Gboko, Most Rev. William A. Avenya, and is named after a humanitarian, late Pharmacist Ternenge Labe. Our objective is training Nigerian youths with compassion and fear of God on best global nursing practices. We are committed to excellence, integrity and service. Learn, Serve & Save.';
+            
+            let pImg = null; 
+            let pName = 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN'; 
+            let pTitle = 'Provost, Labe College of Nursing Sciences'; 
+            let pDesc = 'On behalf of the Catholic Diocese of Gboko and the Governing Council, I warmly welcome you to Labe College of Nursing Sciences, Gboko. Founded upon the steadfast Catholic ethos of sanctity of human life and selfless service, our college stands as a beacon of academic rigor and moral rectitude in Benue State and across Nigeria. Offering the accredited ND/HND Nursing Science programme, nursing here is a sacred vocation dedicated to compassionate, competent care. We invite you to embark on this noble journey with us.';
             const p1 = JSON.parse(localStorage.getItem('lcns_provost')||'null'); const pMgmt = m.find((x:any)=>x.role==='Provost');
-            if(p1?.image) { pImg=p1.image; pName=p1.name||pName; pDesc=p1.message||p1.description||pDesc; } else if(s1?.provost_image) { pImg=s1.provost_image; pDesc=s1.provost_message||pDesc; } else if(pMgmt?.image) { pImg=pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
+            if(p1?.image) { pImg=p1.image; pName=p1.name||pName; pTitle=p1.title||pTitle; pDesc=p1.message||p1.description||pDesc; } else if(s1?.provost_image) { pImg=s1.provost_image; pDesc=s1.provost_message||pDesc; } else if(pMgmt?.image) { pImg=pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
             if(pImg){ setProvostImg(pImg); } setProvostData({name:pName, title:pTitle, description:pDesc, image:pImg});
+            
             const gKeys = ['lcns_gallery','college_gallery','gallery','official_gallery']; let allGallery:any[] = []; for(const gk of gKeys){ try{ const gv=JSON.parse(localStorage.getItem(gk)||'[]'); if(Array.isArray(gv) && gv.length) allGallery=[...allGallery, ...gv]; }catch{} } if(allGallery.length) setGallery(allGallery);
             const fKeys = ['lcns_facilities','college_facilities']; let allFac:any[] = []; for(const fk of fKeys){ try{ const fv=JSON.parse(localStorage.getItem(fk)||'[]'); if(Array.isArray(fv) && fv.length) allFac=[...allFac, ...fv]; }catch{} } if(allFac.length) setFacilities(allFac);
           } catch {}
@@ -53,7 +59,6 @@ const LCNSWebsite = () => {
     }; loadCMS();
   }, []);
 
-  // ADDED: Auto slideshow every 15 seconds for all gallery pictures
   useEffect(() => {
     if(gallery.length <= 1) return;
     const timer = setInterval(() => {
@@ -132,7 +137,6 @@ const LCNSWebsite = () => {
           </div>
           <div className="relative">
             <div className="bg-white rounded-[2rem] p-2 shadow-2xl">
-              {/* CHANGED: Slideshow every 15 seconds */}
               <div className="relative rounded-[1.6rem] h-[460px] w-full overflow-hidden">
                 {gallery.length > 0 ? (
                   <>
@@ -210,38 +214,45 @@ const LCNSWebsite = () => {
 
           <div className="grid md:grid-cols-2 gap-6 mt-10">
             <div className="bg-[#f0faf0] border border-green-100 rounded-[2rem] p-6">
-              <p className="text-xs font-bold tracking-widest text-[#2e8b57] mb-3">PROPRIETOR MESSAGE</p>
+              <p className="text-xs font-bold tracking-widest text-[#2e8b57] mb-3">PROPRIETOR - BISHOP OF CATHOLIC DIOCESE OF GBOKO</p>
               <div className="flex gap-4 items-start">
-                <div className="w-24 h-24 rounded-2xl bg-[#0f4c2e] overflow-hidden shrink-0 border-2 border-yellow-400">
+                <div className="w-28 h-28 rounded-2xl bg-[#0f4c2e] overflow-hidden shrink-0 border-2 border-yellow-400">
                   {proprietorImg || bishopData?.image ? <img src={proprietorImg || bishopData?.image} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-black">BISHOP</div>}
                 </div>
-                <div><h3 className="font-black text-lg text-[#0f4c2e]">{bishopData?.name || 'Most Rev. William A. Avenya'}</h3><p className="text-xs text-[#2e8b57] font-semibold mb-2">{bishopData?.title || 'Catholic Bishop of Gboko Diocese • Proprietor, LCNS'}</p><p className="text-[13px] text-slate-700 leading-relaxed">{bishopData?.description}</p></div>
+                <div>
+                  <h3 className="font-black text-[18px] text-[#0f4c2e] leading-tight">{bishopData?.name || 'Most Rev. William A. Avenya'}</h3>
+                  <p className="text-xs text-[#2e8b57] font-bold mb-2 mt-1">{bishopData?.title || 'Proprietor - Bishop of Catholic Diocese of Gboko'} • Catholic Bishop of Gboko Diocese • Proprietor, Labe College of Nursing Sciences</p>
+                  <p className="text-[13px] text-slate-700 leading-relaxed">{bishopData?.description}</p>
+                </div>
               </div>
             </div>
             <div className="bg-[#0f4c2e] text-white rounded-[2rem] p-6">
-              <p className="text-xs font-bold tracking-widest text-yellow-300 mb-3">PROVOST MESSAGE</p>
+              <p className="text-xs font-bold tracking-widest text-yellow-300 mb-3">WELCOME FROM THE PROVOST DESK</p>
               <div className="flex gap-4 items-start">
-                <div className="w-24 h-24 rounded-2xl bg-white overflow-hidden shrink-0 border-2 border-yellow-400">
+                <div className="w-28 h-28 rounded-2xl bg-white overflow-hidden shrink-0 border-2 border-yellow-400">
                   {provostImg || provostData?.image ? <img src={provostImg || provostData?.image} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#0f4c2e] font-black text-[10px]">PROVOST</div>}
                 </div>
-                <div><h3 className="font-black text-lg">{provostData?.name || 'Mrs Terna Fiase'}</h3><p className="text-xs text-yellow-200 font-semibold mb-2">{provostData?.title || 'MSc, BNSc, Dip Nursing Education, RNE, RM, RN • Provost'}</p><p className="text-[13px] text-green-100 leading-relaxed">{provostData?.description}</p></div>
+                <div>
+                  <h3 className="font-black text-[16px] leading-tight">{provostData?.name || 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN'}</h3>
+                  <p className="text-xs text-yellow-200 font-bold mb-2 mt-1">{provostData?.title || 'Provost, Labe College of Nursing Sciences'}</p>
+                  <p className="text-[13px] text-green-100 leading-relaxed">{provostData?.description}</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* ADDED: PHILOSOPHY, MISSION, VISION, VALUES */}
           <div className="mt-12 grid gap-8">
             <div className="bg-white border-2 border-[#0f4c2e] rounded-[2rem] p-8">
               <h3 className="text-2xl font-black text-[#0f4c2e] flex items-center gap-2"><Target className="text-yellow-600"/> PHILOSOPHY OF THE SCHOOL</h3>
               <p className="mt-4 text-sm leading-relaxed text-slate-700">Health Care Education is a life-long process that begins with the basics, and progresses all through to core and advanced levels of learning, whereby professional developments could be achieved. Advancing the art and sciences of Nursing ultimately upgrades the health status of individuals, families, communities, nations and the world in general.</p>
               <p className="mt-3 text-sm leading-relaxed text-slate-700">A solid Nursing education, therefore, equips nurses to be evidence-based in their practice, to fully engage in their scholarly and research activities, and to translate knowledge in health care and sciences into health services improvements, for the benefit of all humanity. By embracing diversity and equity perspectives in raising the professional and social conscience of our students, they would always seek best practice standards, and become top notch health services leaders.</p>
               <div className="mt-6 space-y-3 text-[13px] text-slate-700 leading-relaxed">
-                <p><b>vii) That nursing</b> is a human science vocation and a discipline that is focused on diagnosis and treatment of human responses to actual and potential health problems; and that the client is conceptualized as an individual, family, group or community. This is the focus of the nursing profession.</p>
-                <p><b>viii) That each client</b> and every member of the community is unique and holds values and beliefs reflective of their culture, sense of life experiences, and nurses must respect this fact.</p>
-                <p><b>ix) That there are core competences</b> that enable a nurse to provide “safe passage” for clients. These core competences which include but not limited are clinical judgments, advocacy, caring practice, systems thinking response to diversity, facilitation of learning, clinical inquiry/ collaboration and the like, are the basis of nurses ability to provide, design, manage and coordinate the caring practice process.</p>
-                <p><b>x) That together we serve students</b> by being strong role models through commitment to excellence as teachers, students and clinicians. The faculty is committed to cultivating an organizational sense of professional empowerment, a desire for long-life learning and a passion for social justice and social cultural harmony as a way of belonging in our school and as an integral part of our school community. Therefore, the school uses an innovative curriculum based on the changing health and socioeconomic/ cultural needs of the population and the health caring delivery system, which is integral to the dedication of the faculty as well as the student’s learning and development.</p>
-                <p><b>xi) That we all learn best</b> when actively engaged in the learning process. The faculty desires to work with students as a community of learners in which all function at a high level of accountability, flexibility and integrity.</p>
-                <p><b>vi) That since we are in a system,</b> we will collaborate with relevant cooperate organizations for effective teaching and learning process, be they local or international, government or non government.</p>
+                <p>That nursing is a human science vocation and a discipline that is focused on diagnosis and treatment of human responses to actual and potential health problems and that the client is conceptualized as an individual, family, group or community. This is the focus of the nursing profession.</p>
+                <p>That each client and every member of the community is unique and holds values and beliefs reflective of their culture, sense of life experiences, and nurses must respect this fact.</p>
+                <p>That there are core competences that enable a nurse to provide safe passage for clients. These core competences which include but not limited are clinical judgments, advocacy, caring practice, systems thinking response to diversity, facilitation of learning, clinical inquiry collaboration and the like, are the basis of nurses ability to provide, design, manage and coordinate the caring practice process.</p>
+                <p>That together we serve students by being strong role models through commitment to excellence as teachers, students and clinicians. The faculty is committed to cultivating an organizational sense of professional empowerment, a desire for long-life learning and a passion for social justice and social cultural harmony as a way of belonging in our school and as an integral part of our school community. Therefore, the school uses an innovative curriculum based on the changing health and socioeconomic cultural needs of the population and the health caring delivery system, which is integral to the dedication of the faculty as well as the student learning and development.</p>
+                <p>That we all learn best when actively engaged in the learning process. The faculty desires to work with students as a community of learners in which all function at a high level of accountability, flexibility and integrity.</p>
+                <p>That since we are in a system, we will collaborate with relevant cooperate organizations for effective teaching and learning process, be they local or international, government or non government.</p>
               </div>
             </div>
 
@@ -270,12 +281,12 @@ const LCNSWebsite = () => {
               <h3 className="text-xl font-black text-[#0f4c2e]">School Colors and Logo</h3>
               <p className="mt-2 text-sm text-slate-600">The logo for Labe College of Nursing Sciences, Gboko uses a combination of green, white, black, red, orange, and brown colours.</p>
               <div className="grid md:grid-cols-2 gap-4 mt-4 text-[13px] leading-relaxed">
-                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-green-700 shrink-0"></span><span><b>Green</b> symbolizes health, healing, life, growth, and renewal. This represents the nurturing aspect of nursing at LCNS and the hope they’ll bring to patients.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-green-700 shrink-0"></span><span><b>Green</b> symbolizes health, healing, life, growth, and renewal. This represents the nurturing aspect of nursing at LCNS and the hope they will bring to patients.</span></div>
                 <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-white border shrink-0"></span><span><b>White</b> symbolizes purity, cleanliness, peace, and integrity. White is traditionally associated with nursing profession to signify cleanliness, ethics, and professionalism.</span></div>
                 <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-black shrink-0"></span><span><b>Black</b> symbolizes the rich culture of our Diocese, strength, seriousness and professionalism. Used in Rod of Asclepius and tagline ribbon.</span></div>
-                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-red-600 shrink-0"></span><span><b>Red</b> symbolizes passion, energy, urgency, and care and reflects love, sacrifice, lifesaving nature. Motto “Learn, Serve & Save” in red.</span></div>
-                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-orange-400 shrink-0"></span><span><b>Orange (Outline)</b> symbolizes enthusiasm, creativity, and encouragement. Represents motivation to inspire next generation.</span></div>
-                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-amber-800 shrink-0"></span><span><b>Brown (Oil Lamp)</b> symbolizes tradition, wisdom, reliability. Oil lamp historic symbol of nursing, made famous by Florence Nightingale.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-red-600 shrink-0"></span><span><b>Red</b> symbolizes passion, energy, urgency, and care and reflects love, sacrifice, lifesaving nature. Motto Learn, Serve and Save in red.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-orange-400 shrink-0"></span><span><b>Orange</b> symbolizes enthusiasm, creativity, and encouragement. Represents motivation to inspire next generation.</span></div>
+                <div className="flex gap-2"><span className="w-6 h-6 rounded-full bg-amber-800 shrink-0"></span><span><b>Brown</b> symbolizes tradition, wisdom, reliability. Oil lamp historic symbol of nursing, made famous by Florence Nightingale.</span></div>
               </div>
             </div>
           </div>
@@ -291,7 +302,6 @@ const LCNSWebsite = () => {
           <h2 className="text-3xl font-black text-[#0f4c2e]">Official Campus Gallery — Auto Changes Every 15 Seconds</h2>
           {gallery.length ? (
             <>
-              {/* Big slideshow */}
               <div className="mt-6 bg-white border-2 rounded-[2rem] p-2 shadow-xl">
                 <div className="relative h-[420px] md:h-[520px] rounded-[1.6rem] overflow-hidden">
                   <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_url} className="h-full w-full object-cover transition-all duration-1000" alt={gallery[currentSlide]?.title}/>
@@ -308,7 +318,6 @@ const LCNSWebsite = () => {
                   </div>
                 </div>
               </div>
-              {/* Thumbnails */}
               <div className="grid md:grid-cols-6 gap-3 mt-4">
                 {gallery.map((g:any,i:number)=>(
                   <button key={i} onClick={()=>setCurrentSlide(i)} className={`border-2 rounded-xl overflow-hidden transition-all ${i===currentSlide ? 'border-yellow-400 ring-2 ring-yellow-200' : 'border-green-100'}`}>
