@@ -33,13 +33,32 @@ export const HODDashboard: React.FC = () => {
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [selectedBiodata, setSelectedBiodata] = useState<any>(null);
 
-  const currentUser = StorageService.getCurrentUser() || {
+  // FIXED - Now shows logged-in HOD name, not hardcoded Rebecca for everyone
+  const safeCurrentUser = (() => {
+    try {
+      const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
+      for (const k of keys) {
+        const v = localStorage.getItem(k);
+        if (v) {
+          const parsed = JSON.parse(v);
+          if (parsed && parsed.email) return parsed;
+        }
+      }
+      return StorageService.getCurrentUser();
+    } catch { return null; }
+  })();
+
+  const currentUser = safeCurrentUser || {
     id: 'LCNS/2026/HOD/001',
     email: 'hod.nursing@lcns.edu.ng',
     role: 'HOD',
     fullName: 'Dr. (Mrs) Rebecca M. Chia',
     status: 'ACTIVE',
   };
+
+  const displayName = (currentUser?.fullName || currentUser?.full_name || 'Dr. (Mrs) Rebecca M. Chia').toString().toUpperCase();
+  const displayEmail = currentUser?.email || 'hod.nursing@lcns.edu.ng';
+  const displayRole = currentUser?.role || 'HOD';
 
   const filteredStudents = students.filter((s: any) => {
     if (levelFilter !== 'ALL' && s.level !== levelFilter) return false;
@@ -63,7 +82,7 @@ export const HODDashboard: React.FC = () => {
     const updated = [...courses, newCourse];
     StorageService.saveCourses(updated);
     setCourses(updated);
-    StorageService.logAction('hod.nursing@lcns.edu.ng','HOD','ADD_COURSE',`Allocated course ${code}: ${title} to ${lecturerName}`);
+    StorageService.logAction(displayEmail, displayRole,'ADD_COURSE',`Allocated course ${code}: ${title} to ${lecturerName}`);
     setCode(''); setTitle(''); setShowAddCourse(false);
   };
 
@@ -72,9 +91,9 @@ export const HODDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • Course Registration Approval - Credit Units Check + Score Sheets</span>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">Dr. (Mrs) Rebecca M. Chia</h1>
-            <p className="text-xs text-emerald-200">Approve Course Registration - If credit units exceed limit - MUST DISAPPROVE + See Lecturers Score Sheets - Download PDF with SCHOOL NAME + LOGO</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • {displayRole} • Course Registration Approval - Credit Units Check + Score Sheets</span>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">{displayName}</h1>
+            <p className="text-xs text-emerald-200">{displayEmail} - Approve Course Registration - If credit units exceed limit - MUST DISAPPROVE + See Lecturers Score Sheets - Download PDF with SCHOOL NAME + LOGO - Logged in as {displayName}</p>
           </div>
           <button onClick={() => setShowAddCourse(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-md self-start sm:self-auto"><Plus className="w-4 h-4"/><span>Allocate New Course</span></button>
         </div>
@@ -95,7 +114,7 @@ export const HODDashboard: React.FC = () => {
       ) : activeTab==='biodata' ? (
         <div className="bg-white rounded-3xl border-2 border-emerald-300 p-4 space-y-4">
           <div className="flex flex-col md:flex-row justify-between gap-3">
-            <div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata - Current Level ND1 ND2 HND1 HND2 - HOD View</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">HOD see all student biodata + approve course registration - If credit units exceed limit - MUST DISAPPROVE - Print with SCHOOL FULL NAME + LOGO</p></div>
+            <div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata - Current Level ND1 ND2 HND1 HND2 - HOD View - {displayName}</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">HOD {displayName} see all student biodata + approve course registration - If credit units exceed limit - MUST DISAPPROVE - Print with SCHOOL FULL NAME + LOGO</p></div>
             <button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-1 self-start"><Download className="w-4 h-4"/>Print Biodata</button>
           </div>
           <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border">
@@ -122,10 +141,10 @@ export const HODDashboard: React.FC = () => {
           {selectedBiodata && (<div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-3"><div className="flex justify-between border-b pb-2"><h3 className="font-black">Biodata - {selectedBiodata.fullName} - Current Level: {selectedBiodata.level}</h3><button onClick={()=>setSelectedBiodata(null)} className="px-3 py-1 bg-slate-100 rounded-full font-black">X</button></div><div className="text-xs space-y-1"><p>Matric: {selectedBiodata.matricNo}</p><p>Program: {selectedBiodata.program}</p><p>Level: {selectedBiodata.level}</p><p>Session: {selectedBiodata.session}</p><p>State: {selectedBiodata.stateOfOrigin}</p></div><button onClick={()=>window.print()} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Print Biodata</button></div></div>)}
         </div>
       ) : activeTab==='admissions_all' ? (
-        <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">HOD View All Applicants Records - Link</div><AdminAdmissionManager currentUser={currentUser} /></div>
+        <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">HOD View All Applicants Records - {displayName} - Link</div><AdminAdmissionManager currentUser={currentUser} /></div>
       ) : (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-900 text-base uppercase">Semester Course Allocations & Academic Staff</h3><p className="text-xs text-slate-500">Accredited courses assigned to lecturers.</p></div><span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">{courses.length} Active Courses</span></div>
+          <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-900 text-base uppercase">Semester Course Allocations & Academic Staff - {displayName}</h3><p className="text-xs text-slate-500">Accredited courses assigned to lecturers. HOD: {displayName}</p></div><span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">{courses.length} Active Courses</span></div>
           <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-700 font-bold uppercase border-b"><tr><th className="p-3">Course Code</th><th className="p-3">Course Title</th><th className="p-3 text-center">Units</th><th className="p-3">Level / Semester</th><th className="p-3">Assigned Staff</th><th className="p-3">Department</th></tr></thead><tbody className="divide-y divide-slate-100">{courses.map((c)=>(<tr key={c.id} className="hover:bg-slate-50"><td className="p-3 font-mono font-bold text-emerald-900">{c.code}</td><td className="p-3 font-bold text-slate-900">{c.title}</td><td className="p-3 text-center font-bold">{c.units} Units</td><td className="p-3 text-slate-600"><span className="font-semibold text-slate-800">{c.level}</span><span className="block text-[10px] text-slate-500">{c.semester} Semester</span></td><td className="p-3 font-semibold text-emerald-950 flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-emerald-700"/><span>{c.lecturerName}</span></td><td className="p-3 text-slate-500">{c.department}</td></tr>))}</tbody></table></div>
         </div>
       )}
@@ -133,7 +152,7 @@ export const HODDashboard: React.FC = () => {
       {showAddCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border space-y-4">
-            <h3 className="text-base font-bold uppercase">Allocate Course to Lecturer</h3>
+            <h3 className="text-base font-bold uppercase">Allocate Course to Lecturer - HOD {displayName}</h3>
             <form onSubmit={handleCreateCourse} className="space-y-3 text-xs">
               <div><label className="block font-bold mb-1">Course Code *</label><input type="text" required value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. NSC 201" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs uppercase font-mono-code"/></div>
               <div><label className="block font-bold mb-1">Course Title *</label><input type="text" required value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Medical-Surgical Nursing I" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"/></div>
