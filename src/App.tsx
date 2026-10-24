@@ -21,6 +21,7 @@ import { AdminApplicantCBTPage } from './components/admin/AdminApplicantCBTPage'
 import { CourseManagerView } from './components/common/CourseManagerView';
 import { CBTExamManager } from './components/cbt/CBTExamManager';
 import { StudentPortal } from './components/portals/StudentPortal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(StorageService.getCurrentUser());
@@ -223,66 +224,68 @@ export default function App() {
   const isDirectAdminUrl = window.location.pathname.toLowerCase().startsWith('/admin');
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-[#0a4d2e] selection:text-white">
-      <div className="marquee-top no-print" style={{ background: '#ca8a04', color: '#0a4d2e', fontWeight: 900, textTransform: 'uppercase', padding: '8px 0', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '14px' }}>
-        <div style={{ display: 'inline-block', animation: 'marquee 25s linear infinite' }}>
-          LABE COLLEGE OF NURSING SCIENCES GBOKO - CHIEF ICT: AVULE SAMUEL - EMAIL: INFO@LCNS.EDU.NG - ICT: 08126799565 - ADMISSION 2026/2027 OPEN - LEARN, SERVE & SAVE
+    <ErrorBoundary>
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-[#0a4d2e] selection:text-white">
+        <div className="marquee-top no-print" style={{ background: '#ca8a04', color: '#0a4d2e', fontWeight: 900, textTransform: 'uppercase', padding: '8px 0', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '14px' }}>
+          <div style={{ display: 'inline-block', animation: 'marquee 25s linear infinite' }}>
+            LABE COLLEGE OF NURSING SCIENCES GBOKO - CHIEF ICT: AVULE SAMUEL - EMAIL: INFO@LCNS.EDU.NG - ICT: 08126799565 - ADMISSION 2026/2027 OPEN - LEARN, SERVE & SAVE
+          </div>
         </div>
-      </div>
 
-      <Navbar currentUser={currentUser} onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} activeView={activeView} setActiveView={setActiveView} />
+        <Navbar currentUser={currentUser} onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} activeView={activeView} setActiveView={setActiveView} />
 
-      <div className="flex-1">
-        {customView === 'applicant-printout' ? <ApplicantPrintoutPage /> :
-         customView === 'applicant-dashboard' ? <ApplicantDashboard /> :
-         customView === 'check-admission' ? <CheckAdmissionPage onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} /> :
-         customView === 'applicant-cbt' ? <ApplicantCBTPage /> :
-         customView === 'admissions' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><AdmissionProcessingView /></div></div> :
-         customView === 'bursar' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><BursarDashboard /></div></div> :
-         customView === 'admin-applicant-cbt' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><AdminApplicantCBTPage /></div></div> :
-         customView === 'courses' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><CourseManagerView portalRole="Academic Staff & Curriculum" /></div></div> :
-         customView === 'lecturer-cbt-create' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><CBTExamManager currentUser={currentUser || { id: 'LCNS/2026/LC/001', email: 'lecturer@lcns.edu.ng', role: 'LECTURER', fullName: 'Nurse Emmanuel Gbaorun', department: 'Nursing Sciences', status: 'ACTIVE' }} allowedTypes={['COURSE_TEST']} /></div></div> :
-         customView === 'student-cbt' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><StudentPortal /></div></div> :
-         activeView === 'portal' && currentUser ? <PortalShell currentUser={currentUser} onLogout={handleLogout} onBackToWebsite={() => { setActiveView('website'); window.history.pushState({}, '', '/'); }} adminInitialTab={adminInitialTab} /> :
-         isDirectAdminUrl && !currentUser ? (
-          <div className="min-h-[80vh] flex items-center justify-center p-4 bg-gradient-to-b from-slate-900 via-[#0a4d2e] to-slate-950 py-12">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-700/40">
-              <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-7 text-center">
-                <div className="flex justify-center mb-3"><CollegeLogo size="lg" /></div>
-                <h2 className="text-xl font-black uppercase tracking-wide">Central ICT Administration</h2>
-                <p className="text-xs text-emerald-200 mt-1">Labe College - Avule Samuel (Chief Admin)</p>
-                <div className="inline-block mt-3 px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold text-[#ca8a04] uppercase tracking-wider border border-white/10">Protected System Access</div>
-              </div>
-              <div className="p-6 sm:p-8 space-y-5">
-                {adminLoginError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-start gap-2"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{adminLoginError}</span></div>}
-                <form onSubmit={handleDirectAdminSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Chief Admin Email</label>
-                    <div className="relative"><Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" /><input type="text" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-[#0a4d2e] text-slate-900" required /></div>
+        <div className="flex-1">
+          {customView === 'applicant-printout' ? <ApplicantPrintoutPage /> :
+           customView === 'applicant-dashboard' ? <ApplicantDashboard /> :
+           customView === 'check-admission' ? <CheckAdmissionPage onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} /> :
+           customView === 'applicant-cbt' ? <ApplicantCBTPage /> :
+           customView === 'admissions' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><AdmissionProcessingView /></div></div> :
+           customView === 'bursar' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><BursarDashboard /></div></div> :
+           customView === 'admin-applicant-cbt' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><AdminApplicantCBTPage /></div></div> :
+           customView === 'courses' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><CourseManagerView portalRole="Academic Staff & Curriculum" /></div></div> :
+           customView === 'lecturer-cbt-create' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><CBTExamManager currentUser={currentUser || { id: 'LCNS/2026/LC/001', email: 'lecturer@lcns.edu.ng', role: 'LECTURER', fullName: 'Nurse Emmanuel Gbaorun', department: 'Nursing Sciences', status: 'ACTIVE' }} allowedTypes={['COURSE_TEST']} /></div></div> :
+           customView === 'student-cbt' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><StudentPortal /></div></div> :
+           activeView === 'portal' && currentUser ? <PortalShell currentUser={currentUser} onLogout={handleLogout} onBackToWebsite={() => { setActiveView('website'); window.history.pushState({}, '', '/'); }} adminInitialTab={adminInitialTab} /> :
+           isDirectAdminUrl && !currentUser ? (
+            <div className="min-h-[80vh] flex items-center justify-center p-4 bg-gradient-to-b from-slate-900 via-[#0a4d2e] to-slate-950 py-12">
+              <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-emerald-700/40">
+                <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-7 text-center">
+                  <div className="flex justify-center mb-3"><CollegeLogo size="lg" /></div>
+                  <h2 className="text-xl font-black uppercase tracking-wide">Central ICT Administration</h2>
+                  <p className="text-xs text-emerald-200 mt-1">Labe College - Avule Samuel (Chief Admin)</p>
+                  <div className="inline-block mt-3 px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold text-[#ca8a04] uppercase tracking-wider border border-white/10">Protected System Access</div>
+                </div>
+                <div className="p-6 sm:p-8 space-y-5">
+                  {adminLoginError && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-start gap-2"><AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /><span>{adminLoginError}</span></div>}
+                  <form onSubmit={handleDirectAdminSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Chief Admin Email</label>
+                      <div className="relative"><Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" /><input type="text" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-[#0a4d2e] text-slate-900" required /></div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                      <div className="relative"><Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" /><input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-[#0a4d2e] text-slate-900" required /></div>
+                    </div>
+                    <button type="submit" disabled={adminLoginLoading} className="w-full py-3 px-4 bg-[#0a4d2e] hover:bg-[#073822] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2">
+                      {adminLoginLoading ? <span>Verifying...</span> : <><UserCheck className="w-4 h-4 text-[#22c55e]" /><span>Sign In as Avule Samuel</span></>}
+                    </button>
+                  </form>
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <button onClick={() => { window.history.pushState({}, '', '/'); setActiveView('website'); }} className="text-slate-500 hover:text-slate-900 font-bold">&larr; Return to Website</button>
+                    <button onClick={() => { setAdminEmail('samuel@lcns.edu.ng'); setAdminPassword('Lcns@2026'); }} className="text-[#0a4d2e] font-bold hover:underline text-[11px]">Auto-Fill Chief Admin</button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
-                    <div className="relative"><Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" /><input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-[#0a4d2e] text-slate-900" required /></div>
-                  </div>
-                  <button type="submit" disabled={adminLoginLoading} className="w-full py-3 px-4 bg-[#0a4d2e] hover:bg-[#073822] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2">
-                    {adminLoginLoading ? <span>Verifying...</span> : <><UserCheck className="w-4 h-4 text-[#22c55e]" /><span>Sign In as Avule Samuel</span></>}
-                  </button>
-                </form>
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <button onClick={() => { window.history.pushState({}, '', '/'); setActiveView('website'); }} className="text-slate-500 hover:text-slate-900 font-bold">&larr; Return to Website</button>
-                  <button onClick={() => { setAdminEmail('samuel@lcns.edu.ng'); setAdminPassword('Lcns@2026'); }} className="text-[#0a4d2e] font-bold hover:underline text-[11px]">Auto-Fill Chief Admin</button>
                 </div>
               </div>
             </div>
-          </div>
-        ) : <CollegeWebsite onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} />}
+          ) : <CollegeWebsite onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} />}
+        </div>
+
+        {activeView === 'website' && !isDirectAdminUrl && (!customView || customView === 'check-admission') && <Footer onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} setActiveView={setActiveView} />}
+
+        <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} />
+        <ApplicationFormModal isOpen={isApplicationOpen} onClose={() => setIsApplicationOpen(false)} onOpenAdmissionChecker={handleOpenAdmissionCheckerWithForm} />
+        <AdmissionCheckerModal isOpen={isAdmissionCheckerOpen} onClose={() => setIsAdmissionCheckerOpen(false)} defaultFormNo={checkerDefaultFormNo} onOpenLogin={() => setIsLoginOpen(true)} />
       </div>
-
-      {activeView === 'website' && !isDirectAdminUrl && (!customView || customView === 'check-admission') && <Footer onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} setActiveView={setActiveView} />}
-
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} />
-      <ApplicationFormModal isOpen={isApplicationOpen} onClose={() => setIsApplicationOpen(false)} onOpenAdmissionChecker={handleOpenAdmissionCheckerWithForm} />
-      <AdmissionCheckerModal isOpen={isAdmissionCheckerOpen} onClose={() => setIsAdmissionCheckerOpen(false)} defaultFormNo={checkerDefaultFormNo} onOpenLogin={() => setIsLoginOpen(true)} />
-    </div>
+    </ErrorBoundary>
   );
 }
