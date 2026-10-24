@@ -56,7 +56,7 @@ const RegistrarApplicantCBTManager = () => {
   const saveExams = (newExams: any[]) => {
     setExams(newExams);
     localStorage.setItem('lcns_applicant_exams', JSON.stringify(newExams));
-    localStorage.setItem('lcns_cbt_exams', JSON.stringify(newExams)); // For applicant portal compatibility
+    localStorage.setItem('lcns_cbt_exams', JSON.stringify(newExams));
   };
 
   const saveQuestions = (newQs: any[]) => {
@@ -120,17 +120,12 @@ const RegistrarApplicantCBTManager = () => {
   };
 
   const publishScoreForApplicant = (attempt: any) => {
-    // Recalculate score with current correct answers
     let score = 0;
     const attemptAnswers = attempt.answers || {};
-    // If answers stored in attempt directly, we need to recalc: for now use stored attempt with new correct answers
-    // For old attempts without answers array, we keep submitted score but allow registrar to override
     const qsForExam = questions.filter((q:any)=> q.exam_id === attempt.exam_id || true);
-    // Simple: if attempt has answers, recalc, else keep score
     if (Object.keys(attemptAnswers).length) {
       qsForExam.forEach((q:any)=>{ if(attemptAnswers[q.id]===q.correct_option) score++; });
     } else {
-      // Use existing score but allow edit via prompt
       const newScore = prompt(`Set final score for ${attempt.applicant_name} (${attempt.application_number || attempt.jamb_no}) - Total ${qsForExam.length || attempt.total}. Enter score:`, attempt.score);
       if (newScore !== null) score = parseInt(newScore);
       else return;
@@ -139,11 +134,9 @@ const RegistrarApplicantCBTManager = () => {
     const perc = Math.round((score/total)*100);
     const published = { ...attempt, score, total, percentage: perc, published_at: new Date().toISOString(), published_by: 'Registrar', result_status: 'published' };
     localStorage.setItem('lcns_cbt_published_' + (attempt.application_number || attempt.jamb_no || attempt.applicant_name), JSON.stringify(published));
-    // Also update global attempts with published flag
     const updatedAttempts = attempts.map((a:any)=> a.application_number===attempt.application_number || a.jamb_no===attempt.jamb_no ? {...a, cbt_published: true, cbt_score: score, cbt_total: total, cbt_percentage: perc} : a);
     setAttempts(updatedAttempts);
     localStorage.setItem('lcns_cbt_attempts', JSON.stringify(updatedAttempts));
-    // Update applicant record
     try {
       const allApplicants = JSON.parse(localStorage.getItem('lcns_applicants') || '[]');
       const updated = allApplicants.map((ap:any)=> ap.application_number===attempt.application_number || ap.jamb_reg_number===attempt.jamb_no ? {...ap, cbt_published: true, cbt_score: score, cbt_total: total, cbt_percentage: perc, cbt_published_by: 'Registrar', cbt_published_at: new Date().toISOString()} : ap);
@@ -178,7 +171,6 @@ const RegistrarApplicantCBTManager = () => {
         <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-black">{exams.length} Exams • {questions.length} Questions • {attempts.length} Attempts</span>
       </div>
 
-      {/* CREATE EXAM FORM */}
       <div className="bg-[#f0faf0] border-2 border-[#0f4c2e] rounded-2xl p-5 space-y-4">
         <h3 className="font-black text-sm">SET APPLICANT EXAM - Time, Anti-cheat, Fullscreen</h3>
         <div className="grid md:grid-cols-2 gap-3">
@@ -202,7 +194,6 @@ const RegistrarApplicantCBTManager = () => {
         {selectedExam && <div className="text-xs bg-white p-3 rounded-xl border"><p className="font-black">Current Exam: {selectedExam.title} | Status: <span className={selectedExam.status==='published'?'text-green-600':'text-amber-600'}>{selectedExam.status}</span> | Duration: {selectedExam.duration_minutes} mins | Anti-cheat: {selectedExam.max_tab_switches || selectedExam.anti_cheat_warnings} warnings | Fullscreen: {selectedExam.full_screen_required || selectedExam.fullScreen ? 'Yes' : 'No'} | Time: {selectedExam.start_time} to {selectedExam.end_time}</p></div>}
       </div>
 
-      {/* ADD QUESTIONS + SET CORRECT ANSWER AFTER */}
       <div className="bg-white border-2 rounded-2xl p-5 space-y-4">
         <h3 className="font-black text-sm">ADD QUESTIONS - Set Correct Answer (Can change after applicant submitted - Then publish scores)</h3>
         <div className="grid gap-3">
@@ -238,7 +229,6 @@ const RegistrarApplicantCBTManager = () => {
         </div>
       </div>
 
-      {/* PUBLISH SCORES */}
       <div className="bg-yellow-50 border-2 border-yellow-400 rounded-2xl p-5 space-y-3">
         <h3 className="font-black text-sm flex items-center gap-2"><Award className="text-yellow-600"/> Applicant Attempts - Publish & Unpublish Scores - Applicant See Scores</h3>
         <p className="text-xs">After applicant submits entrance exam, Registrar sets correct answers above, then publishes scores - Applicant sees scores in dashboard</p>
@@ -277,13 +267,31 @@ export const RegistrarDashboard: React.FC = () => {
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [selectedBiodata, setSelectedBiodata] = useState<any>(null);
 
-  const currentUser = StorageService.getCurrentUser() || {
+  // FIXED - Now shows logged-in Registrar name, not hardcoded
+  const safeCurrentUser = (() => {
+    try {
+      const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
+      for (const k of keys) {
+        const v = localStorage.getItem(k);
+        if (v) {
+          const parsed = JSON.parse(v);
+          if (parsed && parsed.email) return parsed;
+        }
+      }
+      return StorageService.getCurrentUser();
+    } catch { return null; }
+  })();
+
+  const currentUser = safeCurrentUser || {
     id: 'LCNS/2026/RG/001',
     email: 'registrar@lcns.edu.ng',
     role: 'REGISTRAR',
     fullName: 'Registrar - LCNS',
     status: 'ACTIVE',
   };
+
+  const displayName = (currentUser?.fullName || currentUser?.full_name || currentUser?.email || 'Registrar - LCNS').toString().toUpperCase();
+  const displayEmail = currentUser?.email || 'registrar@lcns.edu.ng';
 
   const totalRevenue = payments.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + p.amount, 0);
 
@@ -295,7 +303,7 @@ export const RegistrarDashboard: React.FC = () => {
 
   const handleSenateApproval = () => {
     setSenateApproved(true);
-    StorageService.logAction('registrar@lcns.edu.ng','REGISTRAR','SENATE_RATIFICATION','Senate Ratification granted');
+    StorageService.logAction(displayEmail,'REGISTRAR','SENATE_RATIFICATION','Senate Ratification granted');
     alert('Senate Ratification Granted!');
   };
 
@@ -304,9 +312,9 @@ export const RegistrarDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar - Score Sheets + Applicant Entrance CBT Manager - NEW</span>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">Office of the Registrar - LCNS</h1>
-            <p className="text-xs text-blue-200">Executive Overview + Score Sheets Download + All Students Biodata + All Applicants + APPLICANT ENTRANCE CBT: Set Time, Anti-cheat 10 warnings, Fullscreen, Publish/Unpublish, Correct Answer After Submit, Publish Scores</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar - {displayName} - Score Sheets + Applicant Entrance CBT Manager - NEW</span>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
+            <p className="text-xs text-blue-200">{displayEmail} - Executive Overview + Score Sheets Download + All Students Biodata + All Applicants + APPLICANT ENTRANCE CBT: Set Time, Anti-cheat 10 warnings, Fullscreen, Publish/Unpublish, Correct Answer After Submit, Publish Scores</p>
           </div>
           <div className="text-right"><span className="text-xs text-blue-300 font-semibold block">Academic Session</span><span className="text-lg font-black text-amber-400 font-mono-code">{COLLEGE_CONFIG.CURRENT_SESSION}</span></div>
         </div>
@@ -346,7 +354,7 @@ export const RegistrarDashboard: React.FC = () => {
           {selectedBiodata && <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-white rounded-2xl max-w-2xl w-full p-6"><div className="flex justify-between border-b pb-2"><h3 className="font-black">Full Biodata - {selectedBiodata.fullName}</h3><button onClick={()=>setSelectedBiodata(null)} className="px-3 py-1 bg-slate-100 rounded-full font-black">X</button></div><button onClick={()=>window.print()} className="w-full mt-4 py-3 bg-slate-900 text-white rounded-xl font-black">Print Biodata</button></div></div>}
         </div>
       ) : activeTab==='admissions_all' ? (
-        <div className="space-y-4"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Registrar All Applicants Records - CBT + Interview + Admit Link</div><AdminAdmissionManager currentUser={currentUser} /></div>
+        <div className="space-y-4"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Registrar All Applicants Records - CBT + Interview + Admit Link - {displayName}</div><AdminAdmissionManager currentUser={currentUser} /></div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-5 bg-white rounded-3xl border shadow-sm"><p className="text-xs font-bold uppercase">Total Enrolled</p><p className="text-2xl font-black">{students.length + 415}</p></div>
