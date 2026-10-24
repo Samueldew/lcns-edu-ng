@@ -26,7 +26,15 @@ export const ProvostDashboard: React.FC = () => {
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
-  const [senateApproved, setSenateApproved] = useState(false);
+  const [senateApproved, setSenateApproved] = useState(() => {
+    try {
+      // LOAD saved state so it stays approved after refresh
+      const saved = localStorage.getItem('lcns_senate_approved');
+      if (saved === 'true') return true;
+      const logs = JSON.parse(localStorage.getItem('lcns_audit_logs') || '[]');
+      return !!logs.find((l:any)=> l.action==='SENATE_RATIFICATION');
+    } catch { return false; }
+  });
 
   // FIXED - Now shows logged-in Provost name, not hardcoded Mrs Terna for everyone
   const safeCurrentUser = (() => {
@@ -59,14 +67,56 @@ export const ProvostDashboard: React.FC = () => {
   const totalRevenue = payments.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + p.amount, 0);
 
   const handleSenateApproval = () => {
+    const now = new Date().toISOString();
+    const session = COLLEGE_CONFIG.CURRENT_SESSION || '2026/2027';
+    const payload = {
+      approved: true,
+      date: now,
+      timestamp: now,
+      provostName: displayName,
+      provostEmail: displayEmail,
+      session: session,
+      semester: 'First',
+      action: 'SENATE_RATIFICATION',
+    };
+
+    // FIXED - SAVE to localStorage for StudentPortal to read
+    try {
+      localStorage.setItem('lcns_senate_approved', 'true');
+      localStorage.setItem('lcns_senate_ratification', JSON.stringify(payload));
+      localStorage.setItem('lcns_senate_ratified', 'true');
+      localStorage.setItem('lcns_senate_approval', 'true');
+      localStorage.setItem(`lcns_senate_ratification_${session}_First`, JSON.stringify(payload));
+      localStorage.setItem(`lcns_senate_ratification_${session}_Second`, JSON.stringify(payload));
+      localStorage.setItem(`lcns_senate_approved_${session}`, 'true');
+      localStorage.setItem(`lcns_senate_approval_${session}`, JSON.stringify(payload));
+      // Trigger event so student dashboard updates without refresh
+      window.dispatchEvent(new Event('lcns_storage_update'));
+      window.dispatchEvent(new Event('storage'));
+    } catch {}
+
     setSenateApproved(true);
     StorageService.logAction(
       displayEmail,
       displayRole,
       'SENATE_RATIFICATION',
-      'Academic Board granted Senate Ratification for 2026/2027 First Semester Examination Broadsheet.'
+      `Academic Board granted Senate Ratification for ${session} First Semester Examination Broadsheet by ${displayName} on ${new Date().toLocaleString()}.`
     );
-    alert('Senate Ratification Granted: First Semester Examination results are now officially validated and published to student portals.');
+    alert(`✅ Senate Ratification Granted by ${displayName}: First Semester Examination results are now officially validated and published to student portals. Students can now see and print their results.`);
+  };
+
+  const handleRevokeApproval = () => {
+    if (!confirm('Revoke Senate Approval? Students will no longer see results.')) return;
+    try {
+      localStorage.removeItem('lcns_senate_approved');
+      localStorage.removeItem('lcns_senate_ratification');
+      localStorage.removeItem('lcns_senate_ratified');
+      localStorage.removeItem('lcns_senate_approval');
+      window.dispatchEvent(new Event('lcns_storage_update'));
+    } catch {}
+    setSenateApproved(false);
+    StorageService.logAction(displayEmail, displayRole, 'SENATE_REVOKE', 'Senate Ratification revoked');
+    alert('Senate approval revoked - Results hidden from students');
   };
 
   return (
@@ -126,10 +176,23 @@ export const ProvostDashboard: React.FC = () => {
           </div>
           <div className="bg-white rounded-3xl border-2 border-emerald-700/40 p-6 sm:p-8 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1"><span className="text-xs font-bold uppercase text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">Senate Academic Board Agenda - {displayName}</span><h3 className="text-lg font-black text-slate-950 uppercase font-serif-crest">2026/2027 First Semester Examination Broadsheet Ratification</h3><p className="text-xs text-slate-600">Submitted by Dr. Emmanuel O. Agada (Examination Officer) and moderated by Heads of Department. Provost: {displayName}</p></div>
-              <button onClick={handleSenateApproval} disabled={senateApproved} className={`px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md transition-all ${senateApproved ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-emerald-800 hover:bg-emerald-900 text-white'}`}><CheckCircle2 className="w-4 h-4 text-amber-300" /><span>{senateApproved ? 'Senate Ratified & Approved' : 'Grant Senate Final Approval'}</span></button>
+              <div className="space-y-1"><span className="text-xs font-bold uppercase text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">Senate Academic Board Agenda - {displayName} - {senateApproved ? '✅ APPROVED & PUBLISHED TO STUDENTS' : '⏳ PENDING'}</span><h3 className="text-lg font-black text-slate-950 uppercase font-serif-crest">2026/2027 First Semester Examination Broadsheet Ratification</h3><p className="text-xs text-slate-600">Submitted by Dr. Emmanuel O. Agada (Examination Officer) and moderated by Heads of Department. Provost: {displayName} - This will unlock results for all students to see and print.</p></div>
+              <div className="flex gap-2">
+                <button onClick={handleSenateApproval} disabled={senateApproved} className={`px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md transition-all ${senateApproved ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-emerald-800 hover:bg-emerald-900 text-white'}`}><CheckCircle2 className="w-4 h-4 text-amber-300" /><span>{senateApproved ? 'Senate Ratified & Approved' : 'Grant Senate Final Approval'}</span></button>
+                {senateApproved && <button onClick={handleRevokeApproval} className="px-3 py-3 rounded-xl text-xs font-bold bg-red-50 text-red-700 border border-red-200">Revoke</button>}
+              </div>
             </div>
-            {senateApproved && (<div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /><span>Senate approval granted on {new Date().toLocaleDateString()} by {displayName}. Transcripts and Semester GPA results are officially unlocked for all students.</span></div>)}
+            {senateApproved ? (
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>✅ Senate approval granted on {new Date().toLocaleDateString()} by {displayName}. Transcripts and Semester GPA results are officially unlocked for all students. Saved to localStorage - Students can now view results in Student Portal. Refresh student page to see.</span>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>⏳ Not yet ratified - Students currently see 🔒 "Result Not Yet Published - Awaiting Provost Senate Ratification" - Click Grant to publish to all student portals.</span>
+              </div>
+            )}
           </div>
         </>
       )}
