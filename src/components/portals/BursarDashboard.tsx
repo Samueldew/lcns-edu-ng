@@ -11,7 +11,7 @@ export const BursarFeeManager: React.FC = () => {
   const [fees, setFees] = useState<FeeItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [tab, setTab] = useState('dashboard');
-  const [feeName, setFeeName] = useState(''); const [feeAmount, setFeeAmount] = useState(''); const [accNo, setAccNo] = useState(''); const [bank, setBank] = useState('Zenith Bank'); const [applyTo, setApplyTo] = useState('BOTH'); const [level, setLevel] = useState('ND1');
+  const [feeName, setFeeName] = useState(''); const [feeAmount, setFeeNameAmount] = useState(''); const [accNo, setAccNo] = useState(''); const [bank, setBank] = useState('Zenith Bank'); const [applyTo, setApplyTo] = useState('BOTH'); const [level, setLevel] = useState('ND1');
 
   // FIXED - Bursar name display
   const safeCurrentUser = (() => {
@@ -42,7 +42,23 @@ export const BursarFeeManager: React.FC = () => {
   const [lastReceipt, setLastReceipt] = useState<Payment | null>(null);
   const [searchStudent, setSearchStudent] = useState('');
 
-  const allUsers = (() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } })();
+  // === ADDED ONLY - BURSAR ONLY SEES STUDENT RECORDS NOT STAFF - NO DELETE YOUR LOGIC ===
+  const allUsersRaw = (() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } })();
+  
+  // FILTER: ONLY STUDENTS - Exclude STAFF, LECTURER, ADMIN, BURSAR, CHIEF_ADMIN, HOD, REGISTRAR, PROVOST
+  const allUsers = allUsersRaw.filter((u: any) => {
+    const r = (u.role || '').toUpperCase();
+    const isStaffRole = r.includes('STAFF') || r.includes('LECTURER') || r.includes('ADMIN') || r.includes('BURSAR') || r.includes('HOD') || r.includes('REGISTRAR') || r.includes('PROVOST') || r.includes('CHIEF') || r.includes('EXAM_OFFICER') || r.includes('LIBRARIAN');
+    const isStudentRole = r.includes('STUDENT') || r === 'ND1' || r === 'ND2' || r === 'HND1' || r === 'HND2' || r.includes('ND') || r.includes('HND');
+    const hasMatric = !!(u.matricNumber || u.matric_number || u.matricNo || u.matric_no || u.level);
+    
+    // Keep if student role OR has matric/level AND not staff role
+    if (isStaffRole) return false; // BLOCK STAFF
+    if (isStudentRole) return true; // ALLOW STUDENT
+    if (hasMatric) return true; // ALLOW if has matric (student)
+    return false; // BLOCK others (staff without matric)
+  });
+
   const filteredStudentsForPay = allUsers.filter((u:any) => {
     if (!searchStudent) return true;
     return `${u.fullName || u.name || ''} ${u.matricNumber || u.matric_number || u.matricNo || ''} ${u.email || ''}`.toLowerCase().includes(searchStudent.toLowerCase());
@@ -54,19 +70,39 @@ export const BursarFeeManager: React.FC = () => {
       if (sb) {
         const { data: f } = await sb.from('lcns_fees').select('*').order('created_at', { ascending: false });
         const { data: p } = await sb.from('lcns_student_payments').select('*').order('created_at', { ascending: false });
-        if (f) setFees(f as any); if (p) setPayments(p as any);
+        if (f) setFees(f as any); 
+        if (p) {
+          // === ADDED - FILTER PAYMENTS TO ONLY STUDENTS - NO STAFF ===
+          const studentPayments = (p as any).filter((pay: any) => {
+            const mt = (pay.matric_no || pay.user_type || '').toUpperCase();
+            // Exclude if matric looks like staff ID LCNS/ST/
+            if (mt.includes('LCNS/ST/')) return false;
+            if ((pay.user_type || '').toUpperCase().includes('STAFF')) return false;
+            return true;
+          });
+          setPayments(studentPayments);
+        }
       }
     } catch {}
     const lf = JSON.parse(localStorage.getItem('lcns_fees') || '[]'); if (lf.length && fees.length===0) setFees(lf);
-    const lp = JSON.parse(localStorage.getItem('lcns_student_payments') || '[]'); if (lp.length && payments.length===0) setPayments(lp);
+    const lp = JSON.parse(localStorage.getItem('lcns_student_payments') || '[]'); 
+    if (lp.length && payments.length===0) {
+      // Filter local too - STUDENT ONLY
+      const filtered = lp.filter((pay: any) => {
+        const mt = (pay.matric_no || '').toUpperCase();
+        if (mt.includes('LCNS/ST/')) return false;
+        return true;
+      });
+      setPayments(filtered);
+    }
   };
   useEffect(() => { load(); }, []);
 
   const createFee = async () => {
     if (!feeName || !feeAmount || !accNo) return alert('Enter fee name, amount, account no');
-    const nf: any = { id: 'FEE-' + Date.now(), name: feeName, amount: parseInt(feeAmount), level, session: '2026/2027', category: 'TUITION', applicant_type: applyTo, is_published: true, account_name: 'Labe College', account_number: accNo, bank_name: bank, description: bank + ' ' + accNo, created_at: new Date().toISOString() };
+    const nf: any = { id: 'FEE-' + Date.now(), name: feeName, amount: parseInt(feeAmount), level, session: '2026/2027', category: 'TUITION', applicant_type: applyTo, is_published: true, account_name: 'Labe College - Catholic Diocese of Gboko', account_number: accNo, bank_name: bank, description: bank + ' ' + accNo, created_at: new Date().toISOString() };
     const sb = getSupabase(); try { if (sb) await sb.from('lcns_fees').insert([nf]); } catch {}
-    const cur = JSON.parse(localStorage.getItem('lcns_fees') || '[]'); localStorage.setItem('lcns_fees', JSON.stringify([nf, ...cur])); setFees([nf, ...cur]); setFeeName(''); setFeeAmount(''); alert('Saved to Supabase');
+    const cur = JSON.parse(localStorage.getItem('lcns_fees') || '[]'); localStorage.setItem('lcns_fees', JSON.stringify([nf, ...cur])); setFees([nf, ...cur]); setFeeName(''); setFeeNameAmount(''); alert('Saved to Supabase - For STUDENTS only');
   };
 
   const pending = payments.filter(p => p.status === 'PENDING');
@@ -76,6 +112,10 @@ export const BursarFeeManager: React.FC = () => {
   // MANUAL PAY - NEW FEATURE
   const handleManualPay = async () => {
     if (!manualMatric || !manualName || !manualFeeId || !manualAmountPaid) return alert('Fill Matric, Name, Fee, Amount Paid');
+    // === ADDED - BLOCK STAFF MATRIC LCNS/ST/ ===
+    if (manualMatric.toUpperCase().includes('LCNS/ST/')) {
+      return alert('❌ BURSAR CAN ONLY RECORD STUDENT PAYMENTS! Staff ID LCNS/ST/ not allowed. Use LCNS/ND or LCNS/HND or Student Matric only.');
+    }
     const feeObj = fees.find(f=>f.id===manualFeeId) || fees.find(f=>f.name===manualFeeId) || { name: manualFeeId, amount: parseInt(manualAmountPaid) } as any;
     const amount = parseInt(manualAmountPaid);
     const totalFee = (feeObj as any).amount || amount;
@@ -145,8 +185,8 @@ export const BursarFeeManager: React.FC = () => {
       <div class="header">
         <div class="logo">LCNS</div>
         <h1>Labe College of Nursing Sciences, Gboko</h1>
-        <div class="sub">College of Nursing Sciences, Catholic Diocese of Gboko | Motto: Learn, Serve & Save | www.lcns.edu.ng | info@lcns.edu.ng</div>
-        <div class="sub">Bursary Department - Official Tuition Fee Receipt</div>
+        <div class="sub">Catholic Diocese of Gboko, Benue State | Motto: Learn, Serve & Save | www.lcns.edu.ng | info@lcns.edu.ng</div>
+        <div class="sub">Bursary Department - Official Tuition Fee Receipt - STUDENT ONLY</div>
         <div class="badge ${pay.status==='PAID'?'complete': pay.payment_type?.includes('HALF') ? 'half' : 'part'}">${pay.payment_type || pay.status} - ${pay.status}</div>
       </div>
       <div style="text-align:center; margin:15px 0;"><span style="background:#0f4c2e; color:white; padding:6px 16px; border-radius:20px; font-size:12px; font-weight:900;">Receipt No: ${pay.receipt_no} | Academic Year: ${pay.academic_year} | Semester: ${pay.semester} | Level: ${pay.level}</span></div>
@@ -165,12 +205,12 @@ export const BursarFeeManager: React.FC = () => {
       </div>
       <div style="font-size:11px; background:#fffbeb; border:1px solid #fbbf24; padding:10px; border-radius:8px;"><b>Note:</b> This receipt is official. ${ (pay.balance||0)===0 ? 'Student has completed payment and is eligible for course registration & exam.' : 'Student has paid ' + pay.payment_type + ' - Balance ₦' + (pay.balance||0).toLocaleString() + ' must be cleared before final exam.' } </div>
       <div class="footer">
-        <div><div class="label">Received By (Bursar)</div><div class="value" style="margin-top:40px; border-top:1px solid #000; padding-top:5px;">${pay.bursar_name}<br/><span style="font-size:10px; font-weight:400;">${pay.bursar_email} - Bursary Dept - LCNS</span></div></div>
+        <div><div class="label">Received By (Bursar)</div><div class="value" style="margin-top:40px; border-top:1px solid #000; padding-top:5px;">${pay.bursar_name}<br/><span style="font-size:10px; font-weight:400;">${pay.bursar_email} - Bursary Dept - Catholic Diocese of Gboko - STUDENT ACCOUNTS ONLY</span></div></div>
         <div><div class="label">Date & Time</div><div class="value" style="margin-top:40px;">${new Date(pay.created_at||'').toLocaleString()}</div></div>
         <div><div class="label">Student Signature</div><div class="sig">Signature</div></div>
       </div>
-      <div style="text-align:center; margin-top:25px; font-size:10px; color:#64748b;">This is a computer-generated official receipt of Labe College of Nursing Sciences, Gboko. Verify via Bursary - ${pay.receipt_no}</div>
-      <div style="text-align:center; margin-top:15px;"><button onclick="window.print()" style="background:#0f4c2e; color:white; padding:10px 24px; border-radius:20px; border:none; font-weight:900; cursor:pointer;">🖨️ Print Official Receipt</button></div>
+      <div style="text-align:center; margin-top:25px; font-size:10px; color:#64748b;">This is a computer-generated official receipt of Labe College of Nursing Sciences, Catholic Diocese of Gboko. Verify via Bursary - ${pay.receipt_no} - STUDENT COPY</div>
+      <div style="text-align:center; margin-top:15px;"><button onclick="window.print()" style="background:#0f4c2e; color:white; padding:10px 24px; border-radius:20px; border:none; font-weight:900; cursor:pointer;">🖨️ Print Official Receipt - Catholic Diocese of Gboko</button></div>
       </body></html>
     `);
     win.document.close();
@@ -179,101 +219,103 @@ export const BursarFeeManager: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto p-4 bg-white rounded-xl shadow space-y-4">
       <div className="bg-gradient-to-r from-emerald-950 to-slate-900 text-white rounded-2xl p-5 flex justify-between">
-        <div><h2 className="text-xl font-black">Bursar Dashboard - {bursarDisplayName}</h2><p className="text-xs text-emerald-200">{bursarEmail} - Total Payments Per Fee - Supabase - Manual Payment + Receipt - {bursarDisplayName} as Cashier</p></div>
+        <div><h2 className="text-xl font-black">Bursar Dashboard - {bursarDisplayName} - STUDENT ACCOUNTS ONLY</h2><p className="text-xs text-emerald-200">{bursarEmail} - Catholic Diocese of Gboko - Only Student Payments - No Staff - {bursarDisplayName} as Cashier - Students: {allUsers.length}</p></div>
         <div className="text-right"><p className="text-[10px] text-amber-300">Academic Session</p><p className="font-black text-amber-400">{COLLEGE_CONFIG.CURRENT_SESSION}</p></div>
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs font-bold">
-        <button onClick={() => setTab('dashboard')} className={`px-3 py-2 rounded-xl ${tab==='dashboard'?'bg-emerald-900 text-white':'bg-white border'}`}>Dashboard Totals Per Fee</button>
-        <button onClick={() => setTab('fees')} className={`px-3 py-2 rounded-xl ${tab==='fees'?'bg-emerald-900 text-white':'bg-white border'}`}>Set Fees to Supabase</button>
-        <button onClick={() => setTab('manual_pay')} className={`px-3 py-2 rounded-xl ${tab==='manual_pay'?'bg-blue-700 text-white ring-2 ring-blue-300 animate-pulse':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}>💰 Manual Pay Student + Print Receipt - {bursarDisplayName}</button>
-        <button onClick={() => setTab('pending')} className={`px-3 py-2 rounded-xl ${tab==='pending'?'bg-red-600 text-white':'bg-white border'}`}>Pending PNG/PDF ({pending.length})</button>
-        <button onClick={load} className="px-3 py-2 bg-slate-800 text-white rounded-xl">Refresh</button>
+        <button onClick={() => setTab('dashboard')} className={`px-3 py-2 rounded-xl ${tab==='dashboard'?'bg-emerald-900 text-white':'bg-white border'}`}>Dashboard Totals Per Fee (Students Only)</button>
+        <button onClick={() => setTab('fees')} className={`px-3 py-2 rounded-xl ${tab==='fees'?'bg-emerald-900 text-white':'bg-white border'}`}>Set Fees to Supabase (Students)</button>
+        <button onClick={() => setTab('manual_pay')} className={`px-3 py-2 rounded-xl ${tab==='manual_pay'?'bg-blue-700 text-white ring-2 ring-blue-300 animate-pulse':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}>💰 Manual Pay Student + Print Receipt - {bursarDisplayName} - {allUsers.length} Students</button>
+        <button onClick={() => setTab('pending')} className={`px-3 py-2 rounded-xl ${tab==='pending'?'bg-red-600 text-white':'bg-white border'}`}>Pending PNG/PDF Student Only ({pending.length})</button>
+        <button onClick={load} className="px-3 py-2 bg-slate-800 text-white rounded-xl">Refresh Student Records</button>
       </div>
 
       {tab==='dashboard' && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-emerald-900 text-white p-4 rounded-xl"><p className="text-xs">Total Expected</p><p className="font-black text-xl">₦{totalExpected.toLocaleString()}</p></div>
-            <div className="bg-green-600 text-white p-4 rounded-xl"><p className="text-xs">Total Collected</p><p className="font-black text-xl">₦{totalCollected.toLocaleString()}</p></div>
-            <div className="bg-amber-400 text-black p-4 rounded-xl"><p className="text-xs">Pending</p><p className="font-black text-xl">{pending.length} proofs</p></div>
-            <div className="bg-red-600 text-white p-4 rounded-xl"><p className="text-xs">Balance</p><p className="font-black text-xl">₦{(totalExpected-totalCollected).toLocaleString()}</p></div>
+            <div className="bg-emerald-900 text-white p-4 rounded-xl"><p className="text-xs">Total Expected (Students)</p><p className="font-black text-xl">₦{totalExpected.toLocaleString()}</p></div>
+            <div className="bg-green-600 text-white p-4 rounded-xl"><p className="text-xs">Total Collected (Students Only)</p><p className="font-black text-xl">₦{totalCollected.toLocaleString()}</p></div>
+            <div className="bg-amber-400 text-black p-4 rounded-xl"><p className="text-xs">Pending Student Proofs</p><p className="font-black text-xl">{pending.length} proofs</p></div>
+            <div className="bg-red-600 text-white p-4 rounded-xl"><p className="text-xs">Balance (Students)</p><p className="font-black text-xl">₦{(totalExpected-totalCollected).toLocaleString()}</p></div>
           </div>
-          <h3 className="font-black">Total Payments Per Fee Set</h3>
+          <h3 className="font-black">Total Payments Per Fee Set - Students Only - Catholic Diocese of Gboko</h3>
           <div className="grid md:grid-cols-2 gap-3">
             {fees.map(fee => {
               const fp = payments.filter(p=>p.fee_name===fee.name || p.fee_name?.includes(fee.name));
               const coll = fp.filter(p=>p.status!=='REJECTED' && p.status!=='PENDING').reduce((s,p)=>s+p.amount_paid,0);
-              return <div key={fee.id} className="border-2 p-3 rounded-xl"><p className="font-black">{fee.name} - ₦{fee.amount.toLocaleString()} - {fee.bank_name} {fee.account_number} - For {fee.applicant_type}</p><p className="text-xs">Collected: ₦{coll.toLocaleString()} | Expected: ₦{(fee.amount*50).toLocaleString()}</p><div className="w-full bg-slate-200 h-2 rounded mt-2"><div className="bg-green-600 h-2 rounded" style={{width:`${Math.min((coll/(fee.amount*50||1))*100,100)}%`}}></div></div></div>
+              return <div key={fee.id} className="border-2 p-3 rounded-xl"><p className="font-black">{fee.name} - ₦{fee.amount.toLocaleString()} - {fee.bank_name} {fee.account_number} - For {fee.applicant_type} - Students Only</p><p className="text-xs">Collected: ₦{coll.toLocaleString()} | Expected: ₦{(fee.amount*50).toLocaleString()} | Students Paid: {fp.length}</p><div className="w-full bg-slate-200 h-2 rounded mt-2"><div className="bg-green-600 h-2 rounded" style={{width:`${Math.min((coll/(fee.amount*50||1))*100,100)}%`}}></div></div></div>
             })}
-            {fees.length===0 && <div className="p-8 border-2 border-dashed rounded-xl text-center text-slate-400">No fees - Go to Set Fees tab</div>}
+            {fees.length===0 && <div className="p-8 border-2 border-dashed rounded-xl text-center text-slate-400">No fees - Go to Set Fees tab - Student fees only</div>}
           </div>
         </div>
       )}
 
       {tab==='fees' && (
         <div className="bg-emerald-50 border-2 p-4 rounded-xl space-y-2">
-          <h3 className="font-black">Create Fee - Saved to Supabase + Dashboard Totals - Bursar: {bursarDisplayName}</h3>
+          <h3 className="font-black">Create Fee - Saved to Supabase + Dashboard Totals - Bursar: {bursarDisplayName} - STUDENT ONLY - No Staff Fees</h3>
           <div className="grid md:grid-cols-3 gap-2 bg-white p-3 rounded border">
             <input value={feeName} onChange={e=>setFeeName(e.target.value)} placeholder="Fee Name e.g. School Fees" className="border px-3 py-2 rounded text-black"/>
-            <input value={feeAmount} onChange={e=>setFeeAmount(e.target.value)} type="number" placeholder="Amount ₦" className="border-2 border-amber-300 px-3 py-2 rounded font-black text-black"/>
+            <input value={feeAmount} onChange={e=>setFeeNameAmount(e.target.value)} type="number" placeholder="Amount ₦" className="border-2 border-amber-300 px-3 py-2 rounded font-black text-black"/>
             <select value={applyTo} onChange={e=>setApplyTo(e.target.value)} className="border-2 border-blue-300 px-3 py-2 rounded font-black text-black"><option value="BOTH">BOTH - Student + Applicant</option><option value="STUDENT">STUDENT Only</option><option value="APPLICANT">APPLICANT Only</option></select>
             <select value={level} onChange={e=>setLevel(e.target.value)} className="border px-3 py-2 rounded text-black"><option>ALL</option><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select>
             <input value={bank} onChange={e=>setBank(e.target.value)} placeholder="Bank Name" className="border px-3 py-2 rounded text-black"/>
             <input value={accNo} onChange={e=>setAccNo(e.target.value)} placeholder="Account Number *" className="border-2 border-red-300 px-3 py-2 rounded font-black text-black"/>
           </div>
-          <button onClick={createFee} className="w-full bg-emerald-700 text-white py-3 rounded font-black">💾 Save Fee to Supabase - Shows in Dashboard Totals</button>
-          <div className="space-y-1 mt-3">{fees.map(f=><div key={f.id} className="flex justify-between bg-white p-2 border rounded text-xs"><span>{f.name} ₦{f.amount.toLocaleString()} {f.account_number}</span><button onClick={async()=>{ const sb=getSupabase(); try{if(sb) await sb.from('lcns_fees').delete().eq('id',f.id);}catch{} const u=fees.filter(x=>x.id!==f.id); localStorage.setItem('lcns_fees', JSON.stringify(u)); setFees(u); }} className="text-red-600 font-black">Delete</button></div>)}</div>
+          <button onClick={createFee} className="w-full bg-emerald-700 text-white py-3 rounded font-black">💾 Save Fee to Supabase - Shows in Dashboard Totals - Student Fees</button>
+          <div className="space-y-1 mt-3">{fees.map(f=><div key={f.id} className="flex justify-between bg-white p-2 border rounded text-xs"><span>{f.name} ₦{f.amount.toLocaleString()} {f.account_number} - Student Only</span><button onClick={async()=>{ const sb=getSupabase(); try{if(sb) await sb.from('lcns_fees').delete().eq('id',f.id);}catch{} const u=fees.filter(x=>x.id!==f.id); localStorage.setItem('lcns_fees', JSON.stringify(u)); setFees(u); }} className="text-red-600 font-black">Delete</button></div>)}</div>
         </div>
       )}
 
       {tab==='manual_pay' && (
         <div className="space-y-4">
           <div className="bg-blue-50 border-2 border-blue-400 rounded-2xl p-5 space-y-4">
-            <h3 className="font-black text-blue-900 flex items-center gap-2">💰 Bursar Manual Payment - {bursarDisplayName} - Auto Half/Complete + Receipt with Logo</h3>
+            <h3 className="font-black text-blue-900 flex items-center gap-2">💰 Bursar Manual Payment - {bursarDisplayName} - STUDENT ONLY - Auto Half/Complete + Receipt - Catholic Diocese of Gboko - No Staff Allowed</h3>
+            <p className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 p-2 rounded">⚠️ BURSAR RESTRICTED TO STUDENTS ONLY: Staff records (LCNS/ST/) are blocked. Only Student Matric No LCNS/ND, LCNS/HND, or Student Email allowed.</p>
             <div className="grid md:grid-cols-2 gap-3">
               <div className="space-y-3 bg-white p-4 rounded-xl border-2">
-                <label className="text-[11px] font-black uppercase">Search Student (Matric / Name)</label>
-                <input value={searchStudent} onChange={e=>setSearchStudent(e.target.value)} placeholder="Type Matric No or Name to auto-fill" className="w-full border-2 px-3 py-2 rounded-xl text-xs font-bold"/>
+                <label className="text-[11px] font-black uppercase">Search Student Only (Matric / Name) - {allUsers.length} Students Found - No Staff</label>
+                <input value={searchStudent} onChange={e=>setSearchStudent(e.target.value)} placeholder="Type Student Matric No or Name - Staff filtered out" className="w-full border-2 px-3 py-2 rounded-xl text-xs font-bold"/>
                 <div className="max-h-32 overflow-auto border rounded-xl divide-y">
-                  {filteredStudentsForPay.map((u:any)=><button key={u.email} onClick={()=>{setManualMatric(u.matricNumber||u.matric_number||u.matricNo||''); setManualName(u.fullName||u.name||''); setManualLevel(u.level||u.currentLevel||'ND1');}} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-blue-50 flex justify-between"><span>{u.fullName} - {u.matricNumber||u.matric_number}</span><span className="font-mono">{u.level||''}</span></button>)}
+                  {filteredStudentsForPay.map((u:any)=><button key={u.email} onClick={()=>{setManualMatric(u.matricNumber||u.matric_number||u.matricNo||''); setManualName(u.fullName||u.name||''); setManualLevel(u.level||u.currentLevel||'ND1');}} className="w-full text-left px-3 py-1.5 text-[11px] hover:bg-blue-50 flex justify-between"><span>{u.fullName} - {u.matricNumber||u.matric_number} - STUDENT</span><span className="font-mono">{u.level||''}</span></button>)}
+                  {filteredStudentsForPay.length===0 && <div className="p-3 text-center text-slate-400 text-xs">No student found - Search only shows STUDENT role - Staff blocked</div>}
                 </div>
-                <input value={manualMatric} onChange={e=>setManualMatric(e.target.value)} placeholder="Matric No * e.g. LCNS/2026/ND/001" className="w-full border-2 border-emerald-300 px-3 py-2.5 rounded-xl text-xs font-black uppercase"/>
-                <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Student Full Name *" className="w-full border px-3 py-2.5 rounded-xl text-xs font-bold"/>
-                <select value={manualFeeId} onChange={e=>setManualFeeId(e.target.value)} className="w-full border-2 border-amber-300 px-3 py-2.5 rounded-xl text-xs font-bold"><option value="">Select Fee Structure *</option>{fees.map(f=><option key={f.id} value={f.id}>{f.name} - ₦{f.amount.toLocaleString()} - {f.level||'ALL'} - {f.bank_name}</option>)}</select>
-                {manualFeeId && (()=>{ const f=fees.find(x=>x.id===manualFeeId); if(!f) return null; return <div className="text-[11px] bg-amber-50 border p-2 rounded font-bold">Selected: {f.name} ₦{f.amount.toLocaleString()} - Expected Total: ₦{f.amount.toLocaleString()}</div>})()}
-                <input value={manualAmountPaid} onChange={e=>setManualAmountPaid(e.target.value)} type="number" placeholder="Amount Paid Now * e.g. 50000" className="w-full border-2 border-green-400 px-3 py-2.5 rounded-xl text-sm font-black"/>
-                {manualAmountPaid && manualFeeId && (()=>{ const f=fees.find(x=>x.id===manualFeeId); const tot=f?.amount||0; const paid=parseInt(manualAmountPaid)||0; const bal=tot-paid; const status=paid>=tot?'COMPLETE PAYMENT - No Balance':paid>=tot/2?'HALF PAYMENT - 50%':`PART PAYMENT - Balance ₦${bal.toLocaleString()}`; return <div className={`p-3 rounded-xl text-xs font-black border-2 ${paid>=tot?'bg-emerald-100 border-emerald-400 text-emerald-800':paid>=tot/2?'bg-amber-100 border-amber-400 text-amber-800':'bg-red-50 border-red-300 text-red-700'}`}>{status} | Balance: ₦{bal.toLocaleString()}</div>})()}
+                <input value={manualMatric} onChange={e=>setManualMatric(e.target.value)} placeholder="Student Matric No * e.g. LCNS/ND/2026/001 - No LCNS/ST/" className="w-full border-2 border-emerald-300 px-3 py-2.5 rounded-xl text-xs font-black uppercase"/>
+                <input value={manualName} onChange={e=>setManualName(e.target.value)} placeholder="Student Full Name * - Student Only" className="w-full border px-3 py-2.5 rounded-xl text-xs font-bold"/>
+                <select value={manualFeeId} onChange={e=>setManualFeeId(e.target.value)} className="w-full border-2 border-amber-300 px-3 py-2.5 rounded-xl text-xs font-bold"><option value="">Select Fee Structure * - Student Fees</option>{fees.map(f=><option key={f.id} value={f.id}>{f.name} - ₦{f.amount.toLocaleString()} - {f.level||'ALL'} - {f.bank_name} - Student</option>)}</select>
+                {manualFeeId && (()=>{ const f=fees.find(x=>x.id===manualFeeId); if(!f) return null; return <div className="text-[11px] bg-amber-50 border p-2 rounded font-bold">Selected: {f.name} ₦{f.amount.toLocaleString()} - Expected Total: ₦{f.amount.toLocaleString()} - Student</div>})()}
+                <input value={manualAmountPaid} onChange={e=>setManualAmountPaid(e.target.value)} type="number" placeholder="Amount Paid Now * e.g. 50000 - Student Payment" className="w-full border-2 border-green-400 px-3 py-2.5 rounded-xl text-sm font-black"/>
+                {manualAmountPaid && manualFeeId && (()=>{ const f=fees.find(x=>x.id===manualFeeId); const tot=f?.amount||0; const paid=parseInt(manualAmountPaid)||0; const bal=tot-paid; const status=paid>=tot?'COMPLETE PAYMENT - No Balance':paid>=tot/2?'HALF PAYMENT - 50%':`PART PAYMENT - Balance ₦${bal.toLocaleString()}`; return <div className={`p-3 rounded-xl text-xs font-black border-2 ${paid>=tot?'bg-emerald-100 border-emerald-400 text-emerald-800':paid>=tot/2?'bg-amber-100 border-amber-400 text-amber-800':'bg-red-50 border-red-300 text-red-700'}`}>{status} | Balance: ₦{bal.toLocaleString()} - STUDENT ONLY</div>})()}
               </div>
               <div className="space-y-3 bg-white p-4 rounded-xl border-2">
-                <label className="text-[11px] font-black uppercase">Academic Details - For Receipt</label>
+                <label className="text-[11px] font-black uppercase">Academic Details - For Student Receipt - Catholic Diocese</label>
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className="text-[10px] font-bold">Academic Year</label><select value={manualSession} onChange={e=>setManualSession(e.target.value)} className="w-full border px-2 py-2 rounded-xl text-xs font-bold"><option>2026/2027</option><option>2025/2026</option><option>2024/2025</option></select></div>
                   <div><label className="text-[10px] font-bold">Semester</label><select value={manualSemester} onChange={e=>setManualSemester(e.target.value)} className="w-full border px-2 py-2 rounded-xl text-xs font-bold"><option>First Semester</option><option>Second Semester</option></select></div>
-                  <div><label className="text-[10px] font-bold">Level</label><select value={manualLevel} onChange={e=>setManualLevel(e.target.value)} className="w-full border px-2 py-2 rounded-xl text-xs font-bold"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
-                  <div><label className="text-[10px] font-bold">Bursar (Cashier)</label><input value={bursarDisplayName} disabled className="w-full border bg-slate-100 px-2 py-2 rounded-xl text-xs font-black"/></div>
+                  <div><label className="text-[10px] font-bold">Level (Student Only)</label><select value={manualLevel} onChange={e=>setManualLevel(e.target.value)} className="w-full border px-2 py-2 rounded-xl text-xs font-bold"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
+                  <div><label className="text-[10px] font-bold">Bursar (Cashier - Student Accounts)</label><input value={bursarDisplayName} disabled className="w-full border bg-slate-100 px-2 py-2 rounded-xl text-xs font-black"/></div>
                 </div>
                 <div className="bg-slate-900 text-white p-3 rounded-xl text-[11px]">
-                  <p className="font-black text-amber-300">Receipt Will Contain:</p>
-                  <p>✓ School Full Name: Labe College of Nursing Sciences, Gboko + Logo</p>
-                  <p>✓ Student Name, Matric, Program, Level {manualLevel}</p>
+                  <p className="font-black text-amber-300">Student Receipt Will Contain - No Staff:</p>
+                  <p>✓ School Full Name: Labe College - Catholic Diocese of Gboko + Logo - STUDENT</p>
+                  <p>✓ Student Name, Matric, Program, Level {manualLevel} - STUDENT ONLY</p>
                   <p>✓ Academic Year {manualSession}, Semester {manualSemester}</p>
                   <p>✓ Fee: {fees.find(f=>f.id===manualFeeId)?.name||'-'} - Amount Paid + Balance + Auto Half/Complete</p>
-                  <p>✓ Bursar Name: {bursarDisplayName} as person that processed payment</p>
-                  <p>✓ Receipt No, Date, Signature</p>
+                  <p>✓ Bursar Name: {bursarDisplayName} - Student Accounts Only</p>
+                  <p>✓ Receipt No, Date, Signature - Catholic Diocese</p>
                 </div>
-                <button onClick={handleManualPay} className="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded-xl font-black text-sm">💾 Record Payment - {bursarDisplayName} - Generate Receipt</button>
-                {lastReceipt && <button onClick={()=>printReceipt(lastReceipt)} className="w-full bg-emerald-700 text-white py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2">🖨️ Print Last Receipt - {lastReceipt.receipt_no} - {lastReceipt.payment_type}</button>}
+                <button onClick={handleManualPay} className="w-full bg-blue-700 hover:bg-blue-800 text-white py-3 rounded-xl font-black text-sm">💾 Record Student Payment - {bursarDisplayName} - Generate Student Receipt Only</button>
+                {lastReceipt && <button onClick={()=>printReceipt(lastReceipt)} className="w-full bg-emerald-700 text-white py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2">🖨️ Print Last Student Receipt - {lastReceipt.receipt_no} - {lastReceipt.payment_type}</button>}
               </div>
             </div>
           </div>
 
           {/* RECENT MANUAL PAYMENTS */}
           <div className="bg-white border-2 rounded-2xl p-4">
-            <h3 className="font-black text-sm">Recent Manual Payments by {bursarDisplayName} - Print Receipt</h3>
+            <h3 className="font-black text-sm">Recent Student Manual Payments by {bursarDisplayName} - Print Receipt - No Staff - Catholic Diocese - {payments.length} Records</h3>
             <div className="overflow-x-auto border rounded-xl mt-3">
-              <table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Receipt No</th><th className="p-2 text-left">Student - Matric</th><th className="p-2">Fee</th><th className="p-2">Paid / Total / Balance</th><th className="p-2">Year / Sem / Level</th><th className="p-2">Status</th><th className="p-2">Bursar</th><th className="p-2">Print</th></tr></thead>
-                <tbody>{payments.filter(p=>p.bursar_name).slice(0,30).map(p=><tr key={p.id} className="border-b hover:bg-slate-50"><td className="p-2 font-mono font-black">{p.receipt_no}</td><td className="p-2"><p className="font-bold">{p.user_name}</p><p className="font-mono text-[11px]">{p.matric_no}</p></td><td className="p-2">{p.fee_name}</td><td className="p-2 font-bold">₦{p.amount_paid.toLocaleString()} / ₦{p.amount.toLocaleString()} / <span className={p.balance===0?'text-emerald-600':'text-red-600'}>₦{(p.balance||0).toLocaleString()}</span></td><td className="p-2 text-[11px]">{p.academic_year} {p.semester} {p.level}</td><td className="p-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${p.status==='PAID'?'bg-emerald-100 text-emerald-800':p.payment_type?.includes('HALF')?'bg-amber-100 text-amber-800':'bg-red-100 text-red-800'}`}>{p.payment_type}</span></td><td className="p-2 text-[11px] font-bold">{p.bursar_name}</td><td className="p-2"><button onClick={()=>printReceipt(p)} className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold">Print Receipt</button></td></tr>)}</tbody>
+              <table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Receipt No</th><th className="p-2 text-left">Student - Matric (Student Only)</th><th className="p-2">Fee</th><th className="p-2">Paid / Total / Balance</th><th className="p-2">Year / Sem / Level</th><th className="p-2">Status</th><th className="p-2">Bursar</th><th className="p-2">Print</th></tr></thead>
+                <tbody>{payments.filter(p=>p.bursar_name).slice(0,30).map(p=><tr key={p.id} className="border-b hover:bg-slate-50"><td className="p-2 font-mono font-black">{p.receipt_no}</td><td className="p-2"><p className="font-bold">{p.user_name}</p><p className="font-mono text-[11px]">{p.matric_no} - STUDENT</p></td><td className="p-2">{p.fee_name}</td><td className="p-2 font-bold">₦{p.amount_paid.toLocaleString()} / ₦{p.amount.toLocaleString()} / <span className={p.balance===0?'text-emerald-600':'text-red-600'}>₦{(p.balance||0).toLocaleString()}</span></td><td className="p-2 text-[11px]">{p.academic_year} {p.semester} {p.level}</td><td className="p-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${p.status==='PAID'?'bg-emerald-100 text-emerald-800':p.payment_type?.includes('HALF')?'bg-amber-100 text-amber-800':'bg-red-100 text-red-800'}`}>{p.payment_type}</span></td><td className="p-2 text-[11px] font-bold">{p.bursar_name}</td><td className="p-2"><button onClick={()=>printReceipt(p)} className="px-2 py-1 bg-slate-900 text-white rounded-lg text-[10px] font-bold">Print Student Receipt</button></td></tr>)}</tbody>
               </table>
             </div>
           </div>
@@ -281,7 +323,7 @@ export const BursarFeeManager: React.FC = () => {
       )}
 
       {tab==='pending' && (
-        <div className="overflow-x-auto border rounded"><table className="w-full text-xs"><thead className="bg-red-700 text-white"><tr><th className="p-2 text-left">User</th><th>Fee</th><th>Paid</th><th>Proof</th><th>Action</th></tr></thead><tbody>{pending.map(p=><tr key={p.id} className="border-b"><td className="p-2">{p.user_name} {p.matric_no}</td><td className="p-2">{p.fee_name}</td><td className="p-2 font-black">₦{p.amount_paid.toLocaleString()}</td><td className="p-2"><a href={p.proof_url} target="_blank" className="text-blue-600 underline">View PNG/PDF</a></td><td className="p-2"><button onClick={async()=>{ const sb=getSupabase(); try{if(sb) await sb.from('lcns_student_payments').update({status:'PAID'}).eq('id',p.id);}catch{} const u=payments.map(x=>x.id===p.id?{...x,status:'PAID'}:x); localStorage.setItem('lcns_student_payments', JSON.stringify(u)); setPayments(u); }} className="bg-green-600 text-white px-2 py-1 rounded">Approve - Adds to Totals</button></td></tr>)}</tbody></table></div>
+        <div className="overflow-x-auto border rounded"><table className="w-full text-xs"><thead className="bg-red-700 text-white"><tr><th className="p-2 text-left">Student (Only)</th><th>Fee</th><th>Paid</th><th>Proof</th><th>Action</th></tr></thead><tbody>{pending.map(p=><tr key={p.id} className="border-b"><td className="p-2">{p.user_name} {p.matric_no} - STUDENT ONLY</td><td className="p-2">{p.fee_name}</td><td className="p-2 font-black">₦{p.amount_paid.toLocaleString()}</td><td className="p-2"><a href={p.proof_url} target="_blank" className="text-blue-600 underline">View PNG/PDF</a></td><td className="p-2"><button onClick={async()=>{ const sb=getSupabase(); try{if(sb) await sb.from('lcns_student_payments').update({status:'PAID'}).eq('id',p.id);}catch{} const u=payments.map(x=>x.id===p.id?{...x,status:'PAID'}:x); localStorage.setItem('lcns_student_payments', JSON.stringify(u)); setPayments(u); }} className="bg-green-600 text-white px-2 py-1 rounded">Approve Student - Adds to Totals</button></td></tr>)}</tbody></table></div>
       )}
     </div>
   );
