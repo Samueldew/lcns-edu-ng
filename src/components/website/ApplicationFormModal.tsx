@@ -55,10 +55,10 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
   const [sponsorName, setSponsorName] = useState('');
   const [sponsorPhone, setSponsorPhone] = useState('');
 
-  // Course Choices
-  const [courseChoice1, setCourseChoice1] = useState('ND Nursing Sciences (Years 1 & 2)');
-  const [courseChoice2, setCourseChoice2] = useState('HND Nursing Sciences (Years 3 & 4)');
-  const [program, setProgram] = useState<Applicant['program']>('ND/HND Nursing Sciences (4 Years)');
+  // Course Choices - === FIXED TO ND/HND 4YEARS - ADD ONLY, NO DELETE ===
+  const [courseChoice1, setCourseChoice1] = useState('ND/HND Nursing Sciences - 4 Years Collegiate (ND Years 1-2 + HND Years 3-4)');
+  const [courseChoice2, setCourseChoice2] = useState('ND/HND Nursing Sciences - 4 Years Collegiate');
+  const [program, setProgram] = useState<Applicant['program']>('ND/HND Nursing Sciences (4 Years)' as any);
   const [jambRegNo, setJambRegNo] = useState('');
   const [jambScore, setJambScore] = useState<number>(205);
 
@@ -168,6 +168,11 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
 
     setSubmitting(true);
     try {
+      // === ADD ONLY - FORCE ND/HND 4YEARS ON SUBMIT ===
+      const forcedCourse1 = 'ND/HND Nursing Sciences - 4 Years Collegiate (ND Years 1-2 + HND Years 3-4)';
+      const forcedCourse2 = 'ND/HND Nursing Sciences - 4 Years Collegiate';
+      const forcedProgram = 'ND/HND Nursing Sciences (4 Years)';
+      
       const applicantData = {
         fullName,
         email,
@@ -177,9 +182,9 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
         stateOfOrigin,
         lga,
         address,
-        courseChoice1,
-        courseChoice2,
-        program,
+        courseChoice1: forcedCourse1,
+        courseChoice2: forcedCourse2,
+        program: forcedProgram as any,
         jambRegNo,
         jambScore,
         passportPhotoUrl,
@@ -291,9 +296,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
         {/* Application Body */}
         <div className="p-6">
           {submittedApplicant ? (
-            /* SUBMISSION OUTCOME SLIP */
             <div className="space-y-6">
-              {/* CLEARANCE STATUS BANNER */}
               {!isBursarCleared ? (
                 <div className="p-5 bg-amber-50 border-2 border-amber-400 rounded-2xl text-center no-print space-y-3">
                   <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-200 text-amber-950 font-black text-xs uppercase tracking-wider">
@@ -350,9 +353,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 </div>
               )}
 
-              {/* Printable Slip Paper Template */}
               <div className="border-2 border-[#0a4d2e] rounded-2xl p-6 bg-white shadow-sm print-page relative">
-                {/* School Header */}
                 <div className="text-center pb-4 border-b-2 border-[#0a4d2e] relative">
                   <div className="flex items-center justify-center gap-3 mb-2">
                     <CollegeLogo size="md" />
@@ -373,7 +374,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                   </div>
                 </div>
 
-                {/* Candidate Info Grid + Passport on Top Right */}
                 <div className="grid grid-cols-3 gap-4 my-5 items-start">
                   <div className="col-span-2 space-y-2 text-xs">
                     <div className="flex border-b border-slate-100 py-1">
@@ -414,7 +414,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Passport Photo Box on Top Right */}
                   <div className="flex flex-col items-center">
                     <div className="w-32 h-40 border-2 border-[#0a4d2e] rounded-xl overflow-hidden shadow-sm bg-slate-100 flex items-center justify-center">
                       {submittedApplicant.passportPhotoUrl ? (
@@ -434,7 +433,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                   </div>
                 </div>
 
-                {/* O-Level Breakdown Table */}
                 <div className="my-4">
                   <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5">
                     O'Level Subject Breakdown ({submittedApplicant.olevelExamType} - {submittedApplicant.olevelExamYear})
@@ -461,7 +459,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                   </table>
                 </div>
 
-                {/* BURSAR CLEARED STAMP SECTION */}
                 <div className="my-5 p-4 rounded-2xl border-2 border-dashed flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50">
                   <div className="space-y-1 text-xs">
                     <span className="font-bold text-slate-600 block uppercase tracking-wider">
@@ -475,7 +472,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                     </p>
                   </div>
 
-                  {/* Stamp Display */}
                   {isBursarCleared ? (
                     <div className="border-4 border-emerald-700 rounded-xl p-2.5 text-center text-emerald-800 transform rotate-1 bg-emerald-50 shadow-xs max-w-xs">
                       <div className="text-[10px] font-black uppercase tracking-widest text-emerald-900">
@@ -506,7 +502,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                   )}
                 </div>
 
-                {/* Screening Instructions */}
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-950 space-y-1">
                   <p className="font-bold uppercase">Mandatory Physical Screening &amp; Verification Notice:</p>
                   <p>1. Candidates must appear with the printed copy of this acknowledgement slip on their scheduled screening date.</p>
@@ -516,7 +511,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
               </div>
             </div>
           ) : (
-            /* MULTI-STEP APPLICATION FORM */
             <form onSubmit={handleSubmit} className="space-y-6">
               {uploadError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
@@ -525,7 +519,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 </div>
               )}
 
-              {/* STEP 1: BIO-DATA */}
               {step === 1 && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-[#0a4d2e] uppercase tracking-wider flex items-center gap-1.5 border-b pb-2">
@@ -633,7 +626,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 </div>
               )}
 
-              {/* STEP 2: COURSE CHOICES 1 & 2 + JAMB */}
               {step === 2 && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-[#0a4d2e] uppercase tracking-wider flex items-center gap-1.5 border-b pb-2">
@@ -650,8 +642,12 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                         onChange={(e) => setCourseChoice1(e.target.value)}
                         className="w-full p-3 bg-slate-50 border-2 border-emerald-500 rounded-xl text-sm font-bold text-emerald-950 focus:ring-2 focus:ring-[#0a4d2e]"
                       >
+                        {/* === ADD ONLY - ND/HND 4YEARS MAIN - KEEP OLD OPTIONS BELOW === */}
+                        <option value="ND/HND Nursing Sciences - 4 Years Collegiate (ND Years 1-2 + HND Years 3-4)">
+                          ✅ ND/HND Nursing Sciences - 4 Years Collegiate (ND Years 1-2 + HND Years 3-4) - MAIN PROGRAM
+                        </option>
                         <option value="ND Nursing Sciences (Years 1 & 2)">
-                          ND Nursing Sciences (Years 1 &amp; 2 - Foundation &amp; Clinical Pre-requisites)
+                          ND Nursing Sciences (Years 1 & 2 - Foundation & Clinical Pre-requisites)
                         </option>
                         <option value="ND/HND Nursing Sciences (4 Years)">
                           ND/HND Nursing Sciences (4-Year Integrated Collegiate Track)
@@ -668,14 +664,18 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                         onChange={(e) => setCourseChoice2(e.target.value)}
                         className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:ring-2 focus:ring-[#0a4d2e]"
                       >
+                        {/* === ADD ONLY - ND/HND 4YEARS MAIN - KEEP OLD OPTIONS BELOW === */}
+                        <option value="ND/HND Nursing Sciences - 4 Years Collegiate">
+                          ✅ ND/HND Nursing Sciences - 4 Years Collegiate - MAIN PROGRAM
+                        </option>
                         <option value="HND Nursing Sciences (Years 3 & 4)">
-                          HND Nursing Sciences (Years 3 &amp; 4 - Advanced Clinical &amp; Public Health)
+                          HND Nursing Sciences (Years 3 & 4 - Advanced Clinical & Public Health)
                         </option>
                         <option value="Community & Public Health Nursing">
-                          Community &amp; Public Health Nursing Option
+                          Community & Public Health Nursing Option
                         </option>
                         <option value="Maternal & Child Health Nursing">
-                          Maternal &amp; Child Health / Midwifery Track
+                          Maternal & Child Health / Midwifery Track
                         </option>
                       </select>
                     </div>
@@ -737,7 +737,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 </div>
               )}
 
-              {/* STEP 3: O-LEVEL GRADES */}
               {step === 3 && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-[#0a4d2e] uppercase tracking-wider flex items-center gap-1.5 border-b pb-2">
@@ -842,7 +841,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 </div>
               )}
 
-              {/* STEP 4: PASSPORT PHOTO & BANK PAYMENT PROOF (REQUIRED) */}
               {step === 4 && (
                 <div className="space-y-5">
                   <h3 className="text-sm font-bold text-[#0a4d2e] uppercase tracking-wider flex items-center gap-1.5 border-b pb-2">
@@ -850,7 +848,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {/* Passport Photo Upload */}
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                       <div className="flex items-center justify-between">
                         <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
@@ -900,7 +897,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                       </div>
                     </div>
 
-                    {/* Proof of Bank Payment PDF Upload */}
                     <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                       <div className="flex items-center justify-between">
                         <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
@@ -966,7 +962,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 </div>
               )}
 
-              {/* STEP 5: REVIEW & DECLARATION */}
               {step === 5 && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-bold text-[#0a4d2e] uppercase tracking-wider flex items-center gap-1.5 border-b pb-2">
@@ -998,7 +993,6 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 </div>
               )}
 
-              {/* Nav Buttons */}
               <div className="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between no-print">
                 {step > 1 ? (
                   <button
