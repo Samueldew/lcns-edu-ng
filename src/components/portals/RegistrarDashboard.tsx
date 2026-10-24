@@ -23,11 +23,14 @@ import {
   Save,
   Timer,
   Monitor,
+  Printer,
 } from 'lucide-react';
 import { CBTExamManager } from '../cbt/CBTExamManager';
 import { AdmissionProcessingView } from './AdmissionProcessingView';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
+// ADDED - Individual Result Print with School Full Name + Logo - FOR REGISTRAR, EXAM OFFICER, ADMIN, HOD, PROVOST FINAL
+import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 
 // ===== REGISTRAR APPLICANT ENTRANCE CBT MANAGER - NEW FEATURE ADDED =====
 const RegistrarApplicantCBTManager = () => {
@@ -258,7 +261,7 @@ const RegistrarApplicantCBTManager = () => {
 };
 
 export const RegistrarDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'scoresheets' | 'applicant_cbt'>('applicant_cbt');
+  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'scoresheets' | 'applicant_cbt' | 'individual_result'>('applicant_cbt');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -267,7 +270,21 @@ export const RegistrarDashboard: React.FC = () => {
   const [levelFilter, setLevelFilter] = useState('ALL');
   const [selectedBiodata, setSelectedBiodata] = useState<any>(null);
 
-  // FIXED - Now shows logged-in Registrar name, not hardcoded
+  // ADDED - Individual Result Print
+  const [searchIndividual, setSearchIndividual] = useState('');
+  const [selectedPrintStudent, setSelectedPrintStudent] = useState<any>(null);
+  const [computationResults] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem('lcns_results') || '[]'); } catch { return []; }
+  });
+  const [senateInfo] = useState(() => {
+    try {
+      const logs = JSON.parse(localStorage.getItem('lcns_audit_logs') || '[]');
+      const ratLog = logs.find((l:any)=> l.action==='SENATE_RATIFICATION');
+      if (ratLog) return { approved: true, date: ratLog.timestamp, provost: ratLog.user || 'Mrs Terna Fiase - Provost' };
+      return { approved: localStorage.getItem('lcns_senate_approved')==='true', date: new Date().toISOString(), provost: 'Mrs Terna Fiase - Provost' };
+    } catch { return { approved: false, date: new Date().toISOString(), provost: 'Mrs Terna Fiase - Provost' }; }
+  });
+
   const safeCurrentUser = (() => {
     try {
       const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
@@ -301,6 +318,12 @@ export const RegistrarDashboard: React.FC = () => {
     return `${s.fullName} ${s.matricNo} ${s.program} ${s.level} ${s.stateOfOrigin} ${s.phone}`.toLowerCase().includes(searchBiodata.toLowerCase());
   });
 
+  const filteredIndividual = students.filter((s: any) => {
+    if (!searchIndividual) return true;
+    const term = searchIndividual.toLowerCase().trim();
+    return s.fullName.toLowerCase().includes(term) || s.matricNo.toLowerCase().includes(term);
+  });
+
   const handleSenateApproval = () => {
     setSenateApproved(true);
     StorageService.logAction(displayEmail,'REGISTRAR','SENATE_RATIFICATION','Senate Ratification granted');
@@ -312,26 +335,86 @@ export const RegistrarDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar - {displayName} - Score Sheets + Applicant Entrance CBT Manager - NEW</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar - {displayName} - Score Sheets + Applicant Entrance CBT + Individual Result Print with Logo</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
-            <p className="text-xs text-blue-200">{displayEmail} - Executive Overview + Score Sheets Download + All Students Biodata + All Applicants + APPLICANT ENTRANCE CBT: Set Time, Anti-cheat 10 warnings, Fullscreen, Publish/Unpublish, Correct Answer After Submit, Publish Scores</p>
+            <p className="text-xs text-blue-200">{displayEmail} - Executive Overview + Score Sheets Download + All Students Biodata + All Applicants + APPLICANT ENTRANCE CBT + Print Individual Result with SCHOOL FULL NAME Labe College of Nursing Sciences, Gboko + Logo - CGPA + Class + Carry Over</p>
           </div>
           <div className="text-right"><span className="text-xs text-blue-300 font-semibold block">Academic Session</span><span className="text-lg font-black text-amber-400 font-mono-code">{COLLEGE_CONFIG.CURRENT_SESSION}</span></div>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
-        <button onClick={() => setActiveTab('applicant_cbt')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='applicant_cbt'?'bg-red-700 text-white shadow ring-2 ring-red-300 animate-pulse':'bg-red-50 border-2 border-red-400 text-red-800'}`}><ShieldAlert className="w-4 h-4"/><span>🚨 APPLICANT ENTRANCE CBT - Set Exam + Anti-cheat + Publish Scores</span></button>
+        <button onClick={() => setActiveTab('applicant_cbt')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='applicant_cbt'?'bg-red-700 text-white shadow ring-2 ring-red-300 animate-pulse':'bg-red-50 border-2 border-red-400 text-red-800'}`}><ShieldAlert className="w-4 h-4"/><span>🚨 APPLICANT ENTRANCE CBT</span></button>
         <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-blue-700 text-white shadow':'bg-blue-50 border text-blue-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets 40+60</span></button>
         <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='overview'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Building className="w-4 h-4 text-emerald-400"/><span>Overview</span></button>
         <button onClick={() => setActiveTab('students_biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='students_biodata'?'bg-emerald-700 text-white shadow':'bg-emerald-50 border text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Students Biodata</span></button>
         <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white shadow':'bg-purple-50 border text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 All Applicants</span></button>
+        {/* ADDED - Individual Result Print - NO DELETE OLD */}
+        <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Individual Result - School Full Name + Logo - Registrar/Exam Officer/Admin/HOD/Provost</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">NEW</span></button>
       </div>
 
       {activeTab==='applicant_cbt' ? (
         <RegistrarApplicantCBTManager />
       ) : activeTab==='scoresheets' ? (
         <ScoreSheetViewer currentUser={currentUser} />
+      ) : activeTab==='individual_result' ? (
+        <div className="bg-white rounded-3xl border-2 border-amber-300 p-6 space-y-6">
+          <div>
+            <h2 className="text-lg font-black flex items-center gap-2"><Printer className="w-5 h-5 text-amber-600"/> Print Individual Student Result with School Full Name & Logo - Registrar View - {displayName}</h2>
+            <p className="text-xs bg-amber-50 border p-2 rounded mt-1 font-bold">Registrar {displayName} can print individual student result - With LABE COLLEGE OF NURSING SCIENCES, GBOKO full name + Logo + CGPA + Class + Carry Over Auto Reflect - Search by Name and Matric No - For all roles: Exam Officer, Registrar, Admin, HOD, Provost Final</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border">
+            <div className="flex items-center gap-2 flex-1 bg-white border-2 border-amber-400 rounded-xl px-3">
+              <Search className="w-4 h-4 text-amber-600"/>
+              <input value={searchIndividual} onChange={e=>setSearchIndividual(e.target.value)} placeholder="🔍 Search by Name and Matric No - e.g. Okonkwo or LCNS/2026/ND1/001" className="flex-1 py-2.5 text-xs font-black outline-none"/>
+              {searchIndividual && <button onClick={()=>setSearchIndividual('')} className="px-2 py-1 bg-slate-100 rounded-full text-[10px] font-black">Clear</button>}
+            </div>
+            <div className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">{filteredIndividual.length} Students - Search by Name and Matric</div>
+          </div>
+
+          {!selectedPrintStudent ? (
+            <div className="overflow-x-auto border-2 rounded-xl">
+              <table className="w-full text-xs">
+                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric No + Name - Search by Name and Matric</th><th className="p-3 text-left">Level + Program</th><th className="p-3 text-left">Results + CGPA</th><th className="p-3 text-center">Print with School Name + Logo - Registrar</th></tr></thead>
+                <tbody>
+                  {filteredIndividual.map((s:any) => {
+                    const studResults = computationResults.filter((r:any)=> r.matricNo===s.matricNo);
+                    let cu=0, gp=0; studResults.forEach((r:any)=>{ const g = r.score>=70?4: r.score>=60?3: r.score>=50?2: r.score>=40?1:0; cu+=r.creditUnit||3; gp+=(r.creditUnit||3)*g; });
+                    const cgpa = cu? (gp/cu).toFixed(2) : '0.00';
+                    return (
+                      <tr key={s.matricNo} className="border-b hover:bg-amber-50">
+                        <td className="p-3"><p className="font-mono font-black text-emerald-800">{s.matricNo}</p><p className="font-black uppercase">{s.fullName}</p></td>
+                        <td className="p-3"><p className="font-bold">{s.level} - {s.program}</p><p className="text-[11px]">{s.session}</p></td>
+                        <td className="p-3"><p className="text-[11px]">Courses: {studResults.length} | CGPA: {cgpa}</p><p className="text-[10px]">{studResults.filter((r:any)=>r.score<40).length ? `⚠️ Carry: ${studResults.filter((r:any)=>r.score<40).map((r:any)=>r.courseCode).join(', ')}` : '✅ No Carry'}</p></td>
+                        <td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 mx-auto"><Printer className="w-4 h-4"/> Print {s.matricNo} - School Full Name + Logo - REGISTRAR</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border">
+                <p className="font-black text-sm">Selected: {selectedPrintStudent.fullName} - {selectedPrintStudent.matricNo} - Printing as Registrar - {displayName}</p>
+                <button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-black">← Back to List</button>
+              </div>
+              <PrintableResultWithLogo
+                matricNo={selectedPrintStudent.matricNo}
+                fullName={selectedPrintStudent.fullName}
+                level={selectedPrintStudent.level}
+                program={selectedPrintStudent.program}
+                results={computationResults.filter((r:any)=> r.matricNo===selectedPrintStudent.matricNo)}
+                currentUserRole="REGISTRAR"
+                currentUserName={displayName}
+                senateApproved={senateInfo.approved}
+                senateDate={senateInfo.date}
+                senateProvost={senateInfo.provost}
+              />
+            </div>
+          )}
+        </div>
       ) : activeTab==='students_biodata' ? (
         <div className="bg-white rounded-3xl border-2 border-emerald-300 p-4 space-y-4">
           <div className="flex flex-col md:flex-row justify-between gap-3">
