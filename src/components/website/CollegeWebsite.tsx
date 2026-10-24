@@ -4,6 +4,7 @@ import {
   ChevronRight, Target, Eye, Library, Monitor, BedDouble, Building2,
   GraduationCap, BookOpen, Award, CheckCircle
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import { StorageService } from '../../services/storage';
 
 const LCNSWebsite = () => {
@@ -19,18 +20,52 @@ const LCNSWebsite = () => {
   useEffect(() => {
     const loadCMS = async () => {
       try {
-        const photos = await (StorageService as any).getGallery?.();
-        if(photos && photos.length) {
-          const seen = new Set();
-          const unique = photos.filter((g:any) => {
-            const url = g.image || g.image_url || g.url;
-            if(!url || seen.has(url)) return false;
-            seen.add(url);
-            return true;
-          });
-          setGallery(unique.slice(0, 12));
+        // ===== FIXED: GALLERY FROM school_settings (13 loved) =====
+        try {
+          const { data: galleryData } = await supabase
+            .from('school_settings')
+            .select('value')
+            .eq('key', 'gallery')
+            .single();
+          
+          if (galleryData?.value) {
+            let parsed = typeof galleryData.value === 'string' ? JSON.parse(galleryData.value) : galleryData.value;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const seen = new Set();
+              const unique = parsed.filter((g: any) => {
+                const url = g.image || g.image_base64 || g.image_url || g.url;
+                if (!url || seen.has(url)) return false;
+                seen.add(url);
+                return true;
+              });
+              setGallery(unique); // Shows all 13, not slice(0,12)
+              console.log(`✅ Gallery loaded: ${unique.length} from school_settings`);
+            }
+          } else {
+            // Fallback to StorageService if school_settings empty
+            const photos = await (StorageService as any).getGallery?.();
+            if (photos && photos.length) {
+              const seen = new Set();
+              const unique = photos.filter((g: any) => {
+                const url = g.image || g.image_url || g.url;
+                if (!url || seen.has(url)) return false;
+                seen.add(url);
+                return true;
+              });
+              setGallery(unique);
+            }
+          }
+        } catch (e) {
+          console.log("Gallery fallback to StorageService", e);
+          try {
+            const photos = await (StorageService as any).getGallery?.();
+            if (photos && photos.length) setGallery(photos);
+          } catch {}
         }
-        const loadAll = () => {
+
+        // ===== FIXED: BISHOP & PROVOST FROM school_settings (90k image) =====
+        const loadAll = async () => {
+          // LOGO
           const logoKeys = ['lcns_logo','college_logo','school_logo','lcns_settings','college_settings'];
           for(const k of logoKeys){
             try{
@@ -46,25 +81,92 @@ const LCNSWebsite = () => {
               if(raw?.startsWith('data:image') || raw?.startsWith('https')) setLogo(raw);
             }
           }
+
           try{
-            let bImg = null; 
+            // TRY SUPABASE FIRST FOR BISHOP/PROVOST - THIS FIXES BISHOP DISPLAY
+            let bImg: string | null = null;
             let bName = 'Most Rev. William A. Avenya'; 
             let bTitle = 'Proprietor - Bishop of Catholic Diocese of Gboko'; 
             let bDesc = 'As proprietor and pastoral guide of the College, His Lordship supports the growth of professional nursing education rooted in faith, discipline, compassion and service. Labe College of Nursing Sciences is called to form competent nurses who learn with excellence, serve with compassion and save lives with integrity.';
-            const b1 = JSON.parse(localStorage.getItem('lcns_bishop')||'null'); const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}'); const m = JSON.parse(localStorage.getItem('lcns_management')||'[]'); const mBishop = m.find((x:any)=>x.role==='Proprietor' || x.role==='Bishop');
-            if(b1?.image) { bImg=b1.image; bName=b1.name||bName; bTitle=b1.title||bTitle; bDesc=b1.description||bDesc; } else if(s1?.proprietor_image) { bImg=s1.proprietor_image; bDesc=s1.proprietor_message||bDesc; } else if(localStorage.getItem('proprietor_image')) { bImg=localStorage.getItem('proprietor_image'); } else if(mBishop?.image) { bImg=mBishop.image; bDesc=mBishop.description||bDesc; }
-            if(bImg || true){ if(bImg) setProprietorImg(bImg); setBishopData({name:bName, title:bTitle, description:bDesc, image:bImg}); }
-            let pImg = null; 
+
+            let pImg: string | null = null; 
             let pName = 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN'; 
             let pTitle = 'Provost, Labe College of Nursing Sciences'; 
             let pDesc = 'On behalf of the Catholic Diocese of Gboko and the Governing Council, I warmly welcome you to Labe College of Nursing Sciences, Gboko. Founded upon the steadfast Catholic ethos of sanctity of human life and selfless service, our college stands as a beacon of academic rigor and moral rectitude in Benue State and across Nigeria. Offering the accredited ND/HND Nursing Science programme, nursing here is a sacred vocation dedicated to compassionate, competent care. We invite you to embark on this noble journey with us.';
-            const p1 = JSON.parse(localStorage.getItem('lcns_provost')||'null'); const pMgmt = m.find((x:any)=>x.role==='Provost');
-            if(p1?.image) { pImg=p1.image; pName=p1.name||pName; pTitle=p1.title||pTitle; pDesc=p1.message||p1.description||pDesc; } else if(s1?.provost_image) { pImg=s1.provost_image; pDesc=s1.provost_message||pDesc; } else if(pMgmt?.image) { pImg=pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
-            if(pImg){ setProvostImg(pImg); } setProvostData({name:pName, title:pTitle, description:pDesc, image:pImg});
-            const fKeys = ['lcns_facilities','college_facilities']; let allFac:any[] = []; for(const fk of fKeys){ try{ const fv=JSON.parse(localStorage.getItem(fk)||'[]'); if(Array.isArray(fv) && fv.length) allFac=[...allFac, ...fv]; }catch{} } if(allFac.length) setFacilities(allFac);
-          } catch {}
+
+            // 1. Try Supabase school_settings for Bishop & Provost
+            try {
+              const { data: allSettings } = await supabase
+                .from('school_settings')
+                .select('key, value');
+              
+              if (allSettings) {
+                for (const row of allSettings) {
+                  let val: any = row.value;
+                  try { if (typeof val === 'string') val = JSON.parse(val); } catch {}
+                  
+                  if (row.key === 'bishop' || row.key === 'lcns_bishop' || row.key === 'proprietor') {
+                    if (val?.image || val?.image_base64) bImg = val.image || val.image_base64;
+                    if (val?.name) bName = val.name;
+                    if (val?.title) bTitle = val.title;
+                    if (val?.description || val?.message) bDesc = val.description || val.message;
+                  }
+                  if (row.key === 'provost' || row.key === 'lcns_provost') {
+                    if (val?.image || val?.image_base64) pImg = val.image || val.image_base64;
+                    if (val?.name) pName = val.name;
+                    if (val?.title) pTitle = val.title;
+                    if (val?.description || val?.message) pDesc = val.description || val.message;
+                  }
+                  // Management array may contain bishop/provost
+                  if (row.key === 'management' || row.key === 'lcns_management') {
+                    const arr = Array.isArray(val) ? val : [];
+                    const mBishop = arr.find((x:any)=>x.role==='Proprietor' || x.role==='Bishop');
+                    const mProvost = arr.find((x:any)=>x.role==='Provost');
+                    if (mBishop?.image) { bImg = bImg || mBishop.image; if(mBishop.description) bDesc = mBishop.description; }
+                    if (mProvost?.image) { pImg = pImg || mProvost.image; if(mProvost.description) pDesc = mProvost.description; }
+                  }
+                }
+              }
+            } catch (e) { console.log("Supabase bishop/provost fetch failed, fallback to localStorage", e); }
+
+            // 2. Fallback to localStorage (your old logic)
+            try {
+              const b1 = JSON.parse(localStorage.getItem('lcns_bishop')||'null'); 
+              const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}'); 
+              const m = JSON.parse(localStorage.getItem('lcns_management')||'[]'); 
+              const mBishop = m.find((x:any)=>x.role==='Proprietor' || x.role==='Bishop');
+              if(b1?.image) { bImg=bImg||b1.image; bName=b1.name||bName; bTitle=b1.title||bTitle; bDesc=b1.description||bDesc; } 
+              else if(s1?.proprietor_image) { bImg=bImg||s1.proprietor_image; bDesc=s1.proprietor_message||bDesc; } 
+              else if(localStorage.getItem('proprietor_image')) { bImg=bImg||localStorage.getItem('proprietor_image'); } 
+              else if(mBishop?.image) { bImg=bImg||mBishop.image; bDesc=mBishop.description||bDesc; }
+            } catch {}
+
+            try {
+              const p1 = JSON.parse(localStorage.getItem('lcns_provost')||'null'); 
+              const m = JSON.parse(localStorage.getItem('lcns_management')||'[]');
+              const pMgmt = m.find((x:any)=>x.role==='Provost');
+              const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}');
+              if(p1?.image) { pImg=pImg||p1.image; pName=p1.name||pName; pTitle=p1.title||pTitle; pDesc=p1.message||p1.description||pDesc; } 
+              else if(s1?.provost_image) { pImg=pImg||s1.provost_image; pDesc=s1.provost_message||pDesc; } 
+              else if(pMgmt?.image) { pImg=pImg||pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
+            } catch {}
+
+            // SET STATE - BISHOP DISPLAY FIX
+            if(bImg) setProprietorImg(bImg);
+            setBishopData({name:bName, title:bTitle, description:bDesc, image:bImg});
+            if(pImg) setProvostImg(pImg);
+            setProvostData({name:pName, title:pTitle, description:pDesc, image:pImg});
+
+            const fKeys = ['lcns_facilities','college_facilities']; 
+            let allFac:any[] = []; 
+            for(const fk of fKeys){ 
+              try{ const fv=JSON.parse(localStorage.getItem(fk)||'[]'); if(Array.isArray(fv) && fv.length) allFac=[...allFac, ...fv]; }catch{} 
+            } 
+            if(allFac.length) setFacilities(allFac);
+          } catch (err) { console.log("loadAll error", err); }
         }; 
-        loadAll(); 
+
+        await loadAll(); 
         const h = () => loadAll(); 
         window.addEventListener('storage', h); 
         window.addEventListener('focus', h); 
@@ -108,8 +210,6 @@ const LCNSWebsite = () => {
         </div>
       </div>
 
-      {/* SECOND MENU WITH L REMOVED - NOW ONLY FIRST MENU WITH REAL LOGO REMAINS */}
-
       <section id="home" className="relative bg-gradient-to-br from-[#0f4c2e] via-[#184f2e] to-[#2e8b57] text-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 py-16 md:py-20 grid md:grid-cols-2 gap-12 items-center">
           <div>
@@ -132,7 +232,7 @@ const LCNSWebsite = () => {
               <div className="relative rounded-[1.6rem] h-[460px] w-full overflow-hidden">
                 {gallery.length > 0 ? (
                   <>
-                    <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_url || gallery[0]?.image} className="h-full w-full object-cover transition-all duration-1000" alt="Campus"/>
+                    <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_base64 || gallery[currentSlide]?.image_url || gallery[0]?.image || gallery[0]?.image_base64} className="h-full w-full object-cover transition-all duration-1000" alt="Campus"/>
                     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-black/40 px-3 py-1.5 rounded-full">
                       {gallery.map((_:any, idx:number)=>(
                         <button key={idx} onClick={()=>setCurrentSlide(idx)} className={`w-2 h-2 rounded-full transition-all ${idx===currentSlide ? 'bg-yellow-400 w-6' : 'bg-white/60'}`}/>
@@ -208,7 +308,7 @@ const LCNSWebsite = () => {
               <p className="text-xs font-bold tracking-widest text-[#2e8b57] mb-3">PROPRIETOR - BISHOP OF CATHOLIC DIOCESE OF GBOKO</p>
               <div className="flex gap-4 items-start">
                 <div className="w-28 h-28 rounded-2xl bg-[#0f4c2e] overflow-hidden shrink-0 border-2 border-yellow-400">
-                  {proprietorImg || bishopData?.image ? <img src={proprietorImg || bishopData?.image} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-black">BISHOP</div>}
+                  {proprietorImg || bishopData?.image ? <img src={proprietorImg || bishopData?.image} className="w-full h-full object-cover" alt={bishopData?.name}/> : <div className="w-full h-full flex items-center justify-center text-white text-[10px] font-black">BISHOP</div>}
                 </div>
                 <div>
                   <h3 className="font-black text-[18px] text-[#0f4c2e] leading-tight">{bishopData?.name || 'Most Rev. William A. Avenya'}</h3>
@@ -221,7 +321,7 @@ const LCNSWebsite = () => {
               <p className="text-xs font-bold tracking-widest text-yellow-300 mb-3">WELCOME FROM THE PROVOST DESK</p>
               <div className="flex gap-4 items-start">
                 <div className="w-28 h-28 rounded-2xl bg-white overflow-hidden shrink-0 border-2 border-yellow-400">
-                  {provostImg || provostData?.image ? <img src={provostImg || provostData?.image} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-[#0f4c2e] font-black text-[10px]">PROVOST</div>}
+                  {provostImg || provostData?.image ? <img src={provostImg || provostData?.image} className="w-full h-full object-cover" alt={provostData?.name}/> : <div className="w-full h-full flex items-center justify-center text-[#0f4c2e] font-black text-[10px]">PROVOST</div>}
                 </div>
                 <div>
                   <h3 className="font-black text-[16px] leading-tight">{provostData?.name || 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN'}</h3>
@@ -286,12 +386,12 @@ const LCNSWebsite = () => {
 
       <section id="gallery" className="py-12 bg-[#f8fdf8] scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-black text-[#0f4c2e]">Official Campus Gallery — Auto Changes Every 15 Seconds</h2>
+          <h2 className="text-3xl font-black text-[#0f4c2e]">Official Campus Gallery — Auto Changes Every 15 Seconds — {gallery.length} Photos</h2>
           {gallery.length ? (
             <>
               <div className="mt-6 bg-white border-2 rounded-[2rem] p-2 shadow-xl">
                 <div className="relative h-[420px] md:h-[520px] rounded-[1.6rem] overflow-hidden">
-                  <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_url} className="h-full w-full object-cover transition-all duration-1000" alt={gallery[currentSlide]?.title}/>
+                  <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_base64 || gallery[currentSlide]?.image_url} className="h-full w-full object-cover transition-all duration-1000" alt={gallery[currentSlide]?.title}/>
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
                     <p className="text-white font-black text-lg">{gallery[currentSlide]?.title || `Campus Image ${currentSlide+1}`}</p>
                     <p className="text-green-200 text-xs">{gallery[currentSlide]?.description || gallery[currentSlide]?.category || 'Labe College of Nursing Sciences, Gboko'}</p>
@@ -308,12 +408,12 @@ const LCNSWebsite = () => {
               <div className="grid md:grid-cols-6 gap-3 mt-4">
                 {gallery.map((g:any,i:number)=>(
                   <button key={i} onClick={()=>setCurrentSlide(i)} className={`border-2 rounded-xl overflow-hidden transition-all ${i===currentSlide ? 'border-yellow-400 ring-2 ring-yellow-200' : 'border-green-100'}`}>
-                    <img src={g.image || g.image_url} className="h-24 w-full object-cover" loading="lazy"/>
+                    <img src={g.image || g.image_base64 || g.image_url} className="h-24 w-full object-cover" loading="lazy" alt={g.title}/>
                   </button>
                 ))}
               </div>
             </>
-          ) : <div className="bg-white border-2 border-dashed rounded-2xl p-8 text-center text-sm text-slate-400 mt-6">Upload from Admin CMS Gallery — Will auto-change every 15 seconds</div>}
+          ) : <div className="bg-white border-2 border-dashed rounded-2xl p-8 text-center text-sm text-slate-400 mt-6">Upload from Admin CMS Gallery — Will auto-change every 15 seconds — Currently 0 photos, upload 13 loved photos in Admin</div>}
         </div>
       </section>
 
