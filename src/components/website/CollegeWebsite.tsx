@@ -20,10 +20,8 @@ const LCNSWebsite = () => {
   useEffect(() => {
     const loadCMS = async () => {
       try {
-        // FIX 1: Load from backend only, no localStorage bloat - prevents Out of Memory
         const photos = await (StorageService as any).getGallery?.();
         if(photos && photos.length) {
-          // DEDUPLICATE BY image_url - Remove double repeat
           const seen = new Set();
           const unique = photos.filter((g:any) => {
             const url = g.image || g.image_url || g.url;
@@ -31,17 +29,14 @@ const LCNSWebsite = () => {
             seen.add(url);
             return true;
           });
-          setGallery(unique.slice(0, 12)); // Max 12, no repeat
+          setGallery(unique.slice(0, 12));
         }
-
         const loadAll = () => {
-          // FIX LOGO - Keep FIRST one with logo attached, don't overwrite
           const logoKeys = ['lcns_logo','college_logo','school_logo','lcns_settings','college_settings'];
           for(const k of logoKeys){
             try{
               const raw = localStorage.getItem(k);
               if(!raw) continue;
-              // If it's data:image, use it
               if(raw.startsWith('data:image')) { setLogo(raw); break; }
               const parsed = JSON.parse(raw);
               if(typeof parsed === 'string' && parsed.startsWith('data:image')) { setLogo(parsed); break; }
@@ -60,7 +55,6 @@ const LCNSWebsite = () => {
             const b1 = JSON.parse(localStorage.getItem('lcns_bishop')||'null'); const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}'); const m = JSON.parse(localStorage.getItem('lcns_management')||'[]'); const mBishop = m.find((x:any)=>x.role==='Proprietor' || x.role==='Bishop');
             if(b1?.image) { bImg=b1.image; bName=b1.name||bName; bTitle=b1.title||bTitle; bDesc=b1.description||bDesc; } else if(s1?.proprietor_image) { bImg=s1.proprietor_image; bDesc=s1.proprietor_message||bDesc; } else if(localStorage.getItem('proprietor_image')) { bImg=localStorage.getItem('proprietor_image'); } else if(mBishop?.image) { bImg=mBishop.image; bDesc=mBishop.description||bDesc; }
             if(bImg || true){ if(bImg) setProprietorImg(bImg); setBishopData({name:bName, title:bTitle, description:bDesc, image:bImg}); }
-            
             let pImg = null; 
             let pName = 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN'; 
             let pTitle = 'Provost, Labe College of Nursing Sciences'; 
@@ -68,9 +62,6 @@ const LCNSWebsite = () => {
             const p1 = JSON.parse(localStorage.getItem('lcns_provost')||'null'); const pMgmt = m.find((x:any)=>x.role==='Provost');
             if(p1?.image) { pImg=p1.image; pName=p1.name||pName; pTitle=p1.title||pTitle; pDesc=p1.message||p1.description||pDesc; } else if(s1?.provost_image) { pImg=s1.provost_image; pDesc=s1.provost_message||pDesc; } else if(pMgmt?.image) { pImg=pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
             if(pImg){ setProvostImg(pImg); } setProvostData({name:pName, title:pTitle, description:pDesc, image:pImg});
-            
-            // FIX: DON'T load gallery from localStorage again if we already have from backend
-            // This prevents duplicate - Keep only backend
             const fKeys = ['lcns_facilities','college_facilities']; let allFac:any[] = []; for(const fk of fKeys){ try{ const fv=JSON.parse(localStorage.getItem(fk)||'[]'); if(Array.isArray(fv) && fv.length) allFac=[...allFac, ...fv]; }catch{} } if(allFac.length) setFacilities(allFac);
           } catch {}
         }; 
@@ -95,8 +86,7 @@ const LCNSWebsite = () => {
   const scrollTo = (id:string) => { 
     const el = document.getElementById(id);
     if(el){
-      const yOffset = -80;
-      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      const y = el.getBoundingClientRect().top + window.pageYOffset - 80;
       window.scrollTo({top: y, behavior:'smooth'});
     }
     setMenuOpen(false); 
@@ -131,7 +121,7 @@ const LCNSWebsite = () => {
           <div className="hidden lg:flex gap-5 text-sm font-semibold text-[#0f4c2e] items-center">
             <button onClick={()=>scrollTo('home')} className="hover:text-yellow-600 font-bold">Home</button>
             <button onClick={()=>scrollTo('about')} className="hover:text-yellow-600 font-bold">About</button>
-            <button onClick={()=>scrollTo('offering')} className="hover:text-yellow-600 font-black bg-yellow-100 px-3 py-1 rounded-full">ND HND Offering</button>
+            <button onClick={()=>scrollTo('program')} className="hover:text-yellow-600 font-black bg-yellow-100 px-3 py-1 rounded-full">Program</button>
             <button onClick={()=>scrollTo('facilities')} className="hover:text-yellow-600">Facilities</button>
             <button onClick={()=>scrollTo('gallery')} className="hover:text-yellow-600">Gallery</button>
             <button onClick={()=>scrollTo('contact')} className="hover:text-yellow-600">Contact</button>
@@ -143,7 +133,7 @@ const LCNSWebsite = () => {
           <div className="lg:hidden bg-white p-4 flex flex-col gap-3 border-t shadow-lg">
             <button onClick={()=>scrollTo('home')} className="text-left py-3 border-b font-bold">🏠 Home</button>
             <button onClick={()=>scrollTo('about')} className="text-left py-3 border-b font-bold">📖 About and History</button>
-            <button onClick={()=>scrollTo('offering')} className="text-left py-3 border-b font-black bg-yellow-50 px-3 rounded">🎓 ND HND Nursing Science Official Offering</button>
+            <button onClick={()=>scrollTo('program')} className="text-left py-3 border-b font-black bg-yellow-50 px-3 rounded">🎓 Program - ND HND Nursing Science</button>
             <button onClick={()=>scrollTo('facilities')} className="text-left py-3 border-b font-bold">🏢 Facilities</button>
             <button onClick={()=>scrollTo('gallery')} className="text-left py-3 border-b font-bold">🖼️ Gallery</button>
             <button onClick={()=>scrollTo('contact')} className="text-left py-3 border-b font-bold">📞 Contact Us</button>
@@ -165,7 +155,7 @@ const LCNSWebsite = () => {
               <p className="text-xs text-green-100 mt-1">Labe College of Nursing Sciences offers ND HND Nursing Science. Minimum of Five O-Level credit passes in WAEC NECO NABTEB at not more than two sittings, including English Language, Mathematics, Biology, Chemistry, and Physics. Valid JAMB UTME score.</p>
             </div>
             <div className="flex gap-4">
-              <button onClick={()=>scrollTo('offering')} className="bg-yellow-400 text-[#0f2e1f] px-8 py-3.5 rounded-full font-black">View Requirements <ChevronRight className="inline ml-1"/></button>
+              <button onClick={()=>scrollTo('program')} className="bg-yellow-400 text-[#0f2e1f] px-8 py-3.5 rounded-full font-black">View Program <ChevronRight className="inline ml-1"/></button>
               <button onClick={()=>scrollTo('admission')} className="bg-white/10 border border-white/20 px-8 py-3.5 rounded-full">Apply Now</button>
             </div>
           </div>
@@ -192,14 +182,14 @@ const LCNSWebsite = () => {
         </div>
       </section>
 
-      <section id="offering" className="py-16 bg-white scroll-mt-24">
+      <section id="program" className="py-16 bg-white scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-10">
             <div className="inline-flex bg-[#0f4c2e] text-white px-6 py-2 rounded-full font-black text-xs tracking-widest">OFFICIAL ACADEMIC OFFERING</div>
             <h2 className="text-4xl md:text-5xl font-black text-[#0f4c2e] mt-4">ND HND Nursing Science</h2>
             <p className="text-lg font-bold text-slate-700 mt-2">Four Years Full-Time National Diploma Higher National Diploma • NMCN Accredited • NBTE Approved</p>
+            <button onClick={()=>scrollTo('about')} className="mt-4 text-sm font-bold text-[#0f4c2e] underline">← Learn About Our History and Philosophy</button>
           </div>
-
           <div className="grid md:grid-cols-2 gap-8">
             <div className="bg-[#f0faf0] border-2 border-[#0f4c2e] rounded-[2rem] p-8">
               <h3 className="font-black text-xl text-[#0f4c2e] flex items-center gap-2"><BookOpen className="text-yellow-600"/> Labe College of Nursing Sciences offers ND HND Nursing Science</h3>
@@ -209,7 +199,6 @@ const LCNSWebsite = () => {
                 <div className="bg-white border rounded-xl p-4 mt-4"><p className="text-xs font-bold text-[#0f4c2e] flex items-center gap-2"><Award size={16}/> Total Duration: Four Years Full-Time ND plus HND</p><p className="text-xs text-slate-600 mt-1">Graduates qualify for NMCN licensing examination and direct entry for further studies.</p></div>
               </div>
             </div>
-
             <div className="bg-[#0f4c2e] text-white rounded-[2rem] p-8">
               <h3 className="font-black text-xl flex items-center gap-2"><CheckCircle className="text-yellow-300"/> Admission Requirements</h3>
               <p className="text-yellow-200 text-xs font-bold mt-2 tracking-widest">MINIMUM REQUIREMENTS FOR ND HND NURSING SCIENCE</p>
@@ -244,8 +233,8 @@ const LCNSWebsite = () => {
           <div className="bg-white border-2 border-green-100 rounded-[2rem] p-8 leading-relaxed text-slate-700">
             <p className="text-[15px]">The College is the brainchild of the Bishop, Catholic Diocese of Gboko, Most Rev. William A. Avenya, and is named after a humanitarian, late Pharmacist Ternenge Labe in a bid to immortalize him for the selfless services he rendered to people within Gboko Diocese, Benue state and beyond. The institution has an objective of training the teeming Nigerian youths with compassion and fear of God, on the best global nursing practices. The program will enhance their skills and widen their horizon to be the best nursing practitioners in the world, especially the indigent ones who cannot afford the cost of travelling outside the country for further studies.</p>
             <p className="mt-4 text-sm">Established by Catholic Diocese of Gboko, located off Gboko Hill Road opposite Sinai College, Gboko Hills.</p>
+            <button onClick={()=>scrollTo('program')} className="mt-6 bg-[#0f4c2e] text-white px-6 py-3 rounded-full font-black">View Our ND/HND Program →</button>
           </div>
-
           <div className="grid md:grid-cols-2 gap-6 mt-10">
             <div className="bg-[#f0faf0] border border-green-100 rounded-[2rem] p-6">
               <p className="text-xs font-bold tracking-widest text-[#2e8b57] mb-3">PROPRIETOR - BISHOP OF CATHOLIC DIOCESE OF GBOKO</p>
@@ -274,7 +263,6 @@ const LCNSWebsite = () => {
               </div>
             </div>
           </div>
-
           <div className="mt-12 grid gap-8">
             <div className="bg-white border-2 border-[#0f4c2e] rounded-[2rem] p-8">
               <h3 className="text-2xl font-black text-[#0f4c2e] flex items-center gap-2"><Target className="text-yellow-600"/> PHILOSOPHY OF THE SCHOOL</h3>
@@ -289,7 +277,6 @@ const LCNSWebsite = () => {
                 <p>That since we are in a system, we will collaborate with relevant cooperate organizations for effective teaching and learning process, be they local or international, government or non government.</p>
               </div>
             </div>
-
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-[#0f4c2e] text-white rounded-[2rem] p-8">
                 <h3 className="font-black text-xl flex items-center gap-2"><Target className="text-yellow-300"/> Mission</h3>
@@ -300,7 +287,6 @@ const LCNSWebsite = () => {
                 <p className="mt-3 text-sm leading-relaxed font-medium">Labe College of Nursing Sciences (LCNS) is committed to be an outstanding College of Nursing Sciences, recognized for excellence in healthcare training and practice, with a commitment to improving health care delivery, promoting social justice, and advancing the medical profession.</p>
               </div>
             </div>
-
             <div className="bg-white border rounded-[2rem] p-8">
               <h3 className="text-xl font-black text-[#0f4c2e]">Our Core Values</h3>
               <p className="mt-2 text-sm text-slate-600">Our values are through commitment to the under mentioned to promote excellence in Nursing education practice and services, using the five Cs of best practice Nursing, which are Commitment, Conscience, Competence, Compassion, and Confidence.</p>
@@ -310,7 +296,6 @@ const LCNSWebsite = () => {
                 ))}
               </div>
             </div>
-
             <div className="bg-white border rounded-[2rem] p-8">
               <h3 className="text-xl font-black text-[#0f4c2e]">School Colors and Logo</h3>
               <p className="mt-2 text-sm text-slate-600">The logo for Labe College of Nursing Sciences, Gboko uses a combination of green, white, black, red, orange, and brown colours.</p>
