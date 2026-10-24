@@ -5,7 +5,6 @@ import {
   CBTSubmission, CBTTest, CBTQuestionItem, CBTResult, BursarAccount, ScreeningScore,
 } from '../types';
 
-// ADDED: Supabase client for backend picture restore — Does not affect your existing localStorage logic
 import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || (typeof process !== 'undefined' ? (process as any).env?.NEXT_PUBLIC_SUPABASE_URL : '') || localStorage.getItem('supabase_url') || '';
 const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || (typeof process !== 'undefined' ? (process as any).env?.NEXT_PUBLIC_SUPABASE_ANON_KEY : '') || localStorage.getItem('supabase_anon_key') || '';
@@ -23,7 +22,6 @@ const STORAGE_KEYS = {
   CBT_RESULTS: 'lcns_erp_cbt_results', SCREENING_SCORES: 'lcns_erp_screening_scores',
 };
 
-// --- FINAL SECURE USERS - NO admin123 ---
 const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
   { id: 'LCNS/2026/AD/CHIEF', email: 'samuel@lcns.edu.ng', password: 'Lcns@2026', pin: '999999', role: 'ADMIN' as any, fullName: 'Avule Samuel - Chief Admin & Director ICT', status: 'ACTIVE', phone: '08126799565', department: 'Director of ICT', createdAt: '2026-01-01' },
   { id: 'LCNS/2026/AD/001', email: 'info@lcns.edu.ng', password: 'Lcns@Info2026', pin: '849201', role: 'ADMIN', fullName: 'Director of ICT / Admin', status: 'ACTIVE', phone: '08126799565', department: 'ICT & Systems Unit', createdAt: '2026-01-10' },
@@ -49,7 +47,17 @@ function setStorage<T>(key: string, val: T): void {
     window.dispatchEvent(new Event('lcns_storage_update'));
     window.dispatchEvent(new Event('storage'));
     localStorage.setItem('lcns_last_update', Date.now().toString());
-  } catch {}
+  } catch (e) {
+    console.warn('Storage quota hit, clearing gallery cache to free memory', e);
+    try {
+      localStorage.removeItem('lcns_gallery');
+      localStorage.removeItem('college_gallery');
+      localStorage.removeItem('gallery');
+      localStorage.removeItem('official_gallery');
+      localStorage.removeItem('lcns_erp_gallery');
+      localStorage.setItem(key, JSON.stringify(val));
+    } catch {}
+  }
 }
 
 export const StorageService = {
@@ -58,21 +66,16 @@ export const StorageService = {
     const deletedUserIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedUserIds.map((d: string) => d.toLowerCase()));
     let filtered = users.filter((u) => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
-
-    // Auto-heal: if >30 (flood), restore to secure list
     if (filtered.length > 30) {
       filtered = INITIAL_USERS;
       setStorage(STORAGE_KEYS.USERS, filtered);
       localStorage.setItem('lcns_deleted_user_ids', JSON.stringify([]));
     }
-
-    // Protect Chief Admin - never allow delete of samuel
     const chiefExists = filtered.some(u => u.email.toLowerCase() === 'samuel@lcns.edu.ng');
     if (!chiefExists) {
       filtered.unshift(INITIAL_USERS[0]);
       setStorage(STORAGE_KEYS.USERS, filtered);
     }
-
     try {
       const backupRaw = localStorage.getItem('lcns_permanent_users_backup');
       if (backupRaw) {
@@ -80,7 +83,7 @@ export const StorageService = {
         if (Array.isArray(backupUsers)) {
           for (const bu of backupUsers) {
             if (deletedSet.has(bu.id.toLowerCase()) || deletedSet.has(bu.email.toLowerCase())) continue;
-            if (bu.email.toLowerCase() === 'samuel@lcns.edu.ng') continue; // already protected
+            if (bu.email.toLowerCase() === 'samuel@lcns.edu.ng') continue;
             const idx = filtered.findIndex((u) => u.id === bu.id || u.email.toLowerCase() === bu.email.toLowerCase());
             if (idx === -1) filtered.push(bu);
           }
@@ -119,7 +122,6 @@ export const StorageService = {
   },
 
   deleteUser: (userId: string) => {
-    // BLOCK Chief Admin delete
     if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF') {
       console.warn('Blocked delete of Chief Admin');
       return StorageService.getUsers();
@@ -127,16 +129,13 @@ export const StorageService = {
     const users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
     const targetUser = users.find((u) => u.id === userId || u.email === userId || u.email.toLowerCase() === userId.toLowerCase());
     if (targetUser?.email.toLowerCase() === 'samuel@lcns.edu.ng') return StorageService.getUsers();
-
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const newDeleted = [...deletedIds, userId, userId.toLowerCase()];
     if (targetUser?.id) newDeleted.push(targetUser.id, targetUser.id.toLowerCase());
     if (targetUser?.email) newDeleted.push(targetUser.email, targetUser.email.toLowerCase());
     setStorage('lcns_deleted_user_ids', Array.from(new Set(newDeleted)));
-
     const updated = users.filter((u) => u.id !== userId && u.email !== userId && u.email.toLowerCase() !== userId.toLowerCase() && u.email.toLowerCase() !== targetUser?.email.toLowerCase());
     setStorage(STORAGE_KEYS.USERS, updated);
-
     const current = StorageService.getCurrentUser();
     if (current && (current.id === userId || current.email === userId)) StorageService.setCurrentUser(null);
     StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted: ${targetUser?.fullName || userId}`);
@@ -201,7 +200,7 @@ export const StorageService = {
   rejectApplicantByBursar: (applicantId: string, remarks: string) => StorageService.getApplicants(),
   resetToDefault: () => { localStorage.clear(); location.reload(); },
 
-  // ========== ADDED: BACKEND PICTURE RESTORE WITH DESCRIPTIONS — Does not change any above code ==========
+  // ========== FIXED: NO MORE Out of Memory - Only HTTPS URLs, no base64 bloat ==========
   getSupabase: () => supabase,
   supabase: supabase,
 
@@ -210,25 +209,26 @@ export const StorageService = {
       if (supabase) {
         const { data } = await supabase.from('settings').select('*').limit(1).single();
         if (data) {
-          // Sync to localStorage for compatibility
-          if (data.provost_image) localStorage.setItem('provost_image', data.provost_image);
-          if (data.proprietor_image) localStorage.setItem('proprietor_image', data.proprietor_image);
+          if (data.provost_image && !data.provost_image.startsWith('data:')) localStorage.setItem('provost_image', data.provost_image);
+          if (data.proprietor_image && !data.proprietor_image.startsWith('data:')) localStorage.setItem('proprietor_image', data.proprietor_image);
           localStorage.setItem('lcns_settings', JSON.stringify(data));
           return data;
         }
       }
     } catch {}
-    // Fallback to local
     try { return JSON.parse(localStorage.getItem('lcns_settings') || localStorage.getItem('lcns_erp_cms_config') || '{}'); } catch { return {}; }
   },
 
   getGallery: async () => {
     try {
-      // 1. TRY BACKEND FIRST — Restore pictures with title + description from Supabase
+      // FIX: Backend first, limit 12, HTTPS only - Prevents Out of Memory
       if (supabase) {
-        const { data, error } = await supabase.from('gallery').select('*').eq('is_published', true).order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('gallery').select('*').eq('is_published', true).order('created_at', { ascending: false }).limit(12);
         if (!error && data && data.length > 0) {
-          const normalized = data.map((g: any) => ({
+          const normalized = data.filter((g:any) => {
+            const url = g.image_url || g.image || g.url || '';
+            return url && !url.startsWith('data:');
+          }).map((g: any) => ({
             id: g.id,
             title: g.title || g.name || 'Campus Image',
             description: g.description || g.desc || g.category || 'Labe College of Nursing Sciences, Gboko',
@@ -238,19 +238,29 @@ export const StorageService = {
             url: g.image_url || g.image || g.url,
             created_at: g.created_at
           }));
-          // Save to all gallery keys so your LCNSWebsite sees them
-          localStorage.setItem('lcns_gallery', JSON.stringify(normalized));
-          localStorage.setItem('college_gallery', JSON.stringify(normalized));
-          localStorage.setItem('gallery', JSON.stringify(normalized));
-          console.log(`Restored ${normalized.length} pictures from backend with descriptions`);
-          return normalized;
+          // FIX: Save only once, not 4 times - Save to one key only
+          if (normalized.length > 0) {
+            try {
+              localStorage.setItem('lcns_gallery', JSON.stringify(normalized.slice(0,8)));
+            } catch {}
+            return normalized;
+          }
         }
       }
     } catch (e) { console.warn('Backend gallery restore failed, using local', e); }
-    // 2. FALLBACK to your existing localStorage logic
+    // FALLBACK: Filter out base64 to prevent memory crash
     const galleryKeys = ['lcns_gallery', 'college_gallery', 'gallery', 'official_gallery', 'lcns_erp_gallery'];
     for (const k of galleryKeys) {
-      try { const v = JSON.parse(localStorage.getItem(k) || '[]'); if (Array.isArray(v) && v.length) return v; } catch {}
+      try { 
+        const v = JSON.parse(localStorage.getItem(k) || '[]'); 
+        if (Array.isArray(v) && v.length) {
+          const filtered = v.filter((g:any) => {
+            const url = g.image_url || g.image || g.url || '';
+            return url && !url.startsWith('data:');
+          }).slice(0,12);
+          if (filtered.length) return filtered;
+        }
+      } catch {}
     }
     return [];
   },
@@ -258,27 +268,30 @@ export const StorageService = {
   getFacilities: async () => {
     try {
       if (supabase) {
-        const { data } = await supabase.from('facilities').select('*').order('created_at', { ascending: false });
+        const { data } = await supabase.from('facilities').select('*').order('created_at', { ascending: false }).limit(12);
         if (data && data.length) {
-          localStorage.setItem('lcns_facilities', JSON.stringify(data));
-          return data;
+          const filtered = data.filter((f:any) => {
+            const url = f.image_url || f.image || '';
+            return !url || !url.startsWith('data:');
+          });
+          localStorage.setItem('lcns_facilities', JSON.stringify(filtered.slice(0,8)));
+          return filtered;
         }
       }
     } catch {}
-    try { return JSON.parse(localStorage.getItem('lcns_facilities') || '[]'); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem('lcns_facilities') || '[]').slice(0,12); } catch { return []; }
   },
 
-  // ADDED: Save picture from backend to website with description
   saveGalleryWithDescription: async (item: { title: string; description: string; category?: string; image_url: string }) => {
-    // Save to local immediately
+    if (item.image_url.startsWith('data:')) {
+      console.warn('Blocked base64 save - Use Supabase Storage URL to prevent Out of Memory');
+      return { error: 'Base64 too large - Upload to Supabase Storage first' };
+    }
     const existing = getStorage('lcns_gallery', [] as any[]);
     const newItem = { id: 'gal-' + Date.now(), title: item.title, description: item.description, category: item.category || 'Campus', image: item.image_url, image_url: item.image_url, url: item.image_url, created_at: new Date().toISOString() };
-    const updated = [newItem, ...existing];
+    const updated = [newItem, ...existing].slice(0,12);
     setStorage('lcns_gallery', updated);
-    setStorage('college_gallery', updated);
-    setStorage('gallery', updated);
 
-    // Also try save to backend if supabase configured
     try {
       if (supabase) {
         const { data, error } = await supabase.from('gallery').insert([{
@@ -297,24 +310,19 @@ export const StorageService = {
     return updated;
   },
 
-  // ADDED: Restore all backend Storage objects (college-gallery bucket) into gallery table with descriptions
   restoreBackendPictures: async () => {
-    if (!supabase) return { error: 'Supabase not configured — Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel' };
+    if (!supabase) return { error: 'Supabase not configured' };
     try {
       const { data: storageFiles, error } = await supabase.storage.from('college-gallery').list('', { limit: 100 });
       if (error) throw error;
       if (!storageFiles || storageFiles.length === 0) return { message: 'No files in college-gallery bucket', files: [] };
-
       const restored: any[] = [];
       for (const file of storageFiles) {
         if (file.name === '.emptyFolderPlaceholder') continue;
         const { data: urlData } = supabase.storage.from('college-gallery').getPublicUrl(file.name);
         const publicUrl = urlData.publicUrl;
-
-        // Check if already in gallery table
         const { data: existing } = await supabase.from('gallery').select('id').eq('image_url', publicUrl).single();
         if (existing) continue;
-
         const title = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
         const payload = {
           title: title || 'Campus Image',
@@ -328,13 +336,12 @@ export const StorageService = {
         const { data, error: insErr } = await supabase.from('gallery').insert([payload]).select();
         if (!insErr && data) restored.push(data[0]);
       }
-      return { restored: restored.length, items: restored, message: `Restored ${restored.length} backend pictures to website with descriptions` };
+      return { restored: restored.length, items: restored, message: `Restored ${restored.length} backend pictures` };
     } catch (e: any) {
       return { error: e.message };
     }
   },
 
-  // ADDED: For application submit that was failing before
   submitApplication: async (data: any) => {
     return (StorageService as any).saveApplication(data);
   },
@@ -357,13 +364,11 @@ export const StorageService = {
         };
         const { data: result, error } = await supabase.from('applications').insert([payload]).select();
         if (error) throw error;
-        // Backup locally
         const existing = getStorage('lcns_erp_applicants', [] as any[]);
         setStorage('lcns_erp_applicants', [payload, ...existing]);
         return result;
       }
     } catch (e) {
-      // Fallback local save so submit never crashes
       const existing = getStorage('lcns_erp_applicants', [] as any[]);
       const payload = { id: `LCNS-${Date.now()}`, ...data, status: 'submitted', created_at: new Date().toISOString() };
       setStorage('lcns_erp_applicants', [payload, ...existing]);
@@ -374,6 +379,5 @@ export const StorageService = {
   createApplication: async (data: any) => { return (StorageService as any).saveApplication(data); },
 } as any;
 
-// For backward compatibility with old Tc imports
 export const Tc = { submitApplication: (data: any) => (StorageService as any).saveApplication(data) };
 export const storage = StorageService;
