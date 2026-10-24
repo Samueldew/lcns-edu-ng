@@ -55,6 +55,14 @@ export const AdminUsersManagement: React.FC = () => {
   const [formDept, setFormDept] = useState('Department of Nursing Sciences');
   const [formCustomPass, setFormCustomPass] = useState('');
 
+  // ADDED: Manual fields + Picture Upload
+  const [formSex, setFormSex] = useState(''); // MANUAL TYPING
+  const [formAge, setFormAge] = useState(''); // MANUAL TYPING
+  const [formAddress, setFormAddress] = useState(''); // MANUAL TYPING
+  const [formPicture, setFormPicture] = useState<string | null>(null);
+  const [formPictureFile, setFormPictureFile] = useState<File | null>(null);
+  const [uploadingPic, setUploadingPic] = useState(false);
+
   const loadUsers = async () => {
     const sb = getSupabase();
     if (sb) {
@@ -74,7 +82,10 @@ export const AdminUsersManagement: React.FC = () => {
             createdAt: u.created_at ? u.created_at.split('T')[0] : '',
             level: u.level || undefined,
             matricNo: u.matric_no || u.matricNo,
-            photoUrl: u.photo_url || u.photoUrl,
+            photoUrl: u.photo_url || u.photoUrl || u.profile_picture || u.picture,
+            sex: u.sex || '',
+            age: u.age || '',
+            address: u.address || '',
           }));
           setUsers(formatted);
           return;
@@ -156,11 +167,39 @@ export const AdminUsersManagement: React.FC = () => {
     window.dispatchEvent(new Event('lcns_storage_update'));
   };
 
+  // ADDED: Handle picture select
+  const handlePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Picture too large — Max 2MB');
+      return;
+    }
+    setFormPictureFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setFormPicture(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formFullName || !formEmail) return;
     const finalPassword = formCustomPass.trim() || `Lcns@${Math.floor(1000+Math.random()*9000)}`;
     try {
+      setUploadingPic(true);
+      let pictureUrl = '';
+
+      // Upload picture to Supabase Storage if file selected
+      const sb = getSupabase();
+      if (sb && formPictureFile) {
+        const fileName = `students/${Date.now()}_${formPictureFile.name.replace(/\s/g, '_')}`;
+        const { error } = await sb.storage.from('college-gallery').upload(fileName, formPictureFile);
+        if (!error) {
+          const { data } = sb.storage.from('college-gallery').getPublicUrl(fileName);
+          pictureUrl = data.publicUrl;
+        }
+      }
+
       const result = await ApiService.createUser({
         fullName: formFullName.trim(),
         email: formEmail.trim().toLowerCase(),
@@ -169,14 +208,26 @@ export const AdminUsersManagement: React.FC = () => {
         department: formDept,
         level: formRole === 'STUDENT' ? formLevel : undefined,
         password: finalPassword,
+        sex: formSex.trim(), // MANUAL
+        age: formAge.trim(), // MANUAL
+        address: formAddress.trim(), // MANUAL
+        photo_url: pictureUrl,
+        photoUrl: pictureUrl,
+        profile_picture: pictureUrl,
+        picture: pictureUrl,
       } as any);
       await loadUsers();
       localStorage.setItem('lcns_last_update', Date.now().toString());
       window.dispatchEvent(new Event('lcns_storage_update'));
       setCreatedCredentials({ id: (result as any).user?.id || formEmail, pin: '123456', password: finalPassword, fullName: formFullName, role: formRole });
-      setFormFullName(''); setFormEmail(''); setFormPhone(''); setFormCustomPass(''); setShowCreateModal(false);
+      setFormFullName(''); setFormEmail(''); setFormPhone(''); setFormCustomPass(''); 
+      setFormSex(''); setFormAge(''); setFormAddress('');
+      setFormPicture(null); setFormPictureFile(null);
+      setShowCreateModal(false);
     } catch (err: any) {
       alert('Create failed: ' + err.message);
+    } finally {
+      setUploadingPic(false);
     }
   };
 
@@ -197,7 +248,7 @@ export const AdminUsersManagement: React.FC = () => {
             <span>Central Identity - Staff {staffCount} | Students {studentCount}</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase">User Accounts Directory & RBAC Control</h2>
-          <p className="text-xs text-slate-500 mt-1">Default shows STAFF first — Cross-tab sync ON — Fixed 100 limit</p>
+          <p className="text-xs text-slate-500 mt-1">Default shows STAFF first — Cross-tab sync ON — Fixed 100 limit — Manual Entry + Picture Enabled</p>
         </div>
         <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0a4d2e] hover:bg-[#073822] text-white text-xs font-bold rounded-2xl shadow-md shrink-0">
           <UserPlus className="w-4 h-4 text-amber-400" /><span>Create New User</span>
@@ -224,13 +275,52 @@ export const AdminUsersManagement: React.FC = () => {
 
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border">
-            <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 flex items-center justify-between"><h3 className="font-bold uppercase">Create User & Auto ID</h3><button onClick={() => setShowCreateModal(false)} className="p-1.5 text-emerald-300"><X className="w-5 h-5" /></button></div>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 flex items-center justify-between sticky top-0 z-10"><h3 className="font-bold uppercase">Create User - Manual Entry + Picture</h3><button onClick={() => setShowCreateModal(false)} className="p-1.5 text-emerald-300"><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleCreateUserSubmit} className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Full Name *</label><input type="text" value={formFullName} onChange={(e) => setFormFullName(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" required /></div><div><label className="block font-bold mb-1">Email *</label><input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" required /></div></div>
-              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Role *</label><select value={formRole} onChange={(e) => setFormRole(e.target.value as UserRole)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold"><option value="STUDENT">STUDENT</option><option value="LECTURER">LECTURER</option><option value="HOD">HOD</option><option value="BURSAR">BURSAR</option><option value="REGISTRAR">REGISTRAR</option><option value="PROVOST">PROVOST</option><option value="EXAM_OFFICER">EXAM OFFICER</option><option value="ADMIN">ADMIN</option></select></div><div><label className="block font-bold mb-1">Level</label><select value={formLevel} onChange={(e) => setFormLevel(e.target.value as any)} disabled={formRole !== 'STUDENT'} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold disabled:opacity-50"><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option></select></div></div>
-              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Phone</label><input type="text" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div><div><label className="block font-bold mb-1">Password</label><input type="text" value={formCustomPass} onChange={(e) => setFormCustomPass(e.target.value)} placeholder="Lcns@1234" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div></div>
-              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2.5 border rounded-xl font-bold">Cancel</button><button type="submit" className="px-5 py-2.5 bg-[#0a4d2e] text-white rounded-xl font-bold">Create</button></div>
+              {/* PICTURE UPLOAD - ADDED */}
+              <div className="bg-[#f0faf0] border-2 border-dashed border-green-300 rounded-2xl p-4 text-center">
+                <label className="block font-black mb-2 text-[#0a4d2e]">Upload Student Picture (Max 2MB)</label>
+                {formPicture ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <img src={formPicture} alt="Preview" className="w-28 h-28 rounded-2xl object-cover border-4 border-yellow-400 shadow-md"/>
+                    <p className="text-[11px] font-bold text-green-700">{formPictureFile?.name}</p>
+                    <button type="button" onClick={()=>{setFormPicture(null); setFormPictureFile(null);}} className="text-[11px] bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold">Remove</button>
+                  </div>
+                ) : (
+                  <div className="py-2"><p className="text-3xl">📸</p><p className="text-[11px] text-slate-500 mt-1">No picture yet</p></div>
+                )}
+                <input type="file" accept="image/*" onChange={handlePictureChange} className="mt-3 block w-full text-[11px] text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:text-[11px] file:font-bold file:bg-[#0a4d2e] file:text-white" />
+                <p className="text-[10px] text-slate-400 mt-1">JPG/PNG — Will upload to Supabase college-gallery — No Out of Memory</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block font-bold mb-1">Full Name *</label><input type="text" value={formFullName} onChange={(e) => setFormFullName(e.target.value)} placeholder="Type full name" className="w-full p-2.5 bg-slate-50 border rounded-xl" required /></div>
+                <div><label className="block font-bold mb-1">Email *</label><input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="Type email" className="w-full p-2.5 bg-slate-50 border rounded-xl" required /></div>
+              </div>
+
+              {/* MANUAL INPUTS - ADDED */}
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block font-bold mb-1">Sex (Type Manually) *</label><input type="text" value={formSex} onChange={(e) => setFormSex(e.target.value)} placeholder="Type Male / Female" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" /></div>
+                <div><label className="block font-bold mb-1">Age (Type Manually)</label><input type="text" value={formAge} onChange={(e) => setFormAge(e.target.value)} placeholder="Type age e.g. 22" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" /></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block font-bold mb-1">Phone</label><input type="text" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="Type phone" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+                <div><label className="block font-bold mb-1">Password</label><input type="text" value={formCustomPass} onChange={(e) => setFormCustomPass(e.target.value)} placeholder="Type password" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block font-bold mb-1">Role *</label><select value={formRole} onChange={(e) => setFormRole(e.target.value as UserRole)} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold"><option value="STUDENT">STUDENT</option><option value="LECTURER">LECTURER</option><option value="HOD">HOD</option><option value="BURSAR">BURSAR</option><option value="REGISTRAR">REGISTRAR</option><option value="PROVOST">PROVOST</option><option value="EXAM_OFFICER">EXAM OFFICER</option><option value="ADMIN">ADMIN</option></select></div>
+                <div><label className="block font-bold mb-1">Level (Type or Select)</label><select value={formLevel} onChange={(e) => setFormLevel(e.target.value as any)} disabled={formRole !== 'STUDENT'} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold disabled:opacity-50"><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option></select></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="block font-bold mb-1">Department (Type Manually)</label><input type="text" value={formDept} onChange={(e) => setFormDept(e.target.value)} placeholder="Type department" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+                <div><label className="block font-bold mb-1">Address (Type Manually)</label><input type="text" value={formAddress} onChange={(e) => setFormAddress(e.target.value)} placeholder="Type address e.g. Off Gboko Hill" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2.5 border rounded-xl font-bold">Cancel</button><button type="submit" disabled={uploadingPic} className="px-5 py-2.5 bg-[#0a4d2e] text-white rounded-xl font-bold disabled:opacity-50">{uploadingPic ? 'Uploading...' : 'Create with Picture'}</button></div>
             </form>
           </div>
         </div>
@@ -242,7 +332,7 @@ export const AdminUsersManagement: React.FC = () => {
       )}
       {viewingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border"><div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 flex items-center justify-between"><h3 className="font-bold">{viewingUser.fullName}</h3><button onClick={() => setViewingUser(null)}><X className="w-5 h-5" /></button></div><div className="p-6 text-xs space-y-2"><p>Email: {viewingUser.email}</p><p>ID: {viewingUser.id}</p><p>Role: {viewingUser.role}</p><button onClick={() => setViewingUser(null)} className="mt-4 px-4 py-2 bg-slate-100 rounded-xl font-bold">Close</button></div></div>
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border"><div className="bg-gradient-to-r from-[#0a4d2e] to-[#042114] text-white p-6 flex items-center justify-between"><h3 className="font-bold">{viewingUser.fullName}</h3><button onClick={() => setViewingUser(null)}><X className="w-5 h-5" /></button></div><div className="p-6 text-xs space-y-2"><p>Email: {viewingUser.email}</p><p>ID: {viewingUser.id}</p><p>Role: {viewingUser.role}</p><p>Sex: {(viewingUser as any).sex || '—'}</p><p>Age: {(viewingUser as any).age || '—'}</p><p>Address: {(viewingUser as any).address || '—'}</p><button onClick={() => setViewingUser(null)} className="mt-4 px-4 py-2 bg-slate-100 rounded-xl font-bold">Close</button></div></div>
         </div>
       )}
       {userToDelete && (
