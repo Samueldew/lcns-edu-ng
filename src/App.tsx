@@ -22,6 +22,9 @@ import { CourseManagerView } from './components/common/CourseManagerView';
 import { CBTExamManager } from './components/cbt/CBTExamManager';
 import { StudentPortal } from './components/portals/StudentPortal';
 import { ErrorBoundary } from './components/ErrorBoundary';
+// === ADD ONLY - FIX FOR ND/HND 4YEARS APPLICATION - NO DELETE ===
+import { supabase } from './lib/supabase';
+// === END ADD ===
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(StorageService.getCurrentUser());
@@ -153,6 +156,28 @@ export default function App() {
   };
 
   useEffect(() => {
+    // === ADD ONLY - GLOBAL FIX FOR hc.submitApplication is not a function + ND/HND 4Years ===
+    // Patch any old hc global if exists
+    (window as any).hc = (window as any).hc || {};
+    if (!(window as any).hc.submitApplication) {
+      (window as any).hc.submitApplication = async (data: any) => {
+        console.log("PATCHED hc.submitApplication called - forwarding to Supabase ND/HND 4Years");
+        const payload = {
+          full_name: data.fullName || data.full_name || 'Applicant',
+          program: 'ND/HND Nursing 4Years',
+          course_choice_1: 'ND/HND Nursing Sciences - 4 Years Collegiate (ND 1-2 + HND 3-4)',
+          course_choice_2: 'ND/HND Nursing Sciences - 4 Years Collegiate',
+          full_application: data,
+          status: 'PENDING_BURSAR',
+          bursar_status: 'PENDING_BURSAR'
+        };
+        const { data: result, error } = await supabase.from('college_applications').insert([payload]).select().single();
+        if (error) throw error;
+        return result;
+      };
+    }
+    // === END ADD ===
+
     const handleAuthUpdate = () => setCurrentUser(StorageService.getCurrentUser());
     const handleStorageSync = (e: StorageEvent) => {
       if (e.key?.includes('lcns')) {
