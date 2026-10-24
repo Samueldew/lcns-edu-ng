@@ -249,7 +249,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                 2026/2027 Online Application Portal
               </h2>
               <p className="text-xs text-emerald-300">
-                Labe College of Nursing Sciences, Gboko &bull; Office of the Admissions Officer
+                Labe College of Nursing Sciences, Gboko &bull; Catholic Diocese of Gboko &bull; Office of the Admissions Officer
               </p>
             </div>
           </div>
@@ -358,11 +358,15 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                   <div className="flex items-center justify-center gap-3 mb-2">
                     <CollegeLogo size="md" />
                     <div>
+                      {/* === ADDED - CATHOLIC DIOCESE FULL NAME - NO DELETE === */}
                       <h1 className="text-lg sm:text-xl font-black text-emerald-950 uppercase font-serif-crest tracking-tight">
                         Labe College of Nursing Sciences, Gboko
                       </h1>
+                      <p className="text-sm font-black text-[#0a4d2e] uppercase tracking-wider">
+                        Catholic Diocese of Gboko, Benue State, Nigeria
+                      </p>
                       <p className="text-xs font-bold text-[#0a4d2e] tracking-wider uppercase">
-                        Benue State, Nigeria &bull; Motto: "Learn, Serve &amp; Save"
+                        Motto: "Learn, Serve &amp; Save" &bull; Catholic Institution
                       </p>
                       <p className="text-[11px] text-slate-600">
                         Official Email: info@lcns.edu.ng | Support: 08126799565 ICT | lcns.edu.ng
@@ -370,7 +374,7 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                     </div>
                   </div>
                   <div className="inline-block bg-[#0a4d2e] text-white font-bold text-xs uppercase px-4 py-1 rounded-full mt-2">
-                    2026/2027 Admissions Screening Acknowledgement Slip
+                    Catholic Diocese of Gboko - 2026/2027 Admissions Screening Acknowledgement Slip
                   </div>
                 </div>
 
@@ -468,14 +472,18 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                       Receipt Doc: <strong>{submittedApplicant.paymentReceiptName || 'Proof_of_Payment.pdf'}</strong>
                     </p>
                     <p className="text-slate-600 text-[11px]">
-                      Verified by: {submittedApplicant.bursarClearedBy || 'Office of the College Bursar'}
+                      Verified by: {submittedApplicant.bursarClearedBy || 'Office of the College Bursar, Catholic Diocese of Gboko'}
                     </p>
                   </div>
 
                   {isBursarCleared ? (
                     <div className="border-4 border-emerald-700 rounded-xl p-2.5 text-center text-emerald-800 transform rotate-1 bg-emerald-50 shadow-xs max-w-xs">
+                      {/* === ADDED CATHOLIC DIOCESE IN STAMP - NO DELETE === */}
                       <div className="text-[10px] font-black uppercase tracking-widest text-emerald-900">
                         LABE COLLEGE OF NURSING SCIENCES
+                      </div>
+                      <div className="text-[9px] font-black uppercase tracking-widest text-emerald-900">
+                        CATHOLIC DIOCESE OF GBOKO, BENUE STATE
                       </div>
                       <div className="text-xs font-black uppercase text-emerald-800 py-0.5">
                         ★ BURSAR CLEARED &bull; PAID ★
@@ -496,17 +504,17 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
                         AWAITING BURSAR CLEARANCE
                       </div>
                       <div className="text-[9px] text-amber-700 italic">
-                        Not Cleared for Printing
+                        Catholic Diocese of Gboko - Bursary
                       </div>
                     </div>
                   )}
                 </div>
 
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-950 space-y-1">
-                  <p className="font-bold uppercase">Mandatory Physical Screening &amp; Verification Notice:</p>
+                  <p className="font-bold uppercase">Mandatory Physical Screening &amp; Verification Notice - Catholic Diocese of Gboko:</p>
                   <p>1. Candidates must appear with the printed copy of this acknowledgement slip on their scheduled screening date.</p>
                   <p>2. Bring along original O'Level certificate/statement of result (WAEC/NECO/NABTEB), original JAMB result slip, Certificate of State of Origin, and Birth Certificate.</p>
-                  <p>3. Venue: College ICT &amp; Auditorium Complex, Labe College of Nursing Sciences, Gboko, Benue State.</p>
+                  <p>3. Venue: College ICT &amp; Auditorium Complex, Labe College of Nursing Sciences, Catholic Diocese of Gboko, Benue State.</p>
                 </div>
               </div>
             </div>
