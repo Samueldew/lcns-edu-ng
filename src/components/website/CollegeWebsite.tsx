@@ -15,12 +15,12 @@ const LCNSWebsite = () => {
   const [gallery, setGallery] = useState<any[]>([]);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [logo, setLogo] = useState<string | null>(null);
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const [currentSlide, setCurrentSlide] = useState(0); // Top hero only - auto 3s
+  const [gallerySlide, setGallerySlide] = useState(0); // Down gallery - manual with title/desc
 
   useEffect(() => {
     const loadCMS = async () => {
       try {
-        // ===== FIXED: GALLERY FROM school_settings (13 loved) =====
         try {
           const { data: galleryData } = await supabase
             .from('school_settings')
@@ -38,11 +38,9 @@ const LCNSWebsite = () => {
                 seen.add(url);
                 return true;
               });
-              setGallery(unique); // Shows all 13, not slice(0,12)
-              console.log(`✅ Gallery loaded: ${unique.length} from school_settings`);
+              setGallery(unique);
             }
           } else {
-            // Fallback to StorageService if school_settings empty
             const photos = await (StorageService as any).getGallery?.();
             if (photos && photos.length) {
               const seen = new Set();
@@ -56,16 +54,13 @@ const LCNSWebsite = () => {
             }
           }
         } catch (e) {
-          console.log("Gallery fallback to StorageService", e);
           try {
             const photos = await (StorageService as any).getGallery?.();
             if (photos && photos.length) setGallery(photos);
           } catch {}
         }
 
-        // ===== FIXED: BISHOP & PROVOST FROM school_settings (90k image) =====
         const loadAll = async () => {
-          // LOGO
           const logoKeys = ['lcns_logo','college_logo','school_logo','lcns_settings','college_settings'];
           for(const k of logoKeys){
             try{
@@ -83,7 +78,6 @@ const LCNSWebsite = () => {
           }
 
           try{
-            // TRY SUPABASE FIRST FOR BISHOP/PROVOST - THIS FIXES BISHOP DISPLAY
             let bImg: string | null = null;
             let bName = 'Most Rev. William A. Avenya'; 
             let bTitle = 'Proprietor - Bishop of Catholic Diocese of Gboko'; 
@@ -94,7 +88,6 @@ const LCNSWebsite = () => {
             let pTitle = 'Provost, Labe College of Nursing Sciences'; 
             let pDesc = 'On behalf of the Catholic Diocese of Gboko and the Governing Council, I warmly welcome you to Labe College of Nursing Sciences, Gboko. Founded upon the steadfast Catholic ethos of sanctity of human life and selfless service, our college stands as a beacon of academic rigor and moral rectitude in Benue State and across Nigeria. Offering the accredited ND/HND Nursing Science programme, nursing here is a sacred vocation dedicated to compassionate, competent care. We invite you to embark on this noble journey with us.';
 
-            // 1. Try Supabase school_settings for Bishop & Provost
             try {
               const { data: allSettings } = await supabase
                 .from('school_settings')
@@ -117,7 +110,6 @@ const LCNSWebsite = () => {
                     if (val?.title) pTitle = val.title;
                     if (val?.description || val?.message) pDesc = val.description || val.message;
                   }
-                  // Management array may contain bishop/provost
                   if (row.key === 'management' || row.key === 'lcns_management') {
                     const arr = Array.isArray(val) ? val : [];
                     const mBishop = arr.find((x:any)=>x.role==='Proprietor' || x.role==='Bishop');
@@ -127,9 +119,8 @@ const LCNSWebsite = () => {
                   }
                 }
               }
-            } catch (e) { console.log("Supabase bishop/provost fetch failed, fallback to localStorage", e); }
+            } catch (e) {}
 
-            // 2. Fallback to localStorage (your old logic)
             try {
               const b1 = JSON.parse(localStorage.getItem('lcns_bishop')||'null'); 
               const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}'); 
@@ -151,7 +142,6 @@ const LCNSWebsite = () => {
               else if(pMgmt?.image) { pImg=pImg||pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
             } catch {}
 
-            // SET STATE - BISHOP DISPLAY FIX
             if(bImg) setProprietorImg(bImg);
             setBishopData({name:bName, title:bTitle, description:bDesc, image:bImg});
             if(pImg) setProvostImg(pImg);
@@ -163,7 +153,7 @@ const LCNSWebsite = () => {
               try{ const fv=JSON.parse(localStorage.getItem(fk)||'[]'); if(Array.isArray(fv) && fv.length) allFac=[...allFac, ...fv]; }catch{} 
             } 
             if(allFac.length) setFacilities(allFac);
-          } catch (err) { console.log("loadAll error", err); }
+          } catch (err) {}
         }; 
 
         await loadAll(); 
@@ -176,11 +166,12 @@ const LCNSWebsite = () => {
     loadCMS();
   }, []);
 
+  // TOP HERO ONLY - Auto changes every 3 seconds
   useEffect(() => {
     if(gallery.length <= 1) return;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % gallery.length);
-    }, 15000);
+    }, 3000);
     return () => clearInterval(timer);
   }, [gallery.length]);
 
@@ -238,7 +229,7 @@ const LCNSWebsite = () => {
                         <button key={idx} onClick={()=>setCurrentSlide(idx)} className={`w-2 h-2 rounded-full transition-all ${idx===currentSlide ? 'bg-yellow-400 w-6' : 'bg-white/60'}`}/>
                       ))}
                     </div>
-                    <div className="absolute top-3 right-3 bg-black/50 text-white text-[10px] px-3 py-1 rounded-full">{currentSlide+1}/{gallery.length} • Auto changes every 15s</div>
+                    <div className="absolute top-3 right-3 bg-black/50 text-white text-[10px] px-3 py-1 rounded-full">{currentSlide+1}/{gallery.length} • Auto changes every 3s</div>
                   </>
                 ) : (
                   <img src="https://images.unsplash.com/photo-1580281657527-47f24907b016?auto=format&fit=crop&q=80&w=800" className="rounded-[1.6rem] h-full w-full object-cover" alt="Campus"/>
@@ -386,34 +377,39 @@ const LCNSWebsite = () => {
 
       <section id="gallery" className="py-12 bg-[#f8fdf8] scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-3xl font-black text-[#0f4c2e]">Official Campus Gallery — Auto Changes Every 15 Seconds — {gallery.length} Photos</h2>
+          <h2 className="text-3xl font-black text-[#0f4c2e]">Official Campus Gallery — {gallery.length} Photos — With Titles & Descriptions</h2>
           {gallery.length ? (
             <>
               <div className="mt-6 bg-white border-2 rounded-[2rem] p-2 shadow-xl">
                 <div className="relative h-[420px] md:h-[520px] rounded-[1.6rem] overflow-hidden">
-                  <img src={gallery[currentSlide]?.image || gallery[currentSlide]?.image_base64 || gallery[currentSlide]?.image_url} className="h-full w-full object-cover transition-all duration-1000" alt={gallery[currentSlide]?.title}/>
+                  <img src={gallery[gallerySlide]?.image || gallery[gallerySlide]?.image_base64 || gallery[gallerySlide]?.image_url} className="h-full w-full object-cover transition-all duration-500" alt={gallery[gallerySlide]?.title}/>
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-                    <p className="text-white font-black text-lg">{gallery[currentSlide]?.title || `Campus Image ${currentSlide+1}`}</p>
-                    <p className="text-green-200 text-xs">{gallery[currentSlide]?.description || gallery[currentSlide]?.category || 'Labe College of Nursing Sciences, Gboko'}</p>
+                    <p className="text-white font-black text-lg">{gallery[gallerySlide]?.title || `Campus Image ${gallerySlide+1}`}</p>
+                    <p className="text-green-200 text-sm mt-1">{gallery[gallerySlide]?.description || gallery[gallerySlide]?.category || 'Labe College of Nursing Sciences, Gboko'}</p>
                   </div>
-                  <button onClick={()=>setCurrentSlide((currentSlide-1+gallery.length)%gallery.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 w-10 h-10 rounded-full flex items-center justify-center font-black">‹</button>
-                  <button onClick={()=>setCurrentSlide((currentSlide+1)%gallery.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 w-10 h-10 rounded-full flex items-center justify-center font-black">›</button>
+                  <button onClick={()=>setGallerySlide((gallerySlide-1+gallery.length)%gallery.length)} className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 w-10 h-10 rounded-full flex items-center justify-center font-black">‹</button>
+                  <button onClick={()=>setGallerySlide((gallerySlide+1)%gallery.length)} className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 w-10 h-10 rounded-full flex items-center justify-center font-black">›</button>
                   <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/40 px-4 py-2 rounded-full">
                     {gallery.map((_:any, idx:number)=>(
-                      <div key={idx} className={`h-2 rounded-full transition-all ${idx===currentSlide ? 'w-8 bg-yellow-400' : 'w-2 bg-white/60'}`}/>
+                      <div key={idx} className={`h-2 rounded-full transition-all ${idx===gallerySlide ? 'w-8 bg-yellow-400' : 'w-2 bg-white/60'}`}/>
                     ))}
                   </div>
+                  <div className="absolute top-4 right-4 bg-black/50 text-white text-[10px] px-3 py-1 rounded-full">{gallerySlide+1}/{gallery.length}</div>
                 </div>
               </div>
-              <div className="grid md:grid-cols-6 gap-3 mt-4">
+              <div className="grid md:grid-cols-3 gap-4 mt-4">
                 {gallery.map((g:any,i:number)=>(
-                  <button key={i} onClick={()=>setCurrentSlide(i)} className={`border-2 rounded-xl overflow-hidden transition-all ${i===currentSlide ? 'border-yellow-400 ring-2 ring-yellow-200' : 'border-green-100'}`}>
-                    <img src={g.image || g.image_base64 || g.image_url} className="h-24 w-full object-cover" loading="lazy" alt={g.title}/>
+                  <button key={i} onClick={()=>setGallerySlide(i)} className={`border-2 rounded-xl overflow-hidden transition-all text-left ${i===gallerySlide ? 'border-yellow-400 ring-2 ring-yellow-200' : 'border-green-100'}`}>
+                    <img src={g.image || g.image_base64 || g.image_url} className="h-32 w-full object-cover" loading="lazy" alt={g.title}/>
+                    <div className="p-3 bg-white">
+                      <p className="font-black text-sm text-[#0f4c2e] truncate">{g.title || `Campus ${i+1}`}</p>
+                      <p className="text-xs text-slate-500 truncate">{g.description || g.category || 'LCNS Gboko'}</p>
+                    </div>
                   </button>
                 ))}
               </div>
             </>
-          ) : <div className="bg-white border-2 border-dashed rounded-2xl p-8 text-center text-sm text-slate-400 mt-6">Upload from Admin CMS Gallery — Will auto-change every 15 seconds — Currently 0 photos, upload 13 loved photos in Admin</div>}
+          ) : <div className="bg-white border-2 border-dashed rounded-2xl p-8 text-center text-sm text-slate-400 mt-6">Upload from Admin CMS Gallery — Currently 0 photos</div>}
         </div>
       </section>
 
