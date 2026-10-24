@@ -14,6 +14,42 @@ import { ScoreSheetViewer } from './ScoreSheetViewer';
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { CollegeLogo } from '../common/CollegeLogo';
 
+// ===== ADDED - ADMISSION 2026/2027 CLOSED - SCHOOL STARTING NOVEMBER 2026 - SAVING FIX =====
+const ensureAdmissionClosed2026_2027 = () => {
+  const defaultClosed = {
+    isOpen: false,
+    link: '/apply',
+    deadline: '2026-11-30',
+    message: 'Admissions for 2026/2027 Academic Year is CLOSED - School is starting November 2026 for 2026/2027 Academic Year - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria',
+  };
+  try {
+    const existing = localStorage.getItem('lcns_app_status');
+    if (!existing) {
+      localStorage.setItem('lcns_app_status', JSON.stringify(defaultClosed));
+      localStorage.setItem('lcns_admission_status', JSON.stringify(defaultClosed));
+      localStorage.setItem('lcns_application_status', JSON.stringify(defaultClosed));
+      const settings = JSON.parse(localStorage.getItem('lcns_settings') || '{}');
+      settings.admission_status = defaultClosed;
+      settings.isAdmissionOpen = false;
+      localStorage.setItem('lcns_settings', JSON.stringify(settings));
+      localStorage.setItem('college_settings', JSON.stringify(settings));
+      const anns = JSON.parse(localStorage.getItem('lcns_announcements') || '[]');
+      if (!anns.find((a:any) => a.id === 'ANN-2026-2027')) {
+        anns.unshift({
+          id: 'ANN-2026-2027',
+          title: '2026/2027 Academic Year - School Starting November 2026 - Admission Closed',
+          message: defaultClosed.message,
+          type: 'announcement',
+          is_published: true,
+          created_at: new Date().toISOString()
+        });
+        localStorage.setItem('lcns_announcements', JSON.stringify(anns));
+      }
+    }
+  } catch {}
+};
+if (typeof window !== 'undefined') ensureAdmissionClosed2026_2027();
+
 // ROLES
 const ALL_ROLES = [
   { value: 'STUDENT', label: 'STUDENT', color: 'bg-blue-100 text-blue-800' },
@@ -38,7 +74,6 @@ export const AdminDashboard: React.FC = () => {
   const [activeAdminTab, setActiveAdminTab] = useState<'users'|'result_publish'|'applicant_cbt'|'scoresheets'|'gallery'|'leadership'|'courses'|'applicants'>('users');
   const [status, setStatus] = useState<{text:string,type:'success'|'error'}|null>(null);
 
-  // RESULT PUBLISH FROM PROVOST - PRINT
   const [results, setResults] = useState<any[]>(()=>{ try{ return JSON.parse(localStorage.getItem('lcns_results')||'[]'); }catch{ return []; }});
   const [searchResult, setSearchResult] = useState('');
   const [selectedPrintStudent, setSelectedPrintStudent] = useState<any>(null);
@@ -49,12 +84,11 @@ export const AdminDashboard: React.FC = () => {
   });
 
   const showStatus = (text:string, type:'success'|'error'='success')=>{ setStatus({text,type}); setTimeout(()=>setStatus(null),3000); };
-
   const getRoleColor = (r:string)=>ALL_ROLES.find(x=>x.value===r)?.color||'bg-slate-100';
 
-  // CREATE USER - WITH PHOTO UPLOAD + ASSIGN ROLE
   const handleImgUpload = (e:React.ChangeEvent<HTMLInputElement>)=>{
     const f=e.target.files?.[0]; if(!f) return;
+    if(f.size > 2_000_000){ showStatus('Image too big - Use less than 2MB','error'); return; }
     const r=new FileReader(); r.onload=()=>{ setNewUser({...newUser, staffImage:r.result as string}); }; r.readAsDataURL(f);
   };
 
@@ -76,7 +110,7 @@ export const AdminDashboard: React.FC = () => {
       department: newUser.department,
       staffDepartment: newUser.staffDepartment,
       role: newUser.role,
-      userType, loginId, matricNumber: userType==='STUDENT'?matricNumber:'', staffId: userType==='STAFF'?staffId:'', qualification: newUser.qualification, courseOfStudy: newUser.courseOfStudy, staffImage: newUser.staffImage, dateOfBirth: newUser.dateOfBirth, state: newUser.state, lga: newUser.lga, userType: userType, status:'ACTIVE', createdAt:new Date().toISOString(), academicYear: localStorage.getItem('lcns_current_session')||'2025/2026', password, loginIdRaw: loginId
+      userType, loginId, matricNumber: userType==='STUDENT'?matricNumber:'', staffId: userType==='STAFF'?staffId:'', qualification: newUser.qualification, courseOfStudy: newUser.courseOfStudy, staffImage: newUser.staffImage, dateOfBirth: newUser.dateOfBirth, state: newUser.state, lga: newUser.lga, status:'ACTIVE', createdAt:new Date().toISOString(), academicYear: localStorage.getItem('lcns_current_session')||'2026/2027', password, loginIdRaw: loginId
     };
 
     const sb=getSupabase();
@@ -89,6 +123,7 @@ export const AdminDashboard: React.FC = () => {
     try{ StorageService.saveUsers(updated); }catch{}
     setUsers(updated);
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('lcns_storage_update'));
     setNewUser({ fullName:'', firstName:'', middleName:'', lastName:'', address:'', phone:'', bloodGroup:'', sex:'', parentName:'', parentPhone:'', email:'', staying:'hostel', level:'ND1', department:'Nursing', role:userType==='STAFF'?'LECTURER':'STUDENT', staffId:'', qualification:'', staffDepartment:'Nursing', courseOfStudy:'Nursing Science', staffImage:'', dateOfBirth:'', state:'', lga:'' });
     showStatus(`✅ ${userType} Created - ${userData.fullName} - ID: ${loginId} - Role: ${userData.role} - Photo Uploaded`);
   };
@@ -96,6 +131,7 @@ export const AdminDashboard: React.FC = () => {
   const assignRole = (email:string, newRole:string)=>{
     const up=users.map((u:any)=>u.email===email?{...u,role:newRole}:u);
     setUsers(up); localStorage.setItem('lcns_users', JSON.stringify(up)); localStorage.setItem('users', JSON.stringify(up));
+    window.dispatchEvent(new Event('storage'));
     showStatus(`Role assigned: ${newRole} to ${email}`);
   };
 
@@ -126,7 +162,37 @@ export const AdminDashboard: React.FC = () => {
     try{ setResults(JSON.parse(localStorage.getItem('lcns_results')||'[]')); const s=JSON.parse(localStorage.getItem('lcns_senate_ratification')||'null'); if(s) setSenateInfo({approved:s.approved, date:s.date, provost:s.provostName}); else setSenateInfo({approved:localStorage.getItem('lcns_senate_approved')==='true', date:new Date().toISOString(), provost:'Provost'}); }catch{}
   };
 
-  useEffect(()=>{ refreshResults(); const h=()=>refreshResults(); window.addEventListener('storage',h); window.addEventListener('lcns_storage_update',h as any); return()=>{ window.removeEventListener('storage',h); window.removeEventListener('lcns_storage_update',h as any);} },[]);
+  useEffect(()=>{ 
+    refreshResults(); 
+    const h=()=>refreshResults(); 
+    window.addEventListener('storage',h); 
+    window.addEventListener('lcns_storage_update',h as any);
+    window.addEventListener('focus',h);
+    return()=>{ window.removeEventListener('storage',h); window.removeEventListener('lcns_storage_update',h as any); window.removeEventListener('focus',h);} 
+  },[]);
+
+  // ADMISSION CONTROL STATE
+  const [appStatus, setAppStatus] = useState<{isOpen: boolean, link: string, deadline: string, message: string}>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('lcns_app_status') || 'null');
+      if (saved) return saved;
+      return { isOpen: false, link: '/apply', deadline: '2026-11-30', message: 'Admissions for 2026/2027 Academic Year is CLOSED - School is starting November 2026 for 2026/2027 Academic Year - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria' };
+    } catch { return { isOpen: false, link: '/apply', deadline: '2026-11-30', message: 'Admissions for 2026/2027 CLOSED - School starting November 2026' }; }
+  });
+
+  const saveAdmissionStatus = (newStatus: typeof appStatus) => {
+    setAppStatus(newStatus);
+    localStorage.setItem('lcns_app_status', JSON.stringify(newStatus));
+    localStorage.setItem('lcns_admission_status', JSON.stringify(newStatus));
+    const settings = JSON.parse(localStorage.getItem('lcns_settings') || '{}');
+    settings.admission_status = newStatus;
+    settings.isAdmissionOpen = newStatus.isOpen;
+    localStorage.setItem('lcns_settings', JSON.stringify(settings));
+    localStorage.setItem('college_settings', JSON.stringify(settings));
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('lcns_storage_update'));
+    showStatus(newStatus.isOpen ? '✅ Admission OPENED' : '✅ Admission CLOSED for 2026/2027 - School starting November 2026 - Saved');
+  };
 
   return (
     <div className="space-y-6">
@@ -134,22 +200,21 @@ export const AdminDashboard: React.FC = () => {
 
       <div className="bg-gradient-to-r from-slate-900 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 shadow-xl border border-emerald-900">
         <div className="flex flex-col md:flex-row justify-between gap-4">
-          <div><span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - Fixed Save + Gallery Publish + Result Publish + Create User with Photo + Role</span><h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard</h1><p className="text-xs text-emerald-200 mt-1">Users: {users.length} • Students: {users.filter((u:any)=>u.role==='STUDENT').length} • Staff: {users.filter((u:any)=>u.role!=='STUDENT').length} • Results: {results.length} • Senate: {senateInfo.approved?'✅ Published':'🔒 Not Published'}</p></div>
+          <div><span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - Fixed Save + Gallery Publish + Result Publish + Create User with Photo + Role + Admission 2026/2027 Closed</span><h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard</h1><p className="text-xs text-emerald-200 mt-1">Users: {users.length} • Students: {users.filter((u:any)=>u.role==='STUDENT').length} • Staff: {users.filter((u:any)=>u.role!=='STUDENT').length} • Results: {results.length} • Senate: {senateInfo.approved?'✅ Published':'🔒 Not Published'} • Admission 2026/2027: {appStatus.isOpen?'OPEN':'CLOSED - Nov 2026'}</p></div>
           <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl"><CollegeLogo size="lg" /><div className="text-center"><p className="text-[12px] font-black leading-none">Labe College of Nursing Sciences</p><p className="text-[10px] font-bold">Catholic Diocese of Gboko</p><p className="text-[9px]">Gboko, Benue State • Nigeria</p></div><CollegeLogo size="lg" /></div>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border shadow-xs">
         <button onClick={()=>setActiveAdminTab('users')} className={`px-4 py-2.5 rounded-xl text-xs font-black ${activeAdminTab==='users'?'bg-slate-900 text-white':'bg-white border'}`}>👤 Users - Photo + Role</button>
-        <button onClick={()=>setActiveAdminTab('result_publish')} className={`px-4 py-2.5 rounded-xl text-xs font-black ${activeAdminTab==='result_publish'?'bg-red-700 text-white ring-2 ring-red-300 animate-pulse':'bg-red-50 border-2 border-red-400 text-red-800'}`}>🎓 Result Publish - Provost - Print with School Name + Logo</button>
+        <button onClick={()=>setActiveAdminTab('result_publish')} className={`px-4 py-2.5 rounded-xl text-xs font-black ${activeAdminTab==='result_publish'?'bg-red-700 text-white ring-2 ring-red-300':'bg-red-50 border-2 border-red-400 text-red-800'}`}>🎓 Result Publish - Provost - Print with School Name + Logo</button>
+        <button onClick={()=>setActiveAdminTab('applicants')} className={`px-4 py-2.5 rounded-xl text-xs font-black ${activeAdminTab==='applicants'?'bg-purple-700 text-white':'bg-purple-50 border text-purple-800'}`}>🎓 Admission 2026/2027 - Closed - Nov 2026</button>
         <button onClick={()=>setActiveAdminTab('scoresheets')} className={`px-4 py-2.5 rounded-xl text-xs font-bold ${activeAdminTab==='scoresheets'?'bg-blue-700 text-white':'border text-blue-800'}`}>Score Sheets</button>
-        <button onClick={()=>setActiveAdminTab('applicant_cbt')} className={`px-4 py-2.5 rounded-xl text-xs font-bold ${activeAdminTab==='applicant_cbt'?'bg-orange-700 text-white':'border text-orange-800'}`}>Applicant CBT</button>
       </div>
 
-      {/* USERS - CREATE USER WITH PHOTO + ASSIGN ROLE */}
       {activeAdminTab==='users' && (
         <div className="bg-white rounded-3xl border-2 p-6 shadow-sm space-y-6">
-          <div className="flex justify-between"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Professional User Management - FILTER STUDENT/STAFF - Photo Upload + Role Assign</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">✅ FIXED: Saves to localStorage + Supabase. Student: Full Biodata → Matric as ID + Password. Staff: Picture, Qualification, Course, Role Assign on form. Photo appears in all portals.</p></div><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-6 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/>{showCreateUser?'CLOSE':'CREATE USER'}</button></div>
+          <div className="flex justify-between"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Professional User Management - FILTER STUDENT/STAFF - Photo Upload + Role Assign</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">✅ FIXED: Saves to localStorage + Supabase. Student: Full Biodata → Matric as ID + Password. Staff: Picture, Qualification, Course, Role. Bishop & Provost publish to website + cross-tab fixed. Admission 2026/2027 Closed - Nov 2026.</p></div><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-6 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/>{showCreateUser?'CLOSE':'CREATE USER'}</button></div>
 
           <div className="flex gap-2 bg-slate-50 p-2 rounded-2xl border">
             <button onClick={()=>setUserFilter('ALL')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='ALL'?'bg-slate-900 text-white':'bg-white border'}`}>ALL ({users.length})</button>
@@ -157,7 +222,7 @@ export const AdminDashboard: React.FC = () => {
             <button onClick={()=>setUserFilter('STAFF')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='STAFF'?'bg-emerald-700 text-white':'bg-white border text-emerald-800'}`}>STAFF ({users.filter((u:any)=>u.role!=='STUDENT').length})</button>
           </div>
 
-          <div className="flex items-center gap-2 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4 text-slate-400"/><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric No" className="flex-1 py-2.5 text-xs font-bold outline-none"/></div>
+          <div className="flex items-center gap-2 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4 text-slate-400"/><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric No - e.g. Okonkwo or LCNS/2026/ND1/001" className="flex-1 py-2.5 text-xs font-bold outline-none"/></div>
 
           {showCreateUser && (
             <div className="bg-gradient-to-br from-slate-50 to-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 space-y-5">
@@ -166,18 +231,17 @@ export const AdminDashboard: React.FC = () => {
                 <button onClick={()=>{setUserType('STAFF'); setNewUser({...newUser,role:'LECTURER'});}} className={`flex-1 py-3 rounded-xl text-xs font-black flex justify-center gap-2 ${userType==='STAFF'?'bg-[#0a4d2e] text-white':'bg-white border-2'}`}><Briefcase className="w-4 h-4"/> STAFF PROFESSIONAL - Photo + Role</button>
               </div>
 
-              {/* STAFF - Photo Upload + Assign Role on Form */}
               {userType==='STAFF' ? (
                 <form onSubmit={(e)=>{e.preventDefault(); handleCreateUser();}} className="space-y-4">
                   <div className="bg-white border-2 rounded-2xl p-4">
-                    <h4 className="font-black text-[11px] text-emerald-800 flex gap-2"><IdCard className="w-4 h-4"/> STAFF PROFESSIONAL - Photo Upload + Assign Role on Form</h4>
+                    <h4 className="font-black text-[11px] text-emerald-800 flex gap-2"><IdCard className="w-4 h-4"/> STAFF PROFESSIONAL - Photo Upload + Assign Role on Form - Cross-tab Fixed</h4>
                     <div className="grid md:grid-cols-3 gap-3 mt-3">
                       <div className="md:col-span-3 flex gap-4 items-start">
                         <div className="w-28 h-28 bg-slate-100 border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{newUser.staffImage ? <img src={newUser.staffImage} className="w-full h-full object-cover"/> : <span className="text-[10px]">No Photo</span>}</div>
                         <div className="flex-1 space-y-2">
-                          <label className="text-[11px] font-bold">Upload Photo *</label>
+                          <label className="text-[11px] font-bold">Upload Photo * - Photo appears in all tabs + homepage</label>
                           <input type="file" accept="image/*" onChange={handleImgUpload} className="w-full text-[11px] file:bg-emerald-800 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/>
-                          <p className="text-[10px] text-slate-500">Photo appears in all portals - HOD, Exam Officer, Registrar, Provost can see staff photo</p>
+                          <p className="text-[10px] text-slate-500">Bishop & Provost picture fix: When you save, other tab go see am - Labe College of Nursing Sciences - Catholic Diocese of Gboko</p>
                         </div>
                       </div>
                       <div><label className="text-[11px] font-bold">Full Names *</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser, fullName:e.target.value})} placeholder="Okonkwo John Chukwu" className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-bold" required/></div>
@@ -186,7 +250,7 @@ export const AdminDashboard: React.FC = () => {
                       <div><label className="text-[11px] font-bold">Qualification</label><input value={newUser.qualification} onChange={e=>setNewUser({...newUser,qualification:e.target.value})} placeholder="FWACN, MSc Nursing" className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div>
                       <div><label className="text-[11px] font-bold">Course of Study</label><input value={newUser.courseOfStudy} onChange={e=>setNewUser({...newUser,courseOfStudy:e.target.value})} placeholder="Medical-Surgical Nursing" className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div>
                       <div><label className="text-[11px] font-bold">Department</label><select value={newUser.staffDepartment} onChange={e=>setNewUser({...newUser,staffDepartment:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>Nursing</option><option>Midwifery</option><option>Admin</option><option>Bursary</option><option>Registry</option><option>ICT</option></select></div>
-                      <div><label className="text-[11px] font-bold">Role * - Assign Role on Form</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 border-emerald-600 rounded-xl text-xs font-black"><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option><option>ICT_OFFICER</option><option>ADMISSION_OFFICER</option></select></div>
+                      <div><label className="text-[11px] font-bold">Role * - Assign Role on Form</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 border-emerald-600 rounded-xl text-xs font-black"><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option><option>ICT_OFFICER</option></select></div>
                     </div>
                   </div>
                   <button type="submit" className="w-full bg-[#0a4d2e] hover:bg-black text-white py-3 rounded-xl font-black text-xs flex justify-center gap-2"><Key className="w-4 h-4"/> CREATE STAFF - AUTO ID + PASSWORD + PHOTO + ROLE</button>
@@ -209,34 +273,32 @@ export const AdminDashboard: React.FC = () => {
           )}
 
           <div className="space-y-3">
-            <div className="flex justify-between"><h4 className="font-black text-sm">All Users - Filter: {userFilter} - {filteredUsers.length} Found - Photo + Role Assign Visible</h4></div>
+            <div className="flex justify-between"><h4 className="font-black text-sm">All Users - Filter: {userFilter} - {filteredUsers.length} Found - Photo + Role Assign Visible - Cross-tab Fixed</h4></div>
             <div className="grid gap-3 max-h-[700px] overflow-y-auto">
               {filteredUsers.map((u:any)=>(
                 <div key={u.email} className="border-2 p-4 rounded-2xl bg-gradient-to-br from-white to-slate-50 space-y-3">
                   <div className="flex gap-3">
                     <div className="w-14 h-14 bg-slate-200 rounded-2xl overflow-hidden flex items-center justify-center border-2">{u.staffImage?<img src={u.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-6 h-6 text-slate-400"/>}</div>
                     <div className="flex-1 space-y-1">
-                      <div className="flex flex-wrap gap-2 items-center"><span className="font-black text-sm">{u.fullName}</span><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-900 text-white font-mono">{u.matricNumber||u.staffId}</span><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${u.userType==='STUDENT'||u.role==='STUDENT'?'bg-blue-100 text-blue-800':'bg-emerald-100 text-emerald-800'}`}>{u.userType|| (u.role==='STUDENT'?'STUDENT':'STAFF')}</span></div>
-                      <div className="text-[11px] text-slate-600">{u.email} • {u.phone} • {u.qualification||u.level} • {u.courseOfStudy||''}</div>
+                      <div className="flex flex-wrap gap-2 items-center"><span className="font-black text-sm">{u.fullName}</span><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-900 text-white font-mono">{u.matricNumber||u.staffId}</span></div>
+                      <div className="text-[11px] text-slate-600">{u.email} • {u.phone} • {u.qualification||u.level}</div>
                       <div className="flex flex-wrap gap-2 p-2 bg-slate-900 text-white rounded-xl text-[10px]"><span className="flex gap-1"><IdCard className="w-3 h-3 text-amber-300"/> ID: <b className="font-mono">{u.loginId||u.matricNumber||u.staffId}</b></span><span className="flex gap-1"><Key className="w-3 h-3 text-emerald-300"/> PASS: <b className="font-mono">{showPasswords[u.email]?u.password:'••••'}</b><button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 bg-white/20 p-1 rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></div>
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1">{ALL_ROLES.map(r=><button key={r.value} onClick={()=>assignRole(u.email,r.value)} className={`px-2 py-1 rounded-lg text-[9px] font-black border ${u.role===r.value?'bg-slate-900 text-white':'bg-white'}`}>{r.value}</button>)}<button onClick={()=>deleteUser(u.email,u.fullName)} className="px-3 py-1 bg-red-600 text-white rounded-lg text-[9px] font-black">DELETE</button></div>
                 </div>
               ))}
-              {filteredUsers.length===0&&<p className="text-center text-xs text-slate-500 py-10">No users in {userFilter} filter - Search: {searchResult}</p>}
             </div>
           </div>
         </div>
       )}
 
-      {/* RESULT PUBLISH FROM PROVOST - PRINT WITH SCHOOL NAME + LOGO */}
       {activeAdminTab==='result_publish' && (
         <div className="bg-white rounded-3xl border-2 border-red-400 p-6 space-y-6">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-xl font-black flex items-center gap-2"><FileSpreadsheet className="w-6 h-6 text-red-600"/> Result Publish from Provost - Print Individual Result - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria + Logo</h2>
-              <p className="text-xs bg-red-50 border-2 border-red-200 p-2 rounded mt-2 font-bold">Admin can see Provost publish status: {senateInfo.approved ? `✅ Published by ${senateInfo.provost} on ${new Date(senateInfo.date).toLocaleDateString()} - Students CAN see results` : '🔒 Not Published - Students see Locked'} - Total results: {results.length} - Print with correct school name + logo appears</p>
+              <p className="text-xs bg-red-50 border-2 border-red-200 p-2 rounded mt-2 font-bold">Admin can see Provost publish status: {senateInfo.approved ? `✅ Published by ${senateInfo.provost} on ${new Date(senateInfo.date).toLocaleDateString()} - Students CAN see results` : '🔒 Not Published - Students see Locked'} - Total results: {results.length} - Print with correct school name + logo appears - Cross-tab fixed</p>
             </div>
             <div className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-black"><CollegeLogo size="lg" /><span>{senateInfo.approved?'✅ Published':'🔒 Not Published'}</span></div>
           </div>
@@ -244,35 +306,33 @@ export const AdminDashboard: React.FC = () => {
           <div className="flex gap-2 bg-slate-50 p-3 rounded-xl border">
             <div className="flex items-center gap-2 flex-1 bg-white border-2 border-amber-400 rounded-xl px-3"><Search className="w-4 h-4 text-amber-600"/><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="🔍 Search by Name and Matric No - e.g. Okonkwo or LCNS/2026/ND1/001 - Result Publish Print" className="flex-1 py-2.5 text-xs font-black outline-none"/></div>
             <button onClick={refreshResults} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Refresh</button>
-            <div className="px-3 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">{results.length} Results - Senate {senateInfo.approved?'Published':'Locked'}</div>
+            <div className="px-3 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">{results.length} Results</div>
           </div>
 
           {!selectedPrintStudent ? (
             <div className="overflow-x-auto border-2 rounded-xl">
               <table className="w-full text-xs">
-                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric No + Name + Photo</th><th className="p-3">Level + Results + CGPA + Class</th><th className="p-3">Provost Publish Status</th><th className="p-3 text-center">Print with School Full Name + Logo + PDF</th></tr></thead>
+                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric No + Name + Photo - Search by Name and Matric</th><th className="p-3">Level + Results + CGPA + Class</th><th className="p-3">Provost Publish Status</th><th className="p-3 text-center">Print with School Full Name + Logo + PDF</th></tr></thead>
                 <tbody>
                   {filteredResults.slice(0,100).map((s:any)=>{
                     const studResults=results.filter((r:any)=>r.matricNo===s.matricNumber||r.matricNo===s.matricNo||r.matricNo===s.email);
                     let cu=0,gp=0; studResults.forEach((r:any)=>{ const g=r.score>=70?4:r.score>=60?3:r.score>=50?2:r.score>=40?1:0; cu+=r.creditUnit||3; gp+=(r.creditUnit||3)*g; });
                     const cgpa=cu?(gp/cu).toFixed(2):'0.00';
-                    const cls=parseFloat(cgpa)>=3.5?'DISTINCTION':parseFloat(cgpa)>=3.0?'UPPER CREDIT':parseFloat(cgpa)>=2.5?'LOWER CREDIT':parseFloat(cgpa)>=2.0?'PASS':'FAIL';
                     return (
                       <tr key={s.email||s.matricNumber} className="border-b hover:bg-amber-50">
                         <td className="p-3"><div className="flex gap-2 items-center"><div className="w-10 h-12 bg-slate-200 rounded border overflow-hidden">{s.staffImage?<img src={s.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-6 h-6 text-slate-400"/>}</div><div><p className="font-mono font-black text-emerald-800">{s.matricNumber||s.matricNo||s.email}</p><p className="font-black uppercase">{s.fullName}</p></div></div></td>
-                        <td className="p-3"><p className="text-[11px]">Level: {s.level||'ND1'} | Courses: {studResults.length} | CGPA: {cgpa} | {cls}</p><p className="text-[10px]">{studResults.filter((r:any)=>r.score<40).length?`⚠️ Carry: ${studResults.filter((r:any)=>r.score<40).map((r:any)=>r.courseCode).join(', ')}`:'✅ No Carry'}</p></td>
-                        <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${senateInfo.approved?'bg-green-600 text-white':'bg-red-600 text-white'}`}>{senateInfo.approved?'✅ Published - Student CAN see':'🔒 Locked - Provost must publish'}</span></td>
-                        <td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 mx-auto"><Printer className="w-4 h-4"/> Print {s.matricNumber||'Result'} - Labe College - Catholic Diocese - Logo</button></td>
+                        <td className="p-3"><p className="text-[11px]">Courses: {studResults.length} | CGPA: {cgpa}</p></td>
+                        <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${senateInfo.approved?'bg-green-600 text-white':'bg-red-600 text-white'}`}>{senateInfo.approved?'✅ Published':'🔒 Locked'}</span></td>
+                        <td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 mx-auto"><Printer className="w-4 h-4"/> Print - Labe College - Catholic Diocese - Logo</button></td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-              {filteredResults.length===0&&<p className="p-4 text-center text-slate-500 text-xs">No users found - Create user with photo + role first, then results will appear after Lecturer submits</p>}
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex justify-between bg-slate-50 p-3 rounded-xl border"><p className="font-black text-sm">Selected: {selectedPrintStudent.fullName} - {selectedPrintStudent.matricNumber||selectedPrintStudent.email} - Provost Publish Status: {senateInfo.approved?'Published':'Not Published'} - Labe College of Nursing Sciences - Catholic Diocese of Gboko</p><button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-black">← Back</button></div>
+              <div className="flex justify-between bg-slate-50 p-3 rounded-xl border"><p className="font-black text-sm">Selected: {selectedPrintStudent.fullName} - {selectedPrintStudent.matricNumber||selectedPrintStudent.email} - Labe College of Nursing Sciences - Catholic Diocese of Gboko</p><button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-black">← Back</button></div>
               <PrintableResultWithLogo
                 matricNo={selectedPrintStudent.matricNumber||selectedPrintStudent.matricNo||selectedPrintStudent.email}
                 fullName={selectedPrintStudent.fullName}
@@ -290,8 +350,36 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {activeAdminTab==='applicants' && (
+        <div className="bg-gradient-to-br from-red-50 to-orange-50 border-2 border-red-400 rounded-3xl p-6 space-y-4">
+          <h3 className="font-black text-red-900 flex gap-2"><ShieldAlert className="w-5 h-5"/> ADMISSION CONTROL - 2026/2027 Academic Year - CLOSED - School Starting November 2026 - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria</h3>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-white border-2 rounded-2xl p-4 space-y-3">
+              <label className="text-[11px] font-black">Admission Status for 2026/2027 - Currently: {appStatus.isOpen ? 'OPEN' : 'CLOSED'}</label>
+              <div className="flex gap-2">
+                <button onClick={()=> saveAdmissionStatus({...appStatus, isOpen: false})} className={`flex-1 py-3 rounded-xl text-xs font-black ${!appStatus.isOpen ? 'bg-red-700 text-white ring-2 ring-red-300' : 'bg-white border-2'}`}>🔒 CLOSE ADMISSION - School Starting November 2026</button>
+                <button onClick={()=> saveAdmissionStatus({...appStatus, isOpen: true})} className={`flex-1 py-3 rounded-xl text-xs font-black ${appStatus.isOpen ? 'bg-green-700 text-white ring-2 ring-green-300' : 'bg-white border-2'}`}>🔓 OPEN ADMISSION</button>
+              </div>
+            </div>
+            <div className="bg-white border-2 rounded-2xl p-4 space-y-2">
+              <label className="text-[11px] font-bold">Announcement Message for 2026/2027 - School Starting November 2026</label>
+              <textarea value={appStatus.message} onChange={e=> setAppStatus({...appStatus, message: e.target.value})} className="w-full p-3 border-2 rounded-xl text-xs h-24 font-bold"/>
+              <div className="flex gap-2">
+                <input type="date" value={appStatus.deadline} onChange={e=> setAppStatus({...appStatus, deadline: e.target.value})} className="flex-1 p-2 border-2 rounded-xl text-xs"/>
+                <button onClick={()=> saveAdmissionStatus(appStatus)} className="px-6 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">SAVE - Check Admission - Saving Fixed</button>
+              </div>
+            </div>
+          </div>
+          <div className="bg-slate-900 text-white rounded-2xl p-4">
+            <p className="text-xs font-black">Current Status for 2026/2027:</p>
+            <p className={`text-sm font-black mt-1 ${appStatus.isOpen ? 'text-green-400' : 'text-red-400'}`}>{appStatus.isOpen ? '🟢 ADMISSION OPEN' : '🔴 ADMISSION CLOSED - School is starting November 2026 for 2026/2027 academic year - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria'}</p>
+            <p className="text-[11px] mt-2 opacity-80">{appStatus.message}</p>
+          </div>
+          <AdminAdmissionManager currentUser={{id:'admin',email:'admin@lcns.edu.ng',role:'ADMIN',fullName:'Admin',status:'ACTIVE'}} />
+        </div>
+      )}
+
       {activeAdminTab==='scoresheets' && <ScoreSheetViewer currentUser={{id:'admin',email:'admin@lcns.edu.ng',role:'ADMIN',fullName:'Admin',status:'ACTIVE'}} />}
-      {activeAdminTab==='applicant_cbt' && <div className="bg-white rounded-3xl border-2 p-6"><h3 className="font-black">Applicant CBT - Admin can set exams</h3><p className="text-xs">See your old AdminApplicantCBTManager component here - already in your Word doc - Keep it</p></div>}
     </div>
   );
 };
