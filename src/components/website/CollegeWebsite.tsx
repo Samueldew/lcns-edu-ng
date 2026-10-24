@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Cross, ShieldCheck, MapPin, Menu, X,
+  Cross, ShieldCheck, MapPin,
   ChevronRight, Target, Eye, Library, Monitor, BedDouble, Building2,
   GraduationCap, BookOpen, Award, CheckCircle
 } from 'lucide-react';
 import { StorageService } from '../../services/storage';
 
 const LCNSWebsite = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [provostImg, setProvostImg] = useState<string | null>(null);
   const [proprietorImg, setProprietorImg] = useState<string | null>(null);
   const [bishopData, setBishopData] = useState<any>(null);
@@ -86,10 +85,9 @@ const LCNSWebsite = () => {
   const scrollTo = (id:string) => { 
     const el = document.getElementById(id);
     if(el){
-      const y = el.getBoundingClientRect().top + window.pageYOffset - 80;
+      const y = el.getBoundingClientRect().top + window.pageYOffset - 90;
       window.scrollTo({top: y, behavior:'smooth'});
     }
-    setMenuOpen(false); 
   };
 
   return (
@@ -110,37 +108,7 @@ const LCNSWebsite = () => {
         </div>
       </div>
 
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur shadow-sm border-b border-green-100">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#0f4c2e] to-[#2e8b57] rounded-xl flex items-center justify-center text-white font-black overflow-hidden">
-              {logo ? <img src={logo} className="w-full h-full object-contain p-1 bg-white rounded-xl"/> : 'L'}
-            </div>
-            <div><h1 className="font-black text-[#0f4c2e] leading-none text-[17px]">LABE COLLEGE</h1><p className="text-[10px] font-bold tracking-widest text-[#2e8b57]">OF NURSING SCIENCE, GBOKO</p></div>
-          </div>
-          <div className="hidden lg:flex gap-5 text-sm font-semibold text-[#0f4c2e] items-center">
-            <button onClick={()=>scrollTo('home')} className="hover:text-yellow-600 font-bold">Home</button>
-            <button onClick={()=>scrollTo('about')} className="hover:text-yellow-600 font-bold">About</button>
-            <button onClick={()=>scrollTo('program')} className="hover:text-yellow-600 font-black bg-yellow-100 px-3 py-1 rounded-full">Program</button>
-            <button onClick={()=>scrollTo('facilities')} className="hover:text-yellow-600">Facilities</button>
-            <button onClick={()=>scrollTo('gallery')} className="hover:text-yellow-600">Gallery</button>
-            <button onClick={()=>scrollTo('contact')} className="hover:text-yellow-600">Contact</button>
-            <button onClick={()=>scrollTo('admission')} className="bg-[#0f4c2e] text-white px-6 py-2.5 rounded-full hover:bg-[#1a5c32]">Apply</button>
-          </div>
-          <button className="lg:hidden" onClick={()=>setMenuOpen(!menuOpen)}>{menuOpen?<X/>:<Menu/>}</button>
-        </div>
-        {menuOpen && (
-          <div className="lg:hidden bg-white p-4 flex flex-col gap-3 border-t shadow-lg">
-            <button onClick={()=>scrollTo('home')} className="text-left py-3 border-b font-bold">🏠 Home</button>
-            <button onClick={()=>scrollTo('about')} className="text-left py-3 border-b font-bold">📖 About and History</button>
-            <button onClick={()=>scrollTo('program')} className="text-left py-3 border-b font-black bg-yellow-50 px-3 rounded">🎓 Program - ND HND Nursing Science</button>
-            <button onClick={()=>scrollTo('facilities')} className="text-left py-3 border-b font-bold">🏢 Facilities</button>
-            <button onClick={()=>scrollTo('gallery')} className="text-left py-3 border-b font-bold">🖼️ Gallery</button>
-            <button onClick={()=>scrollTo('contact')} className="text-left py-3 border-b font-bold">📞 Contact Us</button>
-            <button onClick={()=>scrollTo('admission')} className="text-left py-3 bg-[#0f4c2e] text-white rounded-full px-6 font-black text-center">Apply Now</button>
-          </div>
-        )}
-      </nav>
+      {/* SECOND MENU WITH L REMOVED - NOW ONLY FIRST MENU WITH REAL LOGO REMAINS */}
 
       <section id="home" className="relative bg-gradient-to-br from-[#0f4c2e] via-[#184f2e] to-[#2e8b57] text-white overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 py-16 md:py-20 grid md:grid-cols-2 gap-12 items-center">
@@ -155,7 +123,7 @@ const LCNSWebsite = () => {
               <p className="text-xs text-green-100 mt-1">Labe College of Nursing Sciences offers ND HND Nursing Science. Minimum of Five O-Level credit passes in WAEC NECO NABTEB at not more than two sittings, including English Language, Mathematics, Biology, Chemistry, and Physics. Valid JAMB UTME score.</p>
             </div>
             <div className="flex gap-4">
-              <button onClick={()=>scrollTo('program')} className="bg-yellow-400 text-[#0f2e1f] px-8 py-3.5 rounded-full font-black">View Program <ChevronRight className="inline ml-1"/></button>
+              <button onClick={()=>scrollTo('programmes')} className="bg-yellow-400 text-[#0f2e1f] px-8 py-3.5 rounded-full font-black">View Program <ChevronRight className="inline ml-1"/></button>
               <button onClick={()=>scrollTo('admission')} className="bg-white/10 border border-white/20 px-8 py-3.5 rounded-full">Apply Now</button>
             </div>
           </div>
@@ -182,13 +150,13 @@ const LCNSWebsite = () => {
         </div>
       </section>
 
-      <section id="program" className="py-16 bg-white scroll-mt-24">
+      <section id="programmes" className="py-16 bg-white scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-10">
             <div className="inline-flex bg-[#0f4c2e] text-white px-6 py-2 rounded-full font-black text-xs tracking-widest">OFFICIAL ACADEMIC OFFERING</div>
             <h2 className="text-4xl md:text-5xl font-black text-[#0f4c2e] mt-4">ND HND Nursing Science</h2>
             <p className="text-lg font-bold text-slate-700 mt-2">Four Years Full-Time National Diploma Higher National Diploma • NMCN Accredited • NBTE Approved</p>
-            <button onClick={()=>scrollTo('about')} className="mt-4 text-sm font-bold text-[#0f4c2e] underline">← Learn About Our History and Philosophy</button>
+            <button onClick={()=>scrollTo('about-college')} className="mt-4 text-sm font-bold text-[#0f4c2e] underline">← Learn About Our History and Philosophy</button>
           </div>
           <div className="grid md:grid-cols-2 gap-8">
             <div className="bg-[#f0faf0] border-2 border-[#0f4c2e] rounded-[2rem] p-8">
@@ -227,13 +195,13 @@ const LCNSWebsite = () => {
         </div>
       </section>
 
-      <section id="about" className="py-16 bg-[#f8fdf8] scroll-mt-24">
+      <section id="about-college" className="py-16 bg-[#f8fdf8] scroll-mt-24">
         <div className="max-w-7xl mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-black text-[#0f4c2e] mb-6">About and History</h2>
           <div className="bg-white border-2 border-green-100 rounded-[2rem] p-8 leading-relaxed text-slate-700">
             <p className="text-[15px]">The College is the brainchild of the Bishop, Catholic Diocese of Gboko, Most Rev. William A. Avenya, and is named after a humanitarian, late Pharmacist Ternenge Labe in a bid to immortalize him for the selfless services he rendered to people within Gboko Diocese, Benue state and beyond. The institution has an objective of training the teeming Nigerian youths with compassion and fear of God, on the best global nursing practices. The program will enhance their skills and widen their horizon to be the best nursing practitioners in the world, especially the indigent ones who cannot afford the cost of travelling outside the country for further studies.</p>
             <p className="mt-4 text-sm">Established by Catholic Diocese of Gboko, located off Gboko Hill Road opposite Sinai College, Gboko Hills.</p>
-            <button onClick={()=>scrollTo('program')} className="mt-6 bg-[#0f4c2e] text-white px-6 py-3 rounded-full font-black">View Our ND/HND Program →</button>
+            <button onClick={()=>scrollTo('programmes')} className="mt-6 bg-[#0f4c2e] text-white px-6 py-3 rounded-full font-black">View Our ND/HND Program →</button>
           </div>
           <div className="grid md:grid-cols-2 gap-6 mt-10">
             <div className="bg-[#f0faf0] border border-green-100 rounded-[2rem] p-6">
