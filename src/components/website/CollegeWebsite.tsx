@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Cross, ShieldCheck, MapPin, Mail, Phone, Menu, X,
+  Cross, ShieldCheck, MapPin, Menu, X,
   ChevronRight, Target, Eye, Library, Monitor, BedDouble, Building2,
   GraduationCap, BookOpen, Award, CheckCircle
 } from 'lucide-react';
@@ -20,19 +20,37 @@ const LCNSWebsite = () => {
   useEffect(() => {
     const loadCMS = async () => {
       try {
-        const settings = await (StorageService as any).getSettings?.();
-        if(settings?.provost_image) setProvostImg(settings.provost_image);
-        if(settings?.proprietor_image) setProprietorImg(settings.proprietor_image);
+        // FIX 1: Load from backend only, no localStorage bloat - prevents Out of Memory
         const photos = await (StorageService as any).getGallery?.();
-        if(photos) setGallery(photos);
+        if(photos && photos.length) {
+          // DEDUPLICATE BY image_url - Remove double repeat
+          const seen = new Set();
+          const unique = photos.filter((g:any) => {
+            const url = g.image || g.image_url || g.url;
+            if(!url || seen.has(url)) return false;
+            seen.add(url);
+            return true;
+          });
+          setGallery(unique.slice(0, 12)); // Max 12, no repeat
+        }
+
         const loadAll = () => {
+          // FIX LOGO - Keep FIRST one with logo attached, don't overwrite
           const logoKeys = ['lcns_logo','college_logo','school_logo','lcns_settings','college_settings'];
           for(const k of logoKeys){
             try{
-              const v = JSON.parse(localStorage.getItem(k)||'null') || localStorage.getItem(k);
-              if(typeof v === 'string' && v.startsWith('data:image')) { setLogo(v); break; }
-              if(v?.logo) { setLogo(v.logo); break; }
-            }catch{ const raw=localStorage.getItem(k); if(raw?.startsWith('data:image')) setLogo(raw); }
+              const raw = localStorage.getItem(k);
+              if(!raw) continue;
+              // If it's data:image, use it
+              if(raw.startsWith('data:image')) { setLogo(raw); break; }
+              const parsed = JSON.parse(raw);
+              if(typeof parsed === 'string' && parsed.startsWith('data:image')) { setLogo(parsed); break; }
+              if(parsed?.logo) { setLogo(parsed.logo); break; }
+              if(parsed?.logo_url) { setLogo(parsed.logo_url); break; }
+            }catch{
+              const raw=localStorage.getItem(k); 
+              if(raw?.startsWith('data:image') || raw?.startsWith('https')) setLogo(raw);
+            }
           }
           try{
             let bImg = null; 
@@ -51,12 +69,19 @@ const LCNSWebsite = () => {
             if(p1?.image) { pImg=p1.image; pName=p1.name||pName; pTitle=p1.title||pTitle; pDesc=p1.message||p1.description||pDesc; } else if(s1?.provost_image) { pImg=s1.provost_image; pDesc=s1.provost_message||pDesc; } else if(pMgmt?.image) { pImg=pMgmt.image; pDesc=pMgmt.message||pMgmt.description||pDesc; }
             if(pImg){ setProvostImg(pImg); } setProvostData({name:pName, title:pTitle, description:pDesc, image:pImg});
             
-            const gKeys = ['lcns_gallery','college_gallery','gallery','official_gallery']; let allGallery:any[] = []; for(const gk of gKeys){ try{ const gv=JSON.parse(localStorage.getItem(gk)||'[]'); if(Array.isArray(gv) && gv.length) allGallery=[...allGallery, ...gv]; }catch{} } if(allGallery.length) setGallery(allGallery);
+            // FIX: DON'T load gallery from localStorage again if we already have from backend
+            // This prevents duplicate - Keep only backend
             const fKeys = ['lcns_facilities','college_facilities']; let allFac:any[] = []; for(const fk of fKeys){ try{ const fv=JSON.parse(localStorage.getItem(fk)||'[]'); if(Array.isArray(fv) && fv.length) allFac=[...allFac, ...fv]; }catch{} } if(allFac.length) setFacilities(allFac);
           } catch {}
-        }; loadAll(); const h = () => loadAll(); window.addEventListener('storage', h); window.addEventListener('focus', h); return ()=>{ window.removeEventListener('storage', h); window.removeEventListener('focus', h); };
+        }; 
+        loadAll(); 
+        const h = () => loadAll(); 
+        window.addEventListener('storage', h); 
+        window.addEventListener('focus', h); 
+        return ()=>{ window.removeEventListener('storage', h); window.removeEventListener('focus', h); };
       } catch {}
-    }; loadCMS();
+    }; 
+    loadCMS();
   }, []);
 
   useEffect(() => {
@@ -67,7 +92,15 @@ const LCNSWebsite = () => {
     return () => clearInterval(timer);
   }, [gallery.length]);
 
-  const scrollTo = (id:string) => { document.getElementById(id)?.scrollIntoView({behavior:'smooth'}); setMenuOpen(false); };
+  const scrollTo = (id:string) => { 
+    const el = document.getElementById(id);
+    if(el){
+      const yOffset = -80;
+      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({top: y, behavior:'smooth'});
+    }
+    setMenuOpen(false); 
+  };
 
   return (
     <div className="min-h-screen bg-[#f8fdf8] text-slate-800">
@@ -95,9 +128,9 @@ const LCNSWebsite = () => {
             </div>
             <div><h1 className="font-black text-[#0f4c2e] leading-none text-[17px]">LABE COLLEGE</h1><p className="text-[10px] font-bold tracking-widest text-[#2e8b57]">OF NURSING SCIENCE, GBOKO</p></div>
           </div>
-          <div className="hidden lg:flex gap-5 text-sm font-semibold text-[#0f4c2e]">
-            <button onClick={()=>scrollTo('home')} className="hover:text-yellow-600">Home</button>
-            <button onClick={()=>scrollTo('about')} className="hover:text-yellow-600">About</button>
+          <div className="hidden lg:flex gap-5 text-sm font-semibold text-[#0f4c2e] items-center">
+            <button onClick={()=>scrollTo('home')} className="hover:text-yellow-600 font-bold">Home</button>
+            <button onClick={()=>scrollTo('about')} className="hover:text-yellow-600 font-bold">About</button>
             <button onClick={()=>scrollTo('offering')} className="hover:text-yellow-600 font-black bg-yellow-100 px-3 py-1 rounded-full">ND HND Offering</button>
             <button onClick={()=>scrollTo('facilities')} className="hover:text-yellow-600">Facilities</button>
             <button onClick={()=>scrollTo('gallery')} className="hover:text-yellow-600">Gallery</button>
@@ -107,13 +140,14 @@ const LCNSWebsite = () => {
           <button className="lg:hidden" onClick={()=>setMenuOpen(!menuOpen)}>{menuOpen?<X/>:<Menu/>}</button>
         </div>
         {menuOpen && (
-          <div className="lg:hidden bg-white p-4 flex flex-col gap-3 border-t">
-            <button onClick={()=>scrollTo('home')} className="text-left py-2 border-b">Home</button>
-            <button onClick={()=>scrollTo('offering')} className="text-left py-2 border-b font-black bg-yellow-50 px-3 rounded">ND HND Nursing Science Official Offering</button>
-            <button onClick={()=>scrollTo('about')} className="text-left py-2 border-b">About and History</button>
-            <button onClick={()=>scrollTo('facilities')} className="text-left py-2 border-b font-bold">Facilities</button>
-            <button onClick={()=>scrollTo('gallery')} className="text-left py-2 border-b font-bold">Gallery</button>
-            <button onClick={()=>scrollTo('admission')} className="text-left py-2 bg-[#0f4c2e] text-white rounded-full px-4">Apply</button>
+          <div className="lg:hidden bg-white p-4 flex flex-col gap-3 border-t shadow-lg">
+            <button onClick={()=>scrollTo('home')} className="text-left py-3 border-b font-bold">🏠 Home</button>
+            <button onClick={()=>scrollTo('about')} className="text-left py-3 border-b font-bold">📖 About and History</button>
+            <button onClick={()=>scrollTo('offering')} className="text-left py-3 border-b font-black bg-yellow-50 px-3 rounded">🎓 ND HND Nursing Science Official Offering</button>
+            <button onClick={()=>scrollTo('facilities')} className="text-left py-3 border-b font-bold">🏢 Facilities</button>
+            <button onClick={()=>scrollTo('gallery')} className="text-left py-3 border-b font-bold">🖼️ Gallery</button>
+            <button onClick={()=>scrollTo('contact')} className="text-left py-3 border-b font-bold">📞 Contact Us</button>
+            <button onClick={()=>scrollTo('admission')} className="text-left py-3 bg-[#0f4c2e] text-white rounded-full px-6 font-black text-center">Apply Now</button>
           </div>
         )}
       </nav>
@@ -321,7 +355,7 @@ const LCNSWebsite = () => {
               <div className="grid md:grid-cols-6 gap-3 mt-4">
                 {gallery.map((g:any,i:number)=>(
                   <button key={i} onClick={()=>setCurrentSlide(i)} className={`border-2 rounded-xl overflow-hidden transition-all ${i===currentSlide ? 'border-yellow-400 ring-2 ring-yellow-200' : 'border-green-100'}`}>
-                    <img src={g.image || g.image_url} className="h-24 w-full object-cover"/>
+                    <img src={g.image || g.image_url} className="h-24 w-full object-cover" loading="lazy"/>
                   </button>
                 ))}
               </div>
@@ -330,9 +364,9 @@ const LCNSWebsite = () => {
         </div>
       </section>
 
-      <section id="admission" className="py-16 bg-yellow-400 text-[#0f2e1f] text-center"><div className="max-w-7xl mx-auto px-4"><h2 className="text-3xl font-black">ND HND Nursing Science — Admission Open</h2><p className="font-bold mt-2">Four Years Full-Time National Diploma Higher National Diploma • NMCN Accredited • Five O-Level Credits including English, Maths, Biology, Chemistry, Physics plus Valid JAMB UTME</p></div></section>
+      <section id="admission" className="py-16 bg-yellow-400 text-[#0f2e1f] text-center scroll-mt-24"><div className="max-w-7xl mx-auto px-4"><h2 className="text-3xl font-black">ND HND Nursing Science — Admission Open</h2><p className="font-bold mt-2">Four Years Full-Time National Diploma Higher National Diploma • NMCN Accredited • Five O-Level Credits including English, Maths, Biology, Chemistry, Physics plus Valid JAMB UTME</p></div></section>
 
-      <section id="contact" className="py-10 bg-[#0f2e1f] text-white text-center text-xs text-green-200">© Labe College of Nursing Sciences, Gboko. Catholic Diocese of Gboko. Learn • Serve • Save</section>
+      <section id="contact" className="py-10 bg-[#0f2e1f] text-white text-center text-xs text-green-200 scroll-mt-24">© Labe College of Nursing Sciences, Gboko. Catholic Diocese of Gboko. Learn • Serve • Save</section>
     </div>
   );
 };
