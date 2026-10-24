@@ -48,10 +48,20 @@ export const ApiService = {
         matricNo: data.matric_no,
         staffId: data.staffId,
         loginId: data.loginId || data.email,
+        // ADDED - Manual fields + Picture to fix blank tab
+        sex: data.sex || '',
+        age: data.age || '',
+        address: data.address || '',
+        photoUrl: data.photo_url || data.profile_picture || data.photoUrl || '',
+        photo_url: data.photo_url || '',
+        profile_picture: data.profile_picture || '',
       };
 
       StorageService.setCurrentUser(userObj);
       localStorage.setItem('lcns_erp_current_user', JSON.stringify(userObj));
+      localStorage.setItem('lcns-current-user', JSON.stringify(userObj));
+      localStorage.setItem('lcns_last_update', Date.now().toString());
+      window.dispatchEvent(new Event('lcns_storage_update'));
       
       return { success: true, user: userObj };
     } catch (e: any) {
@@ -72,11 +82,23 @@ export const ApiService = {
       const { data } = await supabase.from('users').select('*').order('created_at', { ascending: false });
       if (data) {
         return data.map((m: any) => ({
-          id: m.id, email: m.email, role: m.role,
+          id: m.id, 
+          email: m.email, 
+          role: m.role,
           fullName: m.email === 'samuel@lcns.edu.ng' ? 'Avule Samuel' : m.full_name,
-          department: m.department, status: 'ACTIVE', phone: m.phone,
-          matricNo: m.matric_no, password: m.password,
+          department: m.department, 
+          status: 'ACTIVE', 
+          phone: m.phone,
+          matricNo: m.matric_no, 
+          password: m.password,
           createdAt: m.created_at?.split('T')[0],
+          // ADDED - Manual fields + Picture
+          sex: m.sex || '',
+          age: m.age || '',
+          address: m.address || '',
+          photoUrl: m.photo_url || m.profile_picture || '',
+          photo_url: m.photo_url || '',
+          profile_picture: m.profile_picture || '',
         }));
       }
     }
@@ -88,7 +110,8 @@ export const ApiService = {
     const supabase = getSupabase();
     if (!supabase) throw new Error('Supabase not configured');
 
-    const { data, error } = await supabase.from('users').insert({
+    // ADDED - Safe payload with manual Sex + Picture
+    const payload: any = {
       email: userData.email.toLowerCase().trim(),
       password: plainPassword,
       role: userData.role,
@@ -96,13 +119,57 @@ export const ApiService = {
       department: userData.department,
       phone: userData.phone,
       matric_no: userData.matricNo || null,
-    }).select().single();
+    };
 
-    if (error) throw new Error(error.message);
+    // ADD NEW FIELDS ONLY IF PROVIDED - This fixes blank tab
+    if (userData.sex) payload.sex = userData.sex;
+    if (userData.age) payload.age = userData.age;
+    if (userData.address) payload.address = userData.address;
+    if (userData.photo_url || userData.photoUrl || userData.picture) {
+      payload.photo_url = userData.photo_url || userData.photoUrl || userData.picture;
+    }
+    if (userData.profile_picture) payload.profile_picture = userData.profile_picture;
+    if (userData.level) payload.level = userData.level;
+
+    const { data, error } = await supabase.from('users').insert(payload).select().single();
+
+    if (error) {
+      // If new columns not exist yet, fallback to old payload
+      if (error.message.includes('sex') || error.message.includes('photo_url') || error.message.includes('age') || error.message.includes('address') || error.message.includes('profile_picture')) {
+        console.warn('New columns missing, trying old payload:', error.message);
+        const oldPayload = {
+          email: userData.email.toLowerCase().trim(),
+          password: plainPassword,
+          role: userData.role,
+          full_name: userData.fullName,
+          department: userData.department,
+          phone: userData.phone,
+          matric_no: userData.matricNo || null,
+        };
+        const { data: oldData, error: oldError } = await supabase.from('users').insert(oldPayload).select().single();
+        if (oldError) throw new Error(oldError.message);
+        const newLocal = { id: oldData.id, email: oldData.email, role: oldData.role, fullName: oldData.full_name, password: plainPassword, sex: userData.sex, photoUrl: userData.photo_url };
+        StorageService.saveUser(newLocal);
+        localStorage.setItem('lcns_last_update', Date.now().toString());
+        window.dispatchEvent(new Event('lcns_storage_update'));
+        return { success: true, user: oldData, plainPassword };
+      }
+      throw new Error(error.message);
+    }
 
     // SYNC TO OTHER TABS
-    const newLocal = { id: data.id, email: data.email, role: data.role, fullName: data.full_name, password: plainPassword };
+    const newLocal = { 
+      id: data.id, 
+      email: data.email, 
+      role: data.role, 
+      fullName: data.full_name, 
+      password: plainPassword,
+      sex: data.sex || userData.sex || '',
+      photoUrl: data.photo_url || userData.photo_url || '',
+    };
     StorageService.saveUser(newLocal);
+    localStorage.setItem('lcns_last_update', Date.now().toString());
+    window.dispatchEvent(new Event('lcns_storage_update'));
 
     return { success: true, user: data, plainPassword };
   },
@@ -116,7 +183,16 @@ export const ApiService = {
       if (updates.fullName) upd.full_name = updates.fullName;
       if (updates.password) upd.password = updates.password;
       if (updates.department) upd.department = updates.department;
+      // ADDED - Manual fields + Picture
+      if (updates.sex) upd.sex = updates.sex;
+      if (updates.age) upd.age = updates.age;
+      if (updates.address) upd.address = updates.address;
+      if (updates.photo_url || updates.photoUrl || updates.picture) upd.photo_url = updates.photo_url || updates.photoUrl || updates.picture;
+      if (updates.profile_picture) upd.profile_picture = updates.profile_picture;
+      if (updates.level) upd.level = updates.level;
       await supabase.from('users').update(upd).eq('id', id);
+      localStorage.setItem('lcns_last_update', Date.now().toString());
+      window.dispatchEvent(new Event('lcns_storage_update'));
     }
     return { success: true };
   },
@@ -130,6 +206,8 @@ export const ApiService = {
       await supabase.from('users').delete().eq('id', id);
     }
     StorageService.deleteUser(id);
+    localStorage.setItem('lcns_last_update', Date.now().toString());
+    window.dispatchEvent(new Event('lcns_storage_update'));
     return { success: true };
   },
 };
