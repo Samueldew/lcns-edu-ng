@@ -71,7 +71,7 @@ export const PrintableResultWithLogo: React.FC<{
         th,td{border:1px solid #000; padding:5px; text-align:left;}
         th{background:#0a4d2e; color:#fff; text-align:center;}
         .header{text-align:center; border-bottom:3px double #0a4d2e; padding-bottom:10px; margin-bottom:10px;}
-        .logo{display:flex; align-items:center; justify-content:center; gap:15px;}
+        .logo{display:flex; align-items:center; justify-content:center; gap:20px;}
         .carry{color:red; font-weight:bold;}
         .badge{padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px;}
         .footer{display:flex; justify-content:space-between; margin-top:30px; text-align:center; font-size:10px;}
@@ -88,7 +88,7 @@ export const PrintableResultWithLogo: React.FC<{
     <div className="space-y-3">
       <div className="flex gap-2">
         <button onClick={printResult} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2">
-          🖨️ Print Individual Result - {currentUserRole} - {matricNo} - With School Logo & Full Name
+          🖨️ Print Individual Result - {currentUserRole} - {matricNo} - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Logo
         </button>
         <span className="px-3 py-2 bg-emerald-50 border rounded-xl text-[10px] font-bold">
           {currentUserRole} can print - {fullName} - CGPA {cgpaData.cgpa.toFixed(2)} - {cgpaData.classification.class}
@@ -96,15 +96,16 @@ export const PrintableResultWithLogo: React.FC<{
       </div>
 
       <div id={`printable-${matricNo}`} className="bg-white border-4 border-double border-emerald-900 rounded-2xl p-6 space-y-4">
-        {/* SCHOOL FULL NAME + LOGO - FOR ALL ROLES */}
+        {/* CORRECTED SCHOOL NAME + LOGO APPEARS - ALL PRINTED DOCUMENTS */}
         <div className="header">
           <div className="logo">
             <CollegeLogo size="lg" />
-            <div>
-              <h1 className="text-xl font-black uppercase text-emerald-950">Labe College of Nursing Sciences, Gboko</h1>
-              <p className="text-xs font-bold text-emerald-800">P.M.B 102, Gboko, Benue State, Nigeria</p>
-              <p className="text-[11px] font-bold">Motto: "Learn, Serve & Save" | Email: info@lcns.edu.ng | Website: www.lcns.edu.ng</p>
-              <p className="text-[10px]">Accredited by Nursing and Midwifery Council of Nigeria & NBTE - ND/HND Nursing Sciences (Non-Terminal)</p>
+            <div className="text-center">
+              <h1 className="text-[20px] font-black uppercase text-emerald-950 leading-none">Labe College of Nursing Sciences</h1>
+              <h2 className="text-[14px] font-bold uppercase text-emerald-800 leading-tight mt-1">Catholic Diocese of Gboko</h2>
+              <p className="text-[12px] font-black text-slate-800 mt-1">Gboko, Benue State • Nigeria</p>
+              <p className="text-[10px] font-bold text-slate-600 mt-1">P.M.B 102, Gboko | Motto: "Learn, Serve & Save" | Email: info@lcns.edu.ng | Website: www.lcns.edu.ng</p>
+              <p className="text-[9px] font-semibold text-slate-500">Accredited by Nursing and Midwifery Council of Nigeria & NBTE - ND/HND Nursing Sciences (Non-Terminal)</p>
             </div>
             <CollegeLogo size="lg" />
           </div>
@@ -149,10 +150,10 @@ export const PrintableResultWithLogo: React.FC<{
         </div>
 
         <div className="stamp">
-          <h3 className="font-black">FINAL CGPA & CLASSIFICATION - ND/HND NURSING</h3>
+          <h3 className="font-black">FINAL CGPA & CLASSIFICATION - ND/HND NURSING - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria</h3>
           <p>Total Credit Units: {cgpaData.totalCU} | Total Grade Points: {cgpaData.totalGP} | CGPA: {cgpaData.cgpa.toFixed(2)} / 4.00</p>
           <p style={{ background: cgpaData.classification.class.includes('DISTINCTION')?'#166534': cgpaData.classification.class.includes('UPPER')?'#1e40af': cgpaData.classification.class.includes('LOWER')?'#854d0e':'#000', color:'#fff', padding:'8px', fontWeight:'bold', marginTop:'5px' }}>CLASS OF DIPLOMA: {cgpaData.classification.class} - {cgpaData.classification.desc}</p>
-          <p className="text-[10px] mt-2">Distinction 3.50-4.00, Upper Credit 3.00-3.49, Lower Credit 2.50-2.99 (Qualified for HND), Pass 2.00-2.49, Below 2.00 = Spill Over - Minimum 2.50 required for HND progression - ND certificate not awarded until HND completion - 72-80 CU required</p>
+          <p className="text-[10px] mt-2">Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria | Distinction 3.50-4.00, Upper Credit 3.00-3.49, Lower Credit 2.50-2.99 (Qualified for HND), Pass 2.00-2.49</p>
         </div>
 
         <div className="footer">
@@ -162,7 +163,7 @@ export const PrintableResultWithLogo: React.FC<{
           <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>Provost - Final Approval</b><br/><span>{senateProvost||'Mrs Terna Fiase'}</span><br/><span style={{ fontSize:'8px' }}>{senateApproved?`Senate Approved on ${senateDate?new Date(senateDate).toLocaleDateString():''}`:'Awaiting Senate Ratification'}</span></div></div>
         </div>
 
-        <p className="text-[9px] text-center text-slate-500 mt-4">This individual result slip with school full name Labe College of Nursing Sciences, Gboko and logo is officially printed by {currentUserRole} ({currentUserName}) - Matric: {matricNo} - {fullName} - CGPA {cgpaData.cgpa.toFixed(2)} - {cgpaData.classification.class} - Printed on {new Date().toLocaleString()} - Valid only when Senate Approved by Provost</p>
+        <p className="text-[9px] text-center text-slate-500 mt-4">This individual result slip with school name Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria and logo appears is officially printed by {currentUserRole} ({currentUserName}) - Matric: {matricNo} - {fullName} - CGPA {cgpaData.cgpa.toFixed(2)} - {cgpaData.classification.class} - Printed on {new Date().toLocaleString()} - Valid only when Senate Approved by Provost</p>
       </div>
     </div>
   );
