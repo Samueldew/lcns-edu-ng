@@ -80,24 +80,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleRoleQuickSwitch = (role: UserRole) => { const users = StorageService.getUsers(); const target = users.find(u=>u.role===role); if(target){ const {password:_,...safe}=target; StorageService.setCurrentUser(safe as User); setActiveView('portal'); setShowRoleMenu(false); setMobileOpen(false);} };
   const handleLogout = () => { StorageService.setCurrentUser(null); setActiveView('website'); window.history.pushState({}, '', '/'); };
   
-  // FIXED SCROLL - NOW LINKS TO CORRECT GREEN IDs
+  // FIXED - Now links to correct IDs in LCNSWebsite
   const scrollToId = (id: string) => { 
     setMobileOpen(false); 
     setActiveView('website'); 
     setTimeout(()=>{
-      let targetId = id;
-      if(id === 'about') targetId = 'about-college'; // FIX ABOUT
-      if(id === 'programmes' || id === 'program') targetId = 'programmes'; // FIX PROGRAM
-      const el=document.getElementById(targetId); 
+      const el=document.getElementById(id); 
       if(el){ 
-        el.scrollIntoView({behavior:'smooth', block: 'start'}); 
-        window.history.pushState({}, '', `/#${targetId}`);
-      } else {
-        // fallback try original id
-        const fallback = document.getElementById(id);
-        if(fallback) fallback.scrollIntoView({behavior:'smooth'});
-        else window.location.hash=id; 
-      }
+        const y = el.getBoundingClientRect().top + window.pageYOffset - 90;
+        window.scrollTo({top: y, behavior:'smooth'});
+      } 
     },100); 
   };
   
@@ -177,7 +169,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="pt-3 border-t border-white/10 space-y-2">
             <button onClick={handleApplyClick} className={`w-full py-3 text-xs font-black uppercase rounded-lg ${admissionSettings.isOpen?'bg-amber-400 text-black':'bg-gray-500 text-white'}`}>{admissionSettings.isOpen?`Apply ${admissionSettings.session}`:'Admission Closed'}</button>
             <button onClick={()=>{setMobileOpen(false); onOpenAdmissionChecker();}} className="w-full py-3 text-xs font-bold uppercase bg-white/10 rounded-lg">Check Admission</button>
-            {canManage && <><button onClick={()=>{setMobileOpen(false); setShowAnnounceModal(true); setActiveTab('admission');}} className={`w-full py-3 text-xs font-black uppercase rounded-lg ${admissionSettings.isOpen?'bg-green-400 text-black':'bg-red-400 text-black'}`}>{admissionSettings.isOpen?'CLOSE ADMISSION':'OPEN ADMISSION'} {admissionSettings.session}</button><button onClick={()=>{setMobileOpen(false); setShowAnnounceModal(true); setActiveTab('announce');}} className="w-full py-3 text-xs font-black uppercase bg-amber-400 text-black rounded-lg">Publish Announcement</button></>}
           </div>
         </div>
       )}
@@ -193,16 +184,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button onClick={()=>setActiveTab('admission')} className={`flex-1 py-3 text-xs font-black uppercase flex items-center justify-center gap-1.5 ${activeTab==='admission'?'bg-amber-100 text-black border-b-2 border-amber-500':'bg-slate-50 text-slate-600'}`}><Calendar className="w-4 h-4"/> Admission Open/Close</button>
               <button onClick={()=>setActiveTab('announce')} className={`flex-1 py-3 text-xs font-black uppercase flex items-center justify-center gap-1.5 ${activeTab==='announce'?'bg-emerald-100 text-black border-b-2 border-emerald-600':'bg-slate-50 text-slate-600'}`}><Megaphone className="w-4 h-4"/> Announcements</button>
             </div>
-            
             {activeTab==='admission' ? (
               <div className="p-5 space-y-5">
                 <div className={`p-4 rounded-xl border-2 flex items-center justify-between ${admissionSettings.isOpen?'bg-green-50 border-green-300':'bg-red-50 border-red-300'}`}>
                   <div><p className="text-xs text-slate-500">Current Status</p><p className={`font-black text-lg ${admissionSettings.isOpen?'text-green-700':'text-red-700'}`}>{admissionSettings.isOpen?'✅ ADMISSION OPEN':'🚫 ADMISSION CLOSED'}</p><p className="text-sm font-bold">Session: {admissionSettings.session}</p></div>
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${admissionSettings.isOpen?'bg-green-500':'bg-red-500'}`}>{admissionSettings.isOpen?<Unlock className="w-6 h-6 text-white"/>:<Lock className="w-6 h-6 text-white"/>}</div>
                 </div>
-
                 <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
-                  <label className="text-xs font-black uppercase">Admission Session Year (e.g. 2026/2027)</label>
+                  <label className="text-xs font-black uppercase">Admission Session Year</label>
                   <input value={newSession} onChange={e=>setNewSession(e.target.value)} placeholder="2026/2027" className="w-full px-3 py-2.5 border rounded-lg text-sm font-bold text-black"/>
                   <label className="text-xs font-black uppercase">Message When Closed</label>
                   <textarea value={closedMsg} onChange={e=>setClosedMsg(e.target.value)} placeholder="Admission is currently closed..." rows={2} className="w-full px-3 py-2 border rounded-lg text-sm text-black"/>
@@ -215,7 +204,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <div className="p-5 space-y-4">
                 <div className="grid gap-3 bg-slate-50 p-4 rounded-xl border">
-                  <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title: e.g. MATRICULATION CEREMONY 2026" className="px-3 py-2.5 border rounded-lg text-sm font-bold text-black"/>
+                  <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" className="px-3 py-2.5 border rounded-lg text-sm font-bold text-black"/>
                   <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Message..." rows={2} className="px-3 py-2 border rounded-lg text-sm text-black"/>
                   <div className="flex gap-2 flex-wrap items-center">
                     <select value={annType} onChange={e=>setAnnType(e.target.value)} className="px-3 py-2 border rounded-lg text-sm text-black font-bold"><option value="announcement">📢 Announcement</option><option value="event">📅 Event</option><option value="admission">🎓 Admission</option><option value="urgent">🚨 Urgent</option></select>
@@ -224,7 +213,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
                 <div className="space-y-2">
                   <h4 className="font-black text-sm">Published ({announcements.length})</h4>
-                  {announcements.length===0 && <p className="text-xs text-slate-500 py-4 text-center border rounded-lg">No announcement yet</p>}
                   {announcements.map(a=>(<div key={a.id} className="p-3 rounded-lg border bg-white flex justify-between gap-3"><div className="flex-1"><div className="flex gap-2 flex-wrap"><span className="text-[10px] font-black uppercase bg-black text-white px-1.5 rounded">{a.type}</span><span className="font-bold text-sm text-black">{a.title}</span></div><p className="text-xs text-slate-700 mt-1">{a.message}</p></div><div className="flex flex-col gap-1"><button onClick={()=>handleToggle(a.id)} className="p-2 bg-slate-100 rounded">{a.isActive?<Eye className="w-4 h-4"/>:<EyeOff className="w-4 h-4"/>}</button><button onClick={()=>handleDelete(a.id)} className="p-2 bg-red-100 text-red-600 rounded"><Trash2 className="w-4 h-4"/></button></div></div>))}
                 </div>
               </div>
