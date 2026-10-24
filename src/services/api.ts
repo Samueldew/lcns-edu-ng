@@ -366,4 +366,129 @@ export const ApiService = {
     window.dispatchEvent(new Event('lcns_storage_update'));
     return { success: true };
   },
+
+  // === ADDED ONLY - FIX FOR hc.submitApplication is not a function + ND/HND 4Years - NO DELETE ===
+  submitApplication: async (data: any) => {
+    console.log("ND/HND 4Years submitApplication called", data);
+    const supabase = getSupabase();
+    
+    const forcedCourse1 = 'ND/HND Nursing Sciences - 4 Years Collegiate (ND Years 1-2 + HND Years 3-4)';
+    const forcedCourse2 = 'ND/HND Nursing Sciences - 4 Years Collegiate';
+    const forcedProgram = 'ND/HND Nursing Sciences (4 Years)';
+    const formNo = `LCNS/2026/${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const applicant: any = {
+      id: `local_${Date.now()}`,
+      formNo,
+      fullName: data.fullName,
+      email: data.email,
+      phone: data.phone,
+      gender: data.gender,
+      dob: data.dob,
+      stateOfOrigin: data.stateOfOrigin,
+      lga: data.lga,
+      address: data.address,
+      courseChoice1: forcedCourse1,
+      courseChoice2: forcedCourse2,
+      program: forcedProgram,
+      jambRegNo: data.jambRegNo,
+      jambScore: data.jambScore,
+      olevelExamType: data.olevelExamType,
+      olevelExamYear: data.olevelExamYear,
+      olevelGrades: data.olevelGrades,
+      passportPhotoUrl: data.passportPhotoUrl,
+      paymentReceiptPdfUrl: data.paymentReceiptPdfUrl,
+      paymentReceiptName: data.paymentReceiptName,
+      status: 'PENDING_BURSAR',
+      bursarStatus: 'PENDING_BURSAR',
+      createdAt: new Date().toISOString(),
+    };
+
+    // Try Supabase college_applications table
+    if (supabase) {
+      try {
+        const payload = {
+          form_no: formNo,
+          full_name: data.fullName,
+          email: data.email,
+          phone: data.phone,
+          program: forcedProgram,
+          course_choice_1: forcedCourse1,
+          course_choice_2: forcedCourse2,
+          full_application: { ...data, courseChoice1: forcedCourse1, courseChoice2: forcedCourse2, program: forcedProgram },
+          status: 'PENDING_BURSAR',
+          bursar_status: 'PENDING_BURSAR',
+          jamb_reg_no: data.jambRegNo,
+          jamb_score: data.jambScore,
+        };
+        const { data: inserted, error } = await supabase.from('college_applications').insert([payload]).select().single();
+        if (!error && inserted) {
+          applicant.id = inserted.id;
+          applicant.formNo = inserted.form_no || formNo;
+        }
+      } catch (e) {
+        console.warn("Supabase college_applications insert failed, using local fallback", e);
+      }
+    }
+
+    // Save to localStorage for Bursar dashboard fallback - ADD ONLY
+    try {
+      const existing = JSON.parse(localStorage.getItem('lcns_applicants') || '[]');
+      existing.push(applicant);
+      localStorage.setItem('lcns_applicants', JSON.stringify(existing));
+      localStorage.setItem('lcns_last_update', Date.now().toString());
+      window.dispatchEvent(new Event('lcns_storage_update'));
+    } catch {}
+
+    return applicant;
+  },
+
+  getApplicants: async () => {
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase.from('college_applications').select('*').order('created_at', { ascending: false });
+        if (!error && data) {
+          return data.map((m: any) => ({
+            id: m.id,
+            formNo: m.form_no,
+            fullName: m.full_name || m.full_application?.fullName,
+            email: m.email || m.full_application?.email,
+            phone: m.phone || m.full_application?.phone,
+            program: m.program || 'ND/HND Nursing Sciences (4 Years)',
+            courseChoice1: m.course_choice_1 || m.full_application?.courseChoice1,
+            courseChoice2: m.course_choice_2 || m.full_application?.courseChoice2,
+            status: m.status || 'PENDING_BURSAR',
+            bursarStatus: m.bursar_status || 'PENDING_BURSAR',
+            jambRegNo: m.jamb_reg_no,
+            jambScore: m.jamb_score,
+            passportPhotoUrl: m.full_application?.passportPhotoUrl,
+            paymentReceiptPdfUrl: m.full_application?.paymentReceiptPdfUrl,
+            paymentReceiptName: m.full_application?.paymentReceiptName,
+            olevelGrades: m.full_application?.olevelGrades,
+            createdAt: m.created_at,
+            full_application: m.full_application,
+          }));
+        }
+      } catch {}
+    }
+    try {
+      return JSON.parse(localStorage.getItem('lcns_applicants') || '[]');
+    } catch { return []; }
+  },
+
+  getApplicantByFormNo: async (formNo: string) => {
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('college_applications').select('*').eq('form_no', formNo).single();
+        if (data) return data;
+      } catch {}
+    }
+    try {
+      const local = JSON.parse(localStorage.getItem('lcns_applicants') || '[]');
+      return local.find((a: any) => a.formNo === formNo);
+    } catch { return null; }
+  },
+  // === END ADDED FIX ===
 };
