@@ -32,13 +32,32 @@ export const ExamOfficerDashboard: React.FC = () => {
   const [gpaResult, setGpaResult] = useState<{ matric: string; gpa: number; totalUnits: number } | null>(null);
   const [selectedBiodata, setSelectedBiodata] = useState<any>(null);
 
-  const currentUser = StorageService.getCurrentUser() || {
+  // FIXED - Shows logged-in Exam Officer name, not hardcoded Agada for everyone
+  const safeCurrentUser = (() => {
+    try {
+      const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
+      for (const k of keys) {
+        const v = localStorage.getItem(k);
+        if (v) {
+          const parsed = JSON.parse(v);
+          if (parsed && parsed.email) return parsed;
+        }
+      }
+      return StorageService.getCurrentUser();
+    } catch { return null; }
+  })();
+
+  const currentUser = safeCurrentUser || {
     id: 'LCNS/2026/EX/001',
     email: 'exam@lcns.edu.ng',
     role: 'EXAM_OFFICER',
     fullName: 'Dr. Emmanuel O. Agada',
     status: 'ACTIVE',
   };
+
+  const displayName = (currentUser?.fullName || currentUser?.full_name || 'Dr. Emmanuel O. Agada').toString().toUpperCase();
+  const displayEmail = currentUser?.email || 'exam@lcns.edu.ng';
+  const displayRole = currentUser?.role || 'EXAM_OFFICER';
 
   const filteredResults = results.filter((r) => {
     const matchesSession = r.session === selectedSession;
@@ -63,13 +82,13 @@ export const ExamOfficerDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Examination & Records Unit • Exam Officer • Course Registration + Score Sheets</span>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">Dr. Emmanuel O. Agada</h1>
-            <p className="text-xs text-emerald-200">Course Registration Approval - If credit units exceed limit - MUST DISAPPROVE + See Lecturers Who Submitted + Download PDF - COLLEGE OF NURSING SCIENCES, CATHOLIC DIOCESE OF GBOKO</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Examination & Records Unit • {displayRole} • Course Registration + Score Sheets</span>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">{displayName}</h1>
+            <p className="text-xs text-emerald-200">{displayEmail} - Course Registration Approval - If credit units exceed limit - MUST DISAPPROVE + See Lecturers Who Submitted + Download PDF - COLLEGE OF NURSING SCIENCES, CATHOLIC DIOCESE OF GBOKO - Logged in as {displayName}</p>
           </div>
           <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border border-emerald-600 shadow-md self-start sm:self-auto"><Printer className="w-4 h-4"/><span>Print</span></button>
         </div>
-        <div className="mt-6 pt-5 border-t border-emerald-800/80 flex flex-wrap items-center justify-between gap-4 text-xs"><div className="flex items-center gap-2"><Calculator className="w-4 h-4 text-amber-400"/><span className="text-emerald-200">Assessment 40% + Exam 60% = 100% | Course Registration - Credit Units Check</span></div><span className="font-bold text-amber-300">Exam Officer - Approve Course Registration - If Exceeds - DISAPPROVE</span></div>
+        <div className="mt-6 pt-5 border-t border-emerald-800/80 flex flex-wrap items-center justify-between gap-4 text-xs"><div className="flex items-center gap-2"><Calculator className="w-4 h-4 text-amber-400"/><span className="text-emerald-200">Assessment 40% + Exam 60% = 100% | Course Registration - Credit Units Check</span></div><span className="font-bold text-amber-300">{displayName} - Approve Course Registration - If Exceeds - DISAPPROVE</span></div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
@@ -87,7 +106,7 @@ export const ExamOfficerDashboard: React.FC = () => {
       ) : activeTab==='biodata' ? (
         <div className="bg-white rounded-3xl border-2 border-emerald-300 p-4 space-y-4">
           <div className="flex flex-col md:flex-row justify-between gap-3">
-            <div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata - Current Level Visible - Exam Officer View</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">Exam Officer - Approve course registration - If credit units exceed limit - MUST DISAPPROVE - Student prints approved form with SCHOOL FULL NAME + LOGO</p></div>
+            <div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata - Current Level Visible - {displayName} View</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">{displayName} - Approve course registration - If credit units exceed limit - MUST DISAPPROVE - Student prints approved form with SCHOOL FULL NAME + LOGO</p></div>
             <button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-1 self-start"><Download className="w-4 h-4"/>Print Biodata</button>
           </div>
           <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border">
@@ -114,7 +133,7 @@ export const ExamOfficerDashboard: React.FC = () => {
           {selectedBiodata && (<div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-3"><div className="flex justify-between border-b pb-2"><h3 className="font-black">Biodata - {selectedBiodata.fullName} - Level: {selectedBiodata.level}</h3><button onClick={()=>setSelectedBiodata(null)} className="px-3 py-1 bg-slate-100 rounded-full font-black">X</button></div><div className="text-xs space-y-1"><p>Matric: {selectedBiodata.matricNo}</p><p>Program: {selectedBiodata.program}</p><p>Current Level: <b className="bg-yellow-300 px-2 rounded">{selectedBiodata.level}</b></p><p>State: {selectedBiodata.stateOfOrigin}</p><p>Phone: {selectedBiodata.phone}</p></div><button onClick={()=>window.print()} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Print</button></div></div>)}
         </div>
       ) : activeTab==='admissions_all' ? (
-        <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Exam Officer - All Applicants Records Link - CBT + Interview Scores</div><AdminAdmissionManager currentUser={currentUser} /></div>
+        <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Exam Officer {displayName} - All Applicants Records Link - CBT + Interview Scores</div><AdminAdmissionManager currentUser={currentUser} /></div>
       ) : (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
