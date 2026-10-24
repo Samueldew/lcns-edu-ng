@@ -28,7 +28,22 @@ export const ProvostDashboard: React.FC = () => {
   const payments = StorageService.getPayments();
   const [senateApproved, setSenateApproved] = useState(false);
 
-  const currentUser = StorageService.getCurrentUser() || {
+  // FIXED - Now shows logged-in Provost name, not hardcoded Mrs Terna for everyone
+  const safeCurrentUser = (() => {
+    try {
+      const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
+      for (const k of keys) {
+        const v = localStorage.getItem(k);
+        if (v) {
+          const parsed = JSON.parse(v);
+          if (parsed && parsed.email) return parsed;
+        }
+      }
+      return StorageService.getCurrentUser();
+    } catch { return null; }
+  })();
+
+  const currentUser = safeCurrentUser || {
     id: 'LCNS/2026/PV/001',
     email: 'provost@lcns.edu.ng',
     role: 'PROVOST',
@@ -36,13 +51,18 @@ export const ProvostDashboard: React.FC = () => {
     status: 'ACTIVE',
   };
 
+  // FIXED - Dynamic display name
+  const displayName = (currentUser?.fullName || currentUser?.full_name || currentUser?.email || 'Mrs Terna Fiase').toString().toUpperCase();
+  const displayEmail = currentUser?.email || 'provost@lcns.edu.ng';
+  const displayRole = currentUser?.role || 'PROVOST';
+
   const totalRevenue = payments.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + p.amount, 0);
 
   const handleSenateApproval = () => {
     setSenateApproved(true);
     StorageService.logAction(
-      'provost@lcns.edu.ng',
-      'PROVOST',
+      displayEmail,
+      displayRole,
       'SENATE_RATIFICATION',
       'Academic Board granted Senate Ratification for 2026/2027 First Semester Examination Broadsheet.'
     );
@@ -55,13 +75,13 @@ export const ProvostDashboard: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">
-              Office of the College Provost
+              Office of the College Provost - {displayRole}
             </span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">
-              Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN
+              {displayName}
             </h1>
             <p className="text-xs text-emerald-200">
-              Executive Overview + All Applicants + All Students Biodata with Current Level - Super Fine
+              {displayEmail} - Executive Overview + All Applicants + All Students Biodata with Current Level - Super Fine - Logged in as {displayName}
             </p>
           </div>
           <div className="text-right">
@@ -83,23 +103,17 @@ export const ProvostDashboard: React.FC = () => {
       </div>
 
       {activeTab === 'students_biodata' ? (
-        <AdminStudentsBiodata currentUser={currentUser} roleLabel="Provost - All Students Biodata with Current Level (ND1 ND2 HND1 HND2)" />
+        <AdminStudentsBiodata currentUser={currentUser} roleLabel={`Provost - ${displayName} - All Students Biodata with Current Level (ND1 ND2 HND1 HND2)`} />
       ) : activeTab === 'admissions_all' ? (
         <div className="space-y-4">
-          <div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Provost All Applicants Records - CBT Exam Set + CBT Score Publish + Interview Scores Publish + Final Admit with Congratulations + JAMB CBT Center instruction - Link Registrar/Admin to Applicant Dashboard</div>
+          <div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Provost All Applicants Records - CBT Exam Set + CBT Score Publish + Interview Scores Publish + Final Admit with Congratulations + JAMB CBT Center instruction - Link Registrar/Admin to Applicant Dashboard - Logged in: {displayName} ({displayEmail})</div>
           <AdminAdmissionManager currentUser={currentUser} />
         </div>
       ) : activeTab === 'admissions' ? (
         <AdmissionProcessingView />
       ) : activeTab === 'cbt' ? (
         <CBTExamManager
-          currentUser={{
-            id: 'LCNS/2026/PV/001',
-            email: 'provost@lcns.edu.ng',
-            role: 'PROVOST',
-            fullName: 'Mrs Terna Fiase Msc, Bnsc, Dip Nursing Education, RNE,RM,RN',
-            status: 'ACTIVE',
-          }}
+          currentUser={currentUser}
           allowedTypes={['APPLICANT_SCREENING']}
         />
       ) : (
@@ -112,10 +126,10 @@ export const ProvostDashboard: React.FC = () => {
           </div>
           <div className="bg-white rounded-3xl border-2 border-emerald-700/40 p-6 sm:p-8 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1"><span className="text-xs font-bold uppercase text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">Senate Academic Board Agenda</span><h3 className="text-lg font-black text-slate-950 uppercase font-serif-crest">2026/2027 First Semester Examination Broadsheet Ratification</h3><p className="text-xs text-slate-600">Submitted by Dr. Emmanuel O. Agada (Examination Officer) and moderated by Heads of Department.</p></div>
+              <div className="space-y-1"><span className="text-xs font-bold uppercase text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">Senate Academic Board Agenda - {displayName}</span><h3 className="text-lg font-black text-slate-950 uppercase font-serif-crest">2026/2027 First Semester Examination Broadsheet Ratification</h3><p className="text-xs text-slate-600">Submitted by Dr. Emmanuel O. Agada (Examination Officer) and moderated by Heads of Department. Provost: {displayName}</p></div>
               <button onClick={handleSenateApproval} disabled={senateApproved} className={`px-5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 shadow-md transition-all ${senateApproved ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-emerald-800 hover:bg-emerald-900 text-white'}`}><CheckCircle2 className="w-4 h-4 text-amber-300" /><span>{senateApproved ? 'Senate Ratified & Approved' : 'Grant Senate Final Approval'}</span></button>
             </div>
-            {senateApproved && (<div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /><span>Senate approval granted on {new Date().toLocaleDateString()}. Transcripts and Semester GPA results are officially unlocked for all students.</span></div>)}
+            {senateApproved && (<div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /><span>Senate approval granted on {new Date().toLocaleDateString()} by {displayName}. Transcripts and Semester GPA results are officially unlocked for all students.</span></div>)}
           </div>
         </>
       )}
