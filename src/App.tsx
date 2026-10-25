@@ -25,6 +25,10 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 // === ADD ONLY - FIX FOR ND/HND 4YEARS APPLICATION - NO DELETE ===
 import { supabase } from './lib/supabase';
 // === END ADD ===
+// === ADD ONLY - EXAM PORTAL - ROLLING BATCH - ONLY APPLICANTS - PROVOST/REGISTRAR/ADMIN SET DATE ===
+import { AdminExamSettings } from './components/portals/AdminExamSettings';
+import { ExamPortal } from './components/portals/ExamPortal';
+// === END ADD ===
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(StorageService.getCurrentUser());
@@ -41,6 +45,8 @@ export default function App() {
     | 'courses'
     | 'lecturer-cbt-create'
     | 'student-cbt'
+    | 'exam-settings'
+    | 'exam-portal'
   >(null);
   const [adminInitialTab, setAdminInitialTab] = useState<
     'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system'
@@ -106,6 +112,16 @@ export default function App() {
       setCustomView('bursar');
       setActiveView('website');
       return;
+    // === ADD ONLY - EXAM PORTAL ROUTES - ROLLING BATCH - ONLY APPLICANTS ===
+    } else if (pathname === '/exam' || pathname === '/applicant/exam' || pathname.startsWith('/exam/')) {
+      setCustomView('exam-portal');
+      setActiveView('website');
+      return;
+    } else if (pathname.includes('/exam-settings') || pathname === '/admin/exam-settings' || pathname === '/provost/exam-settings' || pathname === '/registrar/exam-settings') {
+      setCustomView('exam-settings');
+      setActiveView('website');
+      return;
+    // === END ADD ===
     } else if (pathname === '/apply') {
       setCustomView(null);
       setActiveView('website');
@@ -189,7 +205,7 @@ export default function App() {
       const target = (e.target as HTMLElement).closest('a');
       if (!target) return;
       const href = target.getAttribute('href');
-      if (href && (href.startsWith('/applicant/') || href.startsWith('/check-admission') || href.startsWith('/bursar') || href.startsWith('/admissions') || href.startsWith('/admin/') || href.startsWith('/lecturer/') || href.startsWith('/student/') || href === '/apply')) {
+      if (href && (href.startsWith('/applicant/') || href.startsWith('/check-admission') || href.startsWith('/bursar') || href.startsWith('/admissions') || href.startsWith('/admin/') || href.startsWith('/lecturer/') || href.startsWith('/student/') || href === '/apply' || href.startsWith('/exam'))) {
         e.preventDefault();
         window.history.pushState({}, '', href);
         syncRouteFromUrl();
@@ -270,6 +286,8 @@ export default function App() {
            customView === 'courses' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><CourseManagerView portalRole="Academic Staff & Curriculum" /></div></div> :
            customView === 'lecturer-cbt-create' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><CBTExamManager currentUser={currentUser || { id: 'LCNS/2026/LC/001', email: 'lecturer@lcns.edu.ng', role: 'LECTURER', fullName: 'Nurse Emmanuel Gbaorun', department: 'Nursing Sciences', status: 'ACTIVE' }} allowedTypes={['COURSE_TEST']} /></div></div> :
            customView === 'student-cbt' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><StudentPortal /></div></div> :
+           customView === 'exam-settings' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><AdminExamSettings /></div></div> :
+           customView === 'exam-portal' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><ExamPortal /></div></div> :
            activeView === 'portal' && currentUser ? <PortalShell currentUser={currentUser} onLogout={handleLogout} onBackToWebsite={() => { setActiveView('website'); window.history.pushState({}, '', '/'); }} adminInitialTab={adminInitialTab} /> :
            isDirectAdminUrl && !currentUser ? (
             <div className="min-h-[80vh] flex items-center justify-center p-4 bg-gradient-to-b from-slate-900 via-[#0a4d2e] to-slate-950 py-12">
