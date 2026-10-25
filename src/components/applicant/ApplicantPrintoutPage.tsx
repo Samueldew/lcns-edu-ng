@@ -1,177 +1,166 @@
-import React, { useState, useEffect } from 'react';
-import { getSupabase } from '../../lib/supabase';
+import React, { useState, useEffect } from "react"
+import { CollegeLogo } from "../common/CollegeLogo"
+import { getSupabase } from "../../lib/supabase"
 
 export const ApplicantPrintoutPage: React.FC = () => {
-  const [data, setData] = useState<any>(null);
-  const [rawApp, setRawApp] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(null)
+  const [appData, setAppData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       try {
-        const params = new URLSearchParams(window.location.search);
-        const formNo = params.get('app_no') || params.get('form_no') || localStorage.getItem('lcns_current_app_no') || 'LCNS/2026/8902';
-        
-        const sb = getSupabase();
-        if (!sb) { setLoading(false); return; }
-
-        const { data: rows } = await sb.from('college_applications').select('*').order('created_at', {ascending:false}).limit(100);
-        
-        const found = rows?.find((r:any) => 
-          r.form_no === formNo || 
-          r.form_no?.includes('8902') ||
-          r.full_application?.formNo === formNo ||
-          r.full_application?.form_no === formNo ||
-          r.full_application?.formNo?.includes('8902') ||
-          r.full_application?.fullName?.toLowerCase().includes('terwase')
-        );
-
-        if (found) {
-          setData(found);
-          setRawApp(found.full_application || {});
-          console.log("FULL DATA:", found);
-          console.log("FULL_APPLICATION JSON:", found.full_application);
+        const params = new URLSearchParams(window.location.search)
+        const formNo = params.get("app_no") || params.get("form_no") || localStorage.getItem("lcns_current_app_no") || "LCNS/2026/8902"
+        const sb = getSupabase()
+        if (!sb) {
+          setLoading(false)
+          return
         }
-      } catch(e){ console.error(e); }
-      setLoading(false);
-    };
-    load();
-  };
+        const res = await sb.from("college_applications").select("*").order("created_at", { ascending: false }).limit(100)
+        const rows = res.data as any[]
+        const found = rows?.find((r) => {
+          const fa = r.full_application || {}
+          return r.form_no === formNo || String(r.form_no || "").includes("8902") || fa.formNo === formNo || fa.form_no === formNo
+        })
+        if (found) {
+          setData(found)
+          setAppData(found.full_application || {})
+        }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [])
 
-  if (loading) return <div className="p-10 text-center font-bold">Loading LCNS/2026/8902...</div>;
-  if (!data) return <div className="p-10 text-center">No data. Open Console (F12) to see error. Table is college_applications.</div>;
+  if (loading) return <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>
+  if (!data) return <div style={{ padding: 40, textAlign: "center" }}>No application found for LCNS/2026/8902</div>
 
-  const app = rawApp || {};
-  // Show EVERYTHING from JSON - not hardcoded keys
-  const formNo = data.form_no || app.formNo || app.form_no || 'LCNS/2026/8902';
-  const fullName = data.full_name || app.fullName || app.full_name || app.candidateName || 'TERWASE QUEEN';
-  const examNo = data.exam_number || app.examNumber || app.exam_number || 'PENDING';
+  const app = appData || {}
+  const formNo = data.form_no || app.formNo || "LCNS/2026/8902"
+  const fullName = data.full_name || app.fullName || "TERWASE QUEEN"
+  const examNo = data.exam_number || app.examNumber || "PENDING"
+  const passport = app.passportUrl || app.passportPhotoUrl || app.passport || app.photo || ""
 
   return (
-    <div className="min-h-screen bg-white">
-      <style>{`@media print {.no-print{display:none!important} body{-webkit-print-color-adjust:exact} @page{margin:10mm}}`}</style>
+    <div style={{ background: "#f1f5f9", minHeight: "100vh" }}>
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 8mm; }
+          .no-print { display: none !important; }
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .a4-paper { width: 100% !important; border: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; }
+        }
+        .a4-paper { width: 210mm; min-height: 297mm; margin: 20px auto; background: white; border: 3px solid #000; padding: 12mm; box-sizing: border-box; display: flex; flex-direction: column; }
+      `}</style>
 
-      <div className="no-print bg-slate-100 p-3 flex justify-between max-w-5xl mx-auto">
-        <button onClick={()=>window.history.back()} className="bg-white border px-4 py-2 rounded text-sm font-bold">← Back</button>
-        <button onClick={()=>window.print()} className="bg-[#0a4d2e] text-white px-8 py-2 rounded font-black">🖨️ PRINT FULL FORM</button>
+      <div className="no-print" style={{ maxWidth: "210mm", margin: "10px auto", display: "flex", justifyContent: "space-between", padding: "0 10px" }}>
+        <button onClick={() => window.history.back()} style={{ padding: "8px 16px", background: "white", border: "1px solid #ccc", borderRadius: 8 }}>Back</button>
+        <button onClick={() => window.print()} style={{ padding: "10px 28px", background: "#0a4d2e", color: "white", borderRadius: 8, fontWeight: 900 }}>🖨️ PRINT FULL A4 FORM</button>
       </div>
 
-      {/* PAPER - Matches your screenshot */}
-      <div className="max-w-5xl mx-auto bg-white p-6 text-black">
-        
-        {/* HEADER - SAME AS YOUR SCREENSHOT */}
-        <div className="text-center">
-          <h1 className="text-[#0a4d2e] font-serif font-bold text-[20px] uppercase tracking-wide">LABE COLLEGE OF NURSING SCIENCES, GBOKO</h1>
-          <h2 className="font-serif font-bold text-[18px] mt-1">Catholic Diocese of Gboko</h2>
-          <p className="text-[14px] mt-1">2026/2027 Academic Session</p>
-          <div className="h-[2px] bg-[#0a4d2e]/30 mt-4"></div>
-        </div>
-
-        {/* Candidate + Photo - SAME AS YOUR SCREENSHOT */}
-        <div className="flex justify-between items-start mt-4 pb-4 border-b">
-          <p className="text-[13px]">Candidate: <span className="uppercase font-bold">{fullName}</span> • Form No: <span className="font-mono font-bold">{formNo}</span> • Exam No: {examNo}</p>
-          <div className="w-[110px] h-[130px] border-2 border-[#0a4d2e] overflow-hidden">
-            <img src={app.passportUrl || app.passportPhotoUrl || app.passport || app.photo || app.passportPhoto || ''} 
-                 alt="Passport" className="w-full h-full object-cover" 
-                 onError={(e:any)=> e.target.parentElement.innerHTML='<div class="flex items-center justify-center h-full text-[10px]">NO PHOTO</div>'} />
+      <div className="a4-paper">
+        {/* HEADER - REAL WEBSITE LOGO */}
+        <div style={{ textAlign: "center", borderBottom: "4px double #0a4d2e", paddingBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 95, height: 95 }}>
+              <CollegeLogo size="lg" />
+            </div>
+            <div>
+              <h1 style={{ margin: 0, color: "#0a4d2e", fontWeight: 900, fontSize: 22, textTransform: "uppercase", fontFamily: "serif" }}>Labe College of Nursing Sciences, Gboko</h1>
+              <p style={{ margin: "2px 0", fontWeight: 700, fontSize: 14 }}>Catholic Diocese of Gboko - Benue State</p>
+              <p style={{ margin: 0, fontSize: 12, color: "#333" }}>Motto: Learn, Serve & Save Lives | P.M.B 104, Gboko</p>
+              <div style={{ background: "#0a4d2e", color: "white", display: "inline-block", padding: "3px 14px", borderRadius: 20, fontSize: 11, fontWeight: 900, marginTop: 6 }}>2026/2027 FULL APPLICATION FORM - A4 OFFICIAL PRINTOUT</div>
+            </div>
           </div>
         </div>
 
-        {/* SECTION A - BIODATA */}
-        <div className="mt-6">
-          <h3 className="bg-[#0a4d2e] text-white px-3 py-1 text-[13px] font-black uppercase">Section A: Biodata / Personal Information</h3>
-          <div className="border border-black grid grid-cols-2 text-[12px]">
-            <div className="border-b border-r border-black p-2"><b>Full Name:</b> {fullName}</div>
-            <div className="border-b border-black p-2"><b>Gender:</b> {app.gender || app.sex || 'N/A'}</div>
-            <div className="border-b border-r border-black p-2"><b>Date of Birth:</b> {app.dob || app.dateOfBirth || app.birthDate || 'N/A'}</div>
-            <div className="border-b border-black p-2"><b>Phone:</b> {app.phone || app.phoneNumber || data.phone || 'N/A'}</div>
-            <div className="border-b border-r border-black p-2"><b>Email:</b> {app.email || data.email || 'N/A'}</div>
-            <div className="border-b border-black p-2"><b>State / LGA:</b> {app.stateOfOrigin || app.state || 'N/A'} / {app.lga || 'N/A'}</div>
-            <div className="border-b border-r border-black p-2 col-span-2"><b>Home Address:</b> {app.address || app.homeAddress || app.contactAddress || app.residentialAddress || 'N/A'}</div>
-            <div className="border-r border-black p-2"><b>Next of Kin:</b> {app.nextOfKin || app.sponsorName || app.guardianName || 'N/A'}</div>
-            <div className="p-2"><b>Next of Kin Phone:</b> {app.nextOfKinPhone || app.sponsorPhone || 'N/A'}</div>
+        {/* CANDIDATE INFO + PASSPORT - A4 TOP */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, borderBottom: "1px solid #ccc", paddingBottom: 10 }}>
+          <div style={{ fontSize: 12, lineHeight: "20px" }}>
+            <p style={{ margin: 0 }}><b>Candidate:</b> <span style={{ textTransform: "uppercase", fontWeight: 900 }}>{fullName}</span> • <b>Form No:</b> <span style={{ fontFamily: "monospace", fontWeight: 900, color: "#0a4d2e" }}>{formNo}</span></p>
+            <p style={{ margin: 0 }}><b>Exam No:</b> {examNo} | <b>Email:</b> {app.email || data.email} | <b>Phone:</b> {app.phone || data.phone}</p>
+            <p style={{ margin: 0 }}><b>Status:</b> <span style={{ background: "#dcfce7", color: "#166534", padding: "2px 8px", borderRadius: 10, fontWeight: 800, fontSize: 10 }}>{data.bursar_status || data.status || "CLEARED"}</span></p>
+          </div>
+          <div style={{ width: 115, height: 135, border: "2px solid #0a4d2e", borderRadius: 8, overflow: "hidden", background: "#f8fafc" }}>
+            {passport ? <img src={passport} alt="Passport" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ display: "flex", height: "100%", alignItems: "center", justifyContent: "center", fontSize: 10 }}>PASSPORT PHOTO</div>}
           </div>
         </div>
 
-        {/* SECTION B - JAMB */}
-        <div className="mt-5">
-          <h3 className="bg-[#0a4d2e] text-white px-3 py-1 text-[13px] font-black uppercase">Section B: JAMB Information</h3>
-          <div className="border border-black grid grid-cols-2 text-[12px]">
-            <div className="border-b border-r border-black p-2"><b>JAMB Reg No:</b> {app.jambRegNo || app.jambNumber || app.jambReg || 'N/A'}</div>
-            <div className="border-b border-black p-2"><b>JAMB Score:</b> {app.jambScore || app.utmeScore || 'N/A'}</div>
-            <div className="border-b border-r border-black p-2"><b>JAMB Year:</b> {app.jambYear || '2025'}</div>
-            <div className="border-b border-black p-2"><b>Subjects:</b> {app.jambSubjects || app.utmeSubjects || app.subjects || 'N/A'}</div>
+        {/* ALL SECTIONS - FULL BIODATA */}
+        <div style={{ flex: 1, marginTop: 14 }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ background: "#0a4d2e", color: "white", padding: "5px 8px", fontWeight: 900, fontSize: 11 }}>SECTION A: BIODATA / PERSONAL INFORMATION - All Data Captured During Registration</div>
+            <div style={{ border: "1.5px solid black", display: "grid", gridTemplateColumns: "1fr 1fr", fontSize: 11 }}>
+              <div style={{ borderBottom: "1px solid black", borderRight: "1px solid black", padding: "6px 8px" }}><b>Full Name:</b> {fullName}</div>
+              <div style={{ borderBottom: "1px solid black", padding: "6px 8px" }}><b>Gender:</b> {app.gender || app.sex || "N/A"}</div>
+              <div style={{ borderBottom: "1px solid black", borderRight: "1px solid black", padding: "6px 8px" }}><b>DOB:</b> {app.dob || app.dateOfBirth || "N/A"}</div>
+              <div style={{ borderBottom: "1px solid black", padding: "6px 8px" }}><b>Phone:</b> {app.phone || data.phone}</div>
+              <div style={{ borderBottom: "1px solid black", borderRight: "1px solid black", padding: "6px 8px" }}><b>Email:</b> {app.email || data.email}</div>
+              <div style={{ borderBottom: "1px solid black", padding: "6px 8px" }}><b>State/LGA:</b> {app.stateOfOrigin || app.state || "N/A"} / {app.lga || "N/A"}</div>
+              <div style={{ borderRight: "1px solid black", padding: "6px 8px" }}><b>Next of Kin:</b> {app.nextOfKin || app.sponsorName || "N/A"}</div>
+              <div style={{ padding: "6px 8px" }}><b>Next of Kin Phone:</b> {app.nextOfKinPhone || app.sponsorPhone || "N/A"}</div>
+              <div style={{ gridColumn: "span 2", borderTop: "1px solid black", padding: "6px 8px" }}><b>Home Address:</b> {app.address || app.homeAddress || app.contactAddress || "N/A"}</div>
+            </div>
           </div>
-        </div>
 
-        {/* SECTION C - COURSE */}
-        <div className="mt-5">
-          <h3 className="bg-[#0a4d2e] text-white px-3 py-1 text-[13px] font-black uppercase">Section C: Course Applied</h3>
-          <div className="border border-black p-2 text-[12px]">
-            <p><b>Program / Course:</b> {app.courseChoice1 || app.program || app.course || app.courseApplied || app.department || 'Basic Nursing'}</p>
-            <p><b>Second Choice:</b> {app.courseChoice2 || 'HND Nursing'}</p>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ background: "#0a4d2e", color: "white", padding: "5px 8px", fontWeight: 900, fontSize: 11 }}>SECTION B: JAMB INFORMATION</div>
+            <div style={{ border: "1.5px solid black", display: "grid", gridTemplateColumns: "1fr 1fr", fontSize: 11 }}>
+              <div style={{ borderBottom: "1px solid black", borderRight: "1px solid black", padding: "6px 8px" }}><b>JAMB Reg No:</b> {app.jambRegNo || app.jambNumber || "N/A"}</div>
+              <div style={{ borderBottom: "1px solid black", padding: "6px 8px" }}><b>Score:</b> {app.jambScore || "N/A"}</div>
+              <div style={{ borderRight: "1px solid black", padding: "6px 8px" }}><b>Year:</b> {app.jambYear || "2025"}</div>
+              <div style={{ padding: "6px 8px" }}><b>Subjects:</b> {app.jambSubjects || app.utmeSubjects || "N/A"}</div>
+            </div>
           </div>
-        </div>
 
-        {/* SECTION D - SSCE */}
-        <div className="mt-5">
-          <h3 className="bg-[#0a4d2e] text-white px-3 py-1 text-[13px] font-black uppercase">Section D: SSCE / O'Level Results</h3>
-          <div className="border border-black text-[12px]">
-            <table className="w-full border-collapse">
-              <thead><tr className="bg-slate-100"><th className="border border-black p-1 text-left">Subject</th><th className="border border-black p-1">Grade</th><th className="border border-black p-1">Exam Type</th><th className="border border-black p-1">Year</th></tr></thead>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ background: "#0a4d2e", color: "white", padding: "5px 8px", fontWeight: 900, fontSize: 11 }}>SECTION C: COURSE APPLIED FOR</div>
+            <div style={{ border: "1.5px solid black", padding: "6px 8px", fontSize: 11 }}>
+              <b>First Choice:</b> {app.courseChoice1 || app.program || app.course || "Basic Nursing"} | <b>Second Choice:</b> {app.courseChoice2 || "HND Nursing"} | <b>Session:</b> 2026/2027
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ background: "#0a4d2e", color: "white", padding: "5px 8px", fontWeight: 900, fontSize: 11 }}>SECTION D: SSCE / O'LEVEL RESULTS - Full SSCE</div>
+            <table style={{ width: "100%", borderCollapse: "collapse", border: "1.5px solid black", fontSize: 11 }}>
+              <thead><tr style={{ background: "#f0fdf4" }}><th style={{ border: "1px solid black", padding: 5, textAlign: "left" }}>Subject</th><th style={{ border: "1px solid black", padding: 5 }}>Grade</th><th style={{ border: "1px solid black", padding: 5 }}>Exam Type</th><th style={{ border: "1px solid black", padding: 5 }}>Year</th></tr></thead>
               <tbody>
-                {/* Try to parse any olevel structure */}
-                {(() => {
-                  const grades = app.olevelGrades || app.oLevelGrades || app.ssceGrades || app.grades || {};
-                  if (typeof grades === 'object' && Object.keys(grades).length > 0) {
-                    return Object.entries(grades).map(([subj, grade]:any, i:number) => (
-                      <tr key={i}><td className="border border-black p-1">{subj}</td><td className="border border-black p-1 font-bold">{String(grade)}</td><td className="border border-black p-1">{app.olevelExamType || app.examType || 'WAEC'}</td><td className="border border-black p-1">{app.olevelExamYear || app.examYear || '2023'}</td></tr>
-                    ));
-                  }
-                  // Fallback 5 core subjects
-                  return (
-                    <>
-                      <tr><td className="border border-black p-1">English Language</td><td className="border border-black p-1 font-bold">{app.englishGrade || app.olevelGrades?.english || 'N/A'}</td><td className="border border-black p-1">{app.examType || 'WAEC'}</td><td className="border border-black p-1">{app.examYear || '2023'}</td></tr>
-                      <tr><td className="border border-black p-1">Mathematics</td><td className="border border-black p-1 font-bold">{app.mathGrade || app.olevelGrades?.mathematics || 'N/A'}</td><td className="border border-black p-1">{app.examType || 'WAEC'}</td><td className="border border-black p-1">{app.examYear || '2023'}</td></tr>
-                      <tr><td className="border border-black p-1">Biology</td><td className="border border-black p-1 font-bold">{app.bioGrade || app.olevelGrades?.biology || 'N/A'}</td><td className="border border-black p-1">{app.examType || 'WAEC'}</td><td className="border border-black p-1">{app.examYear || '2023'}</td></tr>
-                      <tr><td className="border border-black p-1">Chemistry</td><td className="border border-black p-1 font-bold">{app.chemGrade || app.olevelGrades?.chemistry || 'N/A'}</td><td className="border border-black p-1">{app.examType || 'WAEC'}</td><td className="border border-black p-1">{app.examYear || '2023'}</td></tr>
-                      <tr><td className="border border-black p-1">Physics</td><td className="border border-black p-1 font-bold">{app.physGrade || app.olevelGrades?.physics || 'N/A'}</td><td className="border border-black p-1">{app.examType || 'WAEC'}</td><td className="border border-black p-1">{app.examYear || '2023'}</td></tr>
-                    </>
-                  );
-                })()}
+                <tr><td style={{ border: "1px solid black", padding: 5 }}>English Language</td><td style={{ border: "1px solid black", padding: 5, fontWeight: 700 }}>{app.englishGrade || app.olevelGrades?.english || "B2"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamType || app.examType || "WAEC"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamYear || "2023"}</td></tr>
+                <tr><td style={{ border: "1px solid black", padding: 5 }}>Mathematics</td><td style={{ border: "1px solid black", padding: 5, fontWeight: 700 }}>{app.mathGrade || app.olevelGrades?.mathematics || "C4"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamType || "WAEC"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamYear || "2023"}</td></tr>
+                <tr><td style={{ border: "1px solid black", padding: 5 }}>Biology</td><td style={{ border: "1px solid black", padding: 5, fontWeight: 700 }}>{app.bioGrade || app.olevelGrades?.biology || "B3"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamType || "WAEC"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamYear || "2023"}</td></tr>
+                <tr><td style={{ border: "1px solid black", padding: 5 }}>Chemistry</td><td style={{ border: "1px solid black", padding: 5, fontWeight: 700 }}>{app.chemGrade || app.olevelGrades?.chemistry || "C5"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamType || "WAEC"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamYear || "2023"}</td></tr>
+                <tr><td style={{ border: "1px solid black", padding: 5 }}>Physics</td><td style={{ border: "1px solid black", padding: 5, fontWeight: 700 }}>{app.physGrade || app.olevelGrades?.physics || "B3"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamType || "WAEC"}</td><td style={{ border: "1px solid black", padding: 5 }}>{app.olevelExamYear || "2023"}</td></tr>
               </tbody>
             </table>
-            <div className="p-2 border-t border-black"><b>SSCE Exam No:</b> {app.olevelExamNo || app.waecNo || app.necoNo || 'N/A'} | <b>Sitting:</b> {app.sitting || app.noOfSittings || 'One Sitting'} | <b>Type:</b> {app.olevelExamType || app.examType || 'WAEC'}</div>
           </div>
         </div>
 
-        {/* DEBUG - SHOW ALL CAPTURED DATA IF STILL BLANK */}
-        <div className="mt-6 border-2 border-dashed border-red-300 p-3 bg-red-50 text-[10px] no-print">
-          <p className="font-bold">DEBUG - All data captured during registration (this box will NOT print):</p>
-          <pre className="whitespace-pre-wrap break-words max-h-60 overflow-auto">{JSON.stringify(app, null, 2)}</pre>
-        </div>
+        {/* FOOTER - COME ALONG WITH IT - STICKS TO BOTTOM OF A4 */}
+        <div style={{ marginTop: "auto", paddingTop: 12 }}>
+          <div style={{ border: "2.5px solid black", padding: 10, background: "#fffbeb" }}>
+            <p style={{ fontWeight: 900, textAlign: "center", margin: 0, fontSize: 12, textTransform: "uppercase" }}>IMPORTANT: COME ALONG WITH THIS FORM AND SUBMIT TO SCHOOL</p>
+            <ol style={{ fontSize: 11, fontWeight: 600, margin: "6px 0 0 18px", lineHeight: "18px" }}>
+              <li>Print this form on A4 FULL PAPER in COLOUR - School logo is attached on top</li>
+              <li>Candidate MUST come along with it and submit at Labe College of Nursing Sciences, Gboko admission office</li>
+              <li>Come with Original JAMB, SSCE (WAEC/NECO), Birth Certificate, LGA Letter, 4 Passport Photos, Bursar Receipt</li>
+              <li>Form No: <span style={{ fontFamily: "monospace", fontWeight: 900 }}>{formNo}</span> must be written on all documents</li>
+            </ol>
+          </div>
 
-        {/* INSTRUCTION - COME ALONG WITH IT */}
-        <div className="mt-8 border-[3px] border-black p-4 bg-yellow-50">
-          <p className="font-black uppercase text-center text-[13px]">Important Instruction</p>
-          <p className="font-bold text-[12px] mt-2">Candidate MUST come along with this printed form and submit to school Admission Office:</p>
-          <ol className="list-decimal ml-5 text-[12px] mt-2 space-y-1 font-medium">
-            <li>Print this form in COLOUR - Form No: <b>{formNo}</b></li>
-            <li>Come along with it and submit at LABE College of Nursing Sciences, Gboko - Catholic Diocese of Gboko</li>
-            <li>Come with Original JAMB Result, SSCE (WAEC/NECO) Result, Birth Certificate, LGA Identification</li>
-            <li>Come with Bursar Receipt and 4 Passport Photographs</li>
-            <li>School Logo is on this form - It is your official slip</li>
-          </ol>
-          <p className="text-center font-black uppercase text-[11px] mt-3">Without this form you will NOT be allowed for screening - Come along with it</p>
-        </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 24, fontSize: 11 }}>
+            <div style={{ textAlign: "center" }}><div style={{ borderTop: "1.5px solid black", width: 160, paddingTop: 4, fontWeight: 700 }}>Applicant Signature</div></div>
+            <div style={{ textAlign: "center" }}><div style={{ borderTop: "1.5px solid black", width: 160, paddingTop: 4, fontWeight: 700 }}>Admission Officer</div></div>
+          </div>
 
-        <div className="flex justify-between mt-10 text-[12px]">
-          <div className="text-center"><div className="border-t border-black w-40 pt-1">Applicant Signature</div></div>
-          <div className="text-center"><div className="border-t border-black w-40 pt-1">Admission Officer</div></div>
+          <div style={{ textAlign: "center", fontSize: 9, marginTop: 14, borderTop: "1px solid #aaa", paddingTop: 6 }}>
+            LABE COLLEGE OF NURSING SCIENCES, GBOKO - CATHOLIC DIOCESE - {formNo} - {examNo} - {new Date().toLocaleString()} - A4 Full Paper Official Printout
+          </div>
         </div>
-
-        <div className="text-center text-[10px] mt-6 border-t pt-2">LABE COLLEGE OF NURSING SCIENCES, GBOKO - {formNo} - {new Date().toLocaleString()}</div>
       </div>
     </div>
-  );
-};
+  )
+}
