@@ -35,6 +35,7 @@ import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { AdminExamSettings } from './AdminExamSettings';
+import { InterviewScoresEntryView } from '../admin/InterviewScoresEntryView';
 import { supabase } from '@/lib/supabase';
 
 // ===== REGISTRAR APPLICANT ENTRANCE CBT MANAGER - KEEP AS IS =====
@@ -107,7 +108,8 @@ const RegistrarApplicantCBTManager = () => {
 };
 
 export const RegistrarDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'scoresheets' | 'applicant_cbt' | 'individual_result' | 'entrance_exam' | 'registrar_vet' | 'staff_data'>('registrar_vet');
+  // NEW - INTERVIEW SCORES ADDED TO TYPE
+  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'scoresheets' | 'applicant_cbt' | 'individual_result' | 'entrance_exam' | 'registrar_vet' | 'staff_data' | 'interview_scores'>('registrar_vet');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -228,6 +230,10 @@ export const RegistrarDashboard: React.FC = () => {
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
         <button onClick={() => setActiveTab('registrar_vet')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='registrar_vet'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-500 text-blue-900'}`}><FileCheck className="w-4 h-4"/><span>🔍 REGISTRAR VET - FROM HOD - RETURN TO HOD / FORWARD TO PROVOST - MASTER SHEET - MANUAL CORRECTION - GPA/CGPA - CO</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{hodVettedResults.length}</span></button>
+        
+        {/* NEW - INTERVIEW SCORES ADDED */}
+        <button onClick={() => setActiveTab('interview_scores')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='interview_scores'?'bg-amber-600 text-white shadow ring-2 ring-amber-300':'bg-amber-50 border-2 border-amber-500 text-amber-900'}`}><Award className="w-4 h-4"/><span>📝 2. Enter Interview Score + Total + Remarks</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">NEW</span></button>
+
         <button onClick={() => setActiveTab('staff_data')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='staff_data'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-400 text-emerald-900'}`}><Users className="w-4 h-4"/><span>👨‍🏫 STAFF DATA - Lecturers, HOD, Exam Officer, Bursar</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-600 text-white">{filteredStaff.length}</span></button>
         <button onClick={() => setActiveTab('entrance_exam')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='entrance_exam'?'bg-amber-500 text-black shadow ring-2 ring-amber-300':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Send className="w-4 h-4"/><span>📝 ENTRANCE EXAM</span></button>
         <button onClick={() => setActiveTab('applicant_cbt')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='applicant_cbt'?'bg-red-700 text-white shadow ring-2 ring-red-300':'bg-red-50 border-2 border-red-400 text-red-800'}`}><ShieldAlert className="w-4 h-4"/><span>🚨 APPLICANT CBT</span></button>
@@ -235,6 +241,14 @@ export const RegistrarDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('students_biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='students_biodata'?'bg-emerald-700 text-white shadow':'bg-emerald-50 border text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Students Full Biodata + Current Level</span></button>
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Individual Result</span></button>
       </div>
+
+      {/* NEW - INTERVIEW SCORES VIEW */}
+      {activeTab==='interview_scores' && (
+        <div className="space-y-4">
+          <div className="bg-amber-50 border-2 border-amber-400 p-3 rounded-xl text-xs font-bold">Registrar - Enter Interview Score + Total + Remarks - CBT auto-filled - Applicant sees after Provost/Registrar publishes</div>
+          <InterviewScoresEntryView />
+        </div>
+      )}
 
       {activeTab==='registrar_vet' && (
         <div className="bg-white rounded-3xl border-2 border-blue-500 p-6 space-y-6">
