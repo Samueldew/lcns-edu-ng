@@ -42,7 +42,8 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
   }, []);
 
   const handleSearch = async (searchVal: string = query) => {
-    const clean = searchVal.trim().toLowerCase();
+    const cleanRaw = searchVal.trim();
+    const clean = cleanRaw.toLowerCase();
     if (!clean) return;
 
     setLoading(true);
@@ -59,27 +60,99 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
         a.jambRegNo.toLowerCase() === clean
     );
 
-    // If not found or to ensure latest bursar clearance from Supabase
+    // === FIXED - SEARCH FROM REAL college_applications TABLE - NOT OLD applications TABLE - NO DELETE YOUR LOGIC ===
     try {
       const sb = getSupabase();
       if (sb) {
-        const { data } = await sb
-          .from('applications')
+        // 1. Try exact form_no ilike - For LCNS/2026/89C
+        let { data, error } = await sb
+          .from('college_applications')
           .select('*')
-          .or(`form_no.ilike.%${clean}%,exam_number.ilike.%${clean}%,email.ilike.%${clean}%`)
+          .ilike('form_no', `%${cleanRaw}%`)
           .limit(1);
+
+        // 2. If not found, try searching all and filter by email or fullName inside jsonb
+        if ((!data || data.length === 0) && cleanRaw) {
+          const all = await sb.from('college_applications').select('*').order('created_at', { ascending: false }).limit(50);
+          if (all.data) {
+            const matched = all.data.find((row: any) => {
+              const form = (row.form_no || '').toLowerCase();
+              const email = (row.full_application?.email || row.bio_data?.email || '').toLowerCase();
+              const name = (row.full_application?.fullName || row.bio_data?.fullName || '').toLowerCase();
+              const jamb = (row.jamb_reg_no || '').toLowerCase();
+              return form.includes(clean) || email.includes(clean) || name.includes(clean) || jamb.includes(clean);
+            });
+            if (matched) {
+              data = [matched];
+            }
+          }
+        }
+
+        console.log("CheckAdmission found from college_applications:", data);
 
         if (data && data.length > 0) {
           const row = data[0];
+          // Map college_applications row to Applicant type - YOUR FIELDS KEPT
+          const mapped: any = {
+            id: row.id,
+            formNo: row.form_no,
+            form_no: row.form_no,
+            fullName: row.full_application?.fullName || row.bio_data?.fullName || row.full_application?.fullName || 'Applicant',
+            email: row.full_application?.email || row.bio_data?.email || '',
+            phone: row.full_application?.phone || row.bio_data?.phone || row.sponsor_phone || '',
+            program: row.program || 'ND/HND Nursing Sciences (4 Years)',
+            jambRegNo: row.jamb_reg_no || row.full_application?.jambRegNo || '',
+            jambScore: row.jamb_score || row.full_application?.jambScore || '',
+            status: row.status || 'PENDING_BURSAR',
+            bursarStatus: row.payment_status || row.status || 'PENDING_BURSAR',
+            bursar_cleared: row.status === 'APPROVED' || row.payment_status === 'PAID' || row.status === 'BURSAR_CLEARED' || row.status === 'ADMITTED',
+            bursarCleared: row.status === 'APPROVED' || row.payment_status === 'PAID',
+            bursarClearedDate: row.updated_at || row.created_at,
+            exam_number: row.exam_number || row.full_application?.examNumber || row.form_no,
+            examNumber: row.exam_number || row.form_no,
+            photo_url: row.photo_url || row.full_application?.passportPhotoUrl,
+            passportPhotoUrl: row.photo_url || row.full_application?.passportPhotoUrl,
+            paymentReceiptPdfUrl: row.full_application?.paymentReceiptPdfUrl,
+            created_at: row.created_at,
+            full_application: row.full_application,
+            bio_data: row.bio_data,
+            o_level: row.o_level,
+          };
+
           if (found) {
             found = {
               ...found,
-              bursar_cleared: row.bursar_cleared ?? found.bursar_cleared,
-              bursarCleared: row.bursar_cleared ?? found.bursarCleared,
-              exam_number: row.exam_number || found.exam_number,
-              examNumber: row.exam_number || found.examNumber,
-              status: row.status || found.status,
+              ...mapped,
+              bursar_cleared: mapped.bursar_cleared || found.bursar_cleared,
+              bursarCleared: mapped.bursarCleared || found.bursarCleared,
+              exam_number: mapped.exam_number || found.exam_number,
+              examNumber: mapped.examNumber || found.examNumber,
+              status: mapped.status || found.status,
             };
+          } else {
+            found = mapped as any;
+          }
+        }
+
+        // 3. ALSO try old applications table for backward compatibility - NOT DELETED
+        if (!found) {
+          const old = await sb
+            .from('applications')
+            .select('*')
+            .or(`form_no.ilike.%${clean}%,exam_number.ilike.%${clean}%,email.ilike.%${clean}%`)
+            .limit(1);
+          if (old.data && old.data.length > 0) {
+            const row = old.data[0];
+            if (found) {
+              found = {
+                ...found,
+                bursar_cleared: row.bursar_cleared ?? found.bursar_cleared,
+                bursarCleared: row.bursar_cleared ?? found.bursarCleared,
+                exam_number: row.exam_number || found.exam_number,
+                examNumber: row.exam_number || found.examNumber,
+                status: row.status || found.status,
+              };
+            }
           }
         }
       }
@@ -97,7 +170,9 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
         applicant.bursarCleared ||
         applicant.bursarStatus === 'CLEARED' ||
         applicant.status === 'BURSAR_CLEARED' ||
-        applicant.status === 'ADMITTED')
+        applicant.status === 'ADMITTED' ||
+        applicant.status === 'APPROVED' ||
+        (applicant as any).payment_status === 'PAID')
   );
 
   return (
@@ -133,7 +208,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="e.g. LCNS/APP/2026/014 or LCNS/APP/2026/102"
+                placeholder="e.g. LCNS/2026/89C or LCNS/APP/2026/102"
                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#0a4d2e] focus:bg-white text-slate-900 transition-all"
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
@@ -147,7 +222,6 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
               <span>{loading ? 'Checking...' : 'Check Status'}</span>
             </button>
           </div>
-          {/* SAMPLE CANDIDATES REMOVED - Clean production checker */}
         </div>
 
         {/* Results Section */}
@@ -179,7 +253,6 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                   {/* BURSAR STATUS LOGIC */}
                   {isBursarCleared ? (
                     <div className="space-y-5">
-                      {/* Cleared & Exam Number Notification */}
                       <div className="p-6 bg-emerald-50 border-2 border-emerald-500 rounded-2xl space-y-4">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center gap-2.5 text-emerald-950 font-bold text-base">
@@ -195,11 +268,10 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
 
                         <p className="text-xs sm:text-sm text-emerald-900 leading-relaxed">
                           Your screening fee payment has been officially audited and cleared by the College Bursar on{' '}
-                          <strong>{applicant.bursarClearedDate || applicant.bursar_clearance_date?.substring(0, 10) || new Date().toISOString().split('T')[0]}</strong>.
+                          <strong>{(applicant as any).bursarClearedDate || (applicant as any).bursar_clearance_date?.substring(0, 10) || new Date().toISOString().split('T')[0]}</strong>.
                           You are eligible to sit for the online CBT Attitude Test.
                         </p>
 
-                        {/* Exam Number Hero Box */}
                         <div className="bg-white p-4 rounded-xl border border-emerald-300 shadow-xs flex items-center justify-between flex-wrap gap-3">
                           <div>
                             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
@@ -219,7 +291,6 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                         </div>
                       </div>
 
-                      {/* CBT Attitude Test Card */}
                       <div className="bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-700 space-y-4">
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center gap-3">
@@ -263,7 +334,6 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                       </div>
                     </div>
                   ) : (
-                    /* NOT CLEARED */
                     <div className="p-6 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-4">
                       <div className="flex items-center gap-2.5 text-amber-950 font-bold text-base">
                         <Clock className="w-6 h-6 text-amber-700" />
@@ -284,6 +354,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                         <div>&bull; Account Name: <strong>Labe College of Nursing Sciences, Gboko</strong></div>
                         <div>&bull; Account No: <strong>1018894231</strong></div>
                         <div>&bull; Or Pay via Remita RRR on College Portal</div>
+                        <div className="mt-2 p-2 bg-slate-900 text-white rounded-lg font-mono text-[11px]">Your Form No: {applicant.formNo} | Status: {applicant.status} - Bursar will view your receipt and approve</div>
                       </div>
 
                       <div className="flex items-center gap-3 pt-2 flex-wrap">
@@ -304,7 +375,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                 <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
                 <h3 className="text-base font-bold text-slate-800">No applicant record found for "{query}"</h3>
                 <p className="text-xs max-w-md mx-auto text-slate-600">
-                  Please verify that you entered your complete Application Form Number (e.g. <code>LCNS/APP/2026/014</code>) or Registered Email Address.
+                  Please verify that you entered your complete Application Form Number (e.g. <code>LCNS/2026/89C</code> or <code>LCNS/APP/2026/014</code>) or Registered Email Address. Your data is now from college_applications table - Search with LCNS/2026/...
                 </p>
               </div>
             )}
