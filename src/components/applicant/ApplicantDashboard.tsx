@@ -38,6 +38,9 @@ export const ApplicantDashboard: React.FC = () => {
   const [acceptanceReceiptNo, setAcceptanceReceiptNo] = useState<string>('');
   const printRef = useRef<HTMLDivElement>(null);
 
+  // NEW - INTERVIEW FINAL RESULT STATE - ADDED
+  const [interviewFinal, setInterviewFinal] = useState<any>(null);
+
   // Load from URL ?app_no=
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -67,6 +70,35 @@ export const ApplicantDashboard: React.FC = () => {
       setAppNo(found.formNo);
       localStorage.setItem('lcns_current_app_no', found.formNo);
       setFeeSnap((found as any).screeningFeeSnap || null);
+      
+      // NEW - Load interview final result for this applicant
+      try {
+        const keysToTry = [
+          `lcns_applicant_final_result_${found.formNo}`,
+          `lcns_applicant_final_${found.formNo}`,
+          `lcns_interview_result_${found.formNo}`,
+          `lcns_interview_${found.formNo}`,
+          `lcns_final_${found.formNo}`,
+          `lcns_applicant_final_result_${targetAppNo}`,
+        ];
+        for (const k of keysToTry) {
+          const v = localStorage.getItem(k);
+          if (v) { setInterviewFinal(JSON.parse(v)); break; }
+        }
+        // Also check global arrays
+        const allScores = JSON.parse(localStorage.getItem('lcns_interview_scores') || localStorage.getItem('lcns_applicant_interview_scores') || localStorage.getItem('lcns_final_admission_scores') || '[]');
+        if (Array.isArray(allScores)) {
+          const match = allScores.find((s:any) => 
+            s.applicationNumber === found.formNo || 
+            s.application_number === found.formNo ||
+            s.formNo === found.formNo ||
+            s.form_no === found.formNo ||
+            s.examNumber === found.exam_number ||
+            s.exam_number === found.exam_number
+          );
+          if (match) setInterviewFinal(match);
+        }
+      } catch {}
     } else {
       setApplicant(null);
     }
@@ -99,6 +131,14 @@ export const ApplicantDashboard: React.FC = () => {
         if (dbResults?.length) setCbtResults(dbResults);
         const { data: dbScores } = await sb.from('screening_scores').select('*');
         if (dbScores?.length) setScreeningScores(dbScores);
+        
+        // NEW - Try Supabase final scores
+        try {
+          const { data: finalDb } = await sb.from('applicant_results').select('*').or(`application_number.ilike.%${targetAppNo}%,form_no.ilike.%${targetAppNo}%`).limit(1);
+          if (finalDb && finalDb[0]) {
+            setInterviewFinal(finalDb[0]);
+          }
+        } catch {}
       }
     } catch (e) { console.warn(e); }
     setLoading(false);
@@ -298,6 +338,44 @@ export const ApplicantDashboard: React.FC = () => {
           <button onClick={handleDownloadApplicationPDF} className="px-5 py-2.5 bg-amber-500 text-slate-950 rounded-xl text-xs font-black uppercase flex items-center gap-2 w-full sm:w-auto justify-center"><Download className="w-4 h-4" />Download Application PDF</button>
         </div>
 
+        {/* NEW - FINAL ADMISSION RESULT BANNER - INTERVIEW SCORE + TOTAL + REMARKS - SHOW ONLY IF PUBLISHED */}
+        {interviewFinal && (interviewFinal.published !== false) && (
+          <div className={`rounded-3xl p-6 shadow-xl border-2 ${ (interviewFinal.remarks === 'PASSED' || interviewFinal.remarks === 'ADMITTED' || interviewFinal.totalScore >= 50 || interviewFinal.total_score >= 50) ? 'bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 border-amber-400 text-white' : 'bg-gradient-to-r from-red-950 via-red-900 to-red-950 border-red-300 text-white' }`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex-1">
+                <span className={`px-3 py-1 font-black text-xs rounded-full uppercase ${ (interviewFinal.remarks === 'PASSED' || interviewFinal.remarks === 'ADMITTED') ? 'bg-amber-400 text-slate-950' : 'bg-red-400 text-white'}`}>
+                  {interviewFinal.remarks === 'PASSED' || interviewFinal.remarks === 'ADMITTED' ? '✅ ADMISSION OFFERED - PASSED' : interviewFinal.remarks || 'RESULT PUBLISHED'}
+                </span>
+                <h2 className="text-xl font-black uppercase mt-2 text-amber-300">
+                  {interviewFinal.remarks === 'PASSED' || interviewFinal.remarks === 'ADMITTED' ? `Congratulations ${applicant.fullName} - You Passed!` : `Result Published - ${applicant.fullName}`}
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+                  <div className="bg-white/10 backdrop-blur p-3 rounded-xl border border-white/20">
+                    <span className="text-[10px] font-bold uppercase text-emerald-200 block">CBT Score</span>
+                    <span className="text-xl font-black font-mono text-white">{interviewFinal.cbtScore ?? interviewFinal.cbt_score ?? candidateResult?.score ?? '-'}</span>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur p-3 rounded-xl border border-white/20">
+                    <span className="text-[10px] font-bold uppercase text-amber-200 block">Interview Score</span>
+                    <span className="text-xl font-black font-mono text-amber-300">{interviewFinal.interviewScore ?? interviewFinal.interview_score ?? '-'}</span>
+                  </div>
+                  <div className="bg-amber-400 text-slate-950 p-3 rounded-xl border-2 border-white">
+                    <span className="text-[10px] font-bold uppercase block">Total Score</span>
+                    <span className="text-2xl font-black font-mono">{interviewFinal.totalScore ?? interviewFinal.total_score ?? ((interviewFinal.cbtScore || 0) + (interviewFinal.interviewScore || 0))}</span>
+                  </div>
+                  <div className={`p-3 rounded-xl border-2 ${ (interviewFinal.remarks === 'PASSED' || interviewFinal.remarks === 'ADMITTED') ? 'bg-green-500 text-white border-white' : 'bg-red-500 text-white border-white'}`}>
+                    <span className="text-[10px] font-bold uppercase block">Remarks</span>
+                    <span className="text-lg font-black">{interviewFinal.remarks || ( (interviewFinal.totalScore||0) >= 50 ? 'PASSED' : 'FAILED' )}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-emerald-100 mt-3">
+                  Published by: {interviewFinal.publishedBy || interviewFinal.published_by || 'Provost / Registrar'} on {interviewFinal.publishedAt ? new Date(interviewFinal.publishedAt).toLocaleDateString() : new Date().toLocaleDateString()} • 
+                  { (interviewFinal.remarks === 'PASSED' || interviewFinal.remarks === 'ADMITTED') ? ' Proceed to pay acceptance fee and print admission letter.' : ' Thank you for applying.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ADMITTED BANNER */}
         {applicant.status === 'ADMITTED' && (
           <div className="bg-gradient-to-r from-emerald-950 via-[#0a4d2e] to-emerald-900 text-white rounded-3xl p-6 shadow-xl border-2 border-amber-400">
@@ -433,6 +511,20 @@ export const ApplicantDashboard: React.FC = () => {
                   ) : <span className="text-xs font-bold text-amber-700">Screened - Scores pending publication by Provost</span>
                 ) : <span className="text-xs text-slate-400">No screening record yet</span>}
               </div>
+
+              {/* NEW - FINAL INTERVIEW SCORE BLOCK */}
+              {interviewFinal && (
+                <div className="p-4 border-2 border-emerald-500 rounded-2xl bg-emerald-50 space-y-2">
+                  <span className="text-[10px] font-black uppercase text-emerald-800 block">🎓 Final Admission Score - CBT + Interview + Total + Remarks</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs mt-2">
+                    <div className="p-2 bg-white rounded-xl border">CBT: <strong className="font-mono">{interviewFinal.cbtScore ?? interviewFinal.cbt_score ?? '-'}</strong></div>
+                    <div className="p-2 bg-amber-50 rounded-xl border">Interview: <strong className="font-mono">{interviewFinal.interviewScore ?? interviewFinal.interview_score ?? '-'}</strong></div>
+                    <div className="p-2 bg-emerald-900 text-white rounded-xl">Total: <strong className="font-mono text-amber-300 text-base">{interviewFinal.totalScore ?? interviewFinal.total_score ?? '-'}</strong></div>
+                    <div className={`p-2 rounded-xl font-black ${ (interviewFinal.remarks === 'PASSED' || interviewFinal.remarks === 'ADMITTED') ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}>Remarks: {interviewFinal.remarks || 'PENDING'}</div>
+                  </div>
+                  <p className="text-[11px] text-slate-600">Published by {interviewFinal.publishedBy || interviewFinal.published_by || 'Provost'} • {interviewFinal.publishedAt ? new Date(interviewFinal.publishedAt).toLocaleString() : ''}</p>
+                </div>
+              )}
 
               {/* Registrar Screening Status */}
               <div className="p-3 border rounded-xl bg-white">
