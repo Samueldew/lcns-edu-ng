@@ -27,10 +27,11 @@ import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { AdminStudentsBiodata } from '../admin/AdminStudentsBiodata';
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { AdminExamSettings } from './AdminExamSettings';
+import { InterviewScoresEntryView } from '../admin/InterviewScoresEntryView';
 import { supabase } from '@/lib/supabase';
 
 export const ProvostDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'individual_result' | 'result_publish' | 'entrance_exam' | 'provost_vet' | 'semester_print'>('provost_vet');
+  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'individual_result' | 'result_publish' | 'entrance_exam' | 'provost_vet' | 'semester_print' | 'interview_scores'>('provost_vet');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -213,6 +214,10 @@ export const ProvostDashboard: React.FC = () => {
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
         <button onClick={() => setActiveTab('provost_vet')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='provost_vet'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-400 text-emerald-900'}`}><FileCheck className="w-4 h-4"/><span>🔍 PROVOST VET - FROM REGISTRAR - PUBLISH FINAL - GPA/CGPA</span><span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px]">{registrarVetted.length}</span></button>
+        
+        {/* NEW INTERVIEW SCORE TAB - ADDED */}
+        <button onClick={() => setActiveTab('interview_scores')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='interview_scores'?'bg-amber-600 text-white shadow ring-2 ring-amber-300':'bg-amber-50 border-2 border-amber-500 text-amber-900'}`}><Award className="w-4 h-4"/><span>📝 2. Enter Interview Score + Total + Remarks</span><span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px]">NEW</span></button>
+
         <button onClick={() => setActiveTab('semester_print')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='semester_print'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-900'}`}><BookOpen className="w-4 h-4"/><span>🖨️ PRINT SEMESTER RESULT - Select Academic Year + Semester - Provost</span><span className="px-2 py-0.5 rounded-full bg-amber-400 text-black text-[10px]">NEW</span></button>
         <button onClick={() => setActiveTab('students_biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='students_biodata'?'bg-emerald-700 text-white shadow-md':'bg-emerald-50 text-emerald-800 border-2 border-emerald-300'}`}><Users className="w-4 h-4"/><span>👨‍🎓 All Students Biodata + Current Level + Full Info + Print Individually</span></button>
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 text-amber-900 border-2 border-amber-400'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Individual Result - School Full Name + Logo - Provost Final</span></button>
@@ -220,6 +225,14 @@ export const ProvostDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('entrance_exam')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='entrance_exam'?'bg-amber-500 text-black shadow ring-2 ring-amber-300':'bg-amber-50 text-amber-900 border-2 border-amber-400'}`}><Send className="w-4 h-4"/><span>📝 Entrance Exam</span></button>
         <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='overview'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Building className="w-4 h-4"/><span>Overview</span></button>
       </div>
+
+      {/* NEW VIEW - ADDED, NO DELETE */}
+      {activeTab==='interview_scores' && (
+        <div className="space-y-4">
+          <div className="bg-amber-50 border-2 border-amber-400 p-3 rounded-xl text-xs font-bold">Provost - Enter Interview Score + Total + Remarks - CBT is already calculated - Applicant sees after publish</div>
+          <InterviewScoresEntryView />
+        </div>
+      )}
 
       {activeTab==='provost_vet' && (
         <div className="bg-white rounded-3xl border-2 border-emerald-700 p-6 space-y-6">
