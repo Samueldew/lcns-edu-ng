@@ -179,8 +179,88 @@ export const StorageService = {
   saveCBTQuestions: (q: CBTQuestionItem[]) => setStorage(STORAGE_KEYS.CBT_QUESTIONS, q),
   getCBTResults: () => getStorage(STORAGE_KEYS.CBT_RESULTS, [] as CBTResult[]),
   saveCBTResults: (r: CBTResult[]) => setStorage(STORAGE_KEYS.CBT_RESULTS, r),
-  getScreeningScores: () => getStorage(STORAGE_KEYS.SCREENING_SCORES, [] as ScreeningScore[]),
-  saveScreeningScores: (s: ScreeningScore[]) => setStorage(STORAGE_KEYS.SCREENING_SCORES, s),
+  
+  // ===== UPGRADED - INTERVIEW SCORES - ADDED WITHOUT DELETING =====
+  getScreeningScores: (): ScreeningScore[] => {
+    try {
+      // Try new key first, then fallback to old keys for compatibility
+      const primary = localStorage.getItem(STORAGE_KEYS.SCREENING_SCORES);
+      if (primary) return JSON.parse(primary);
+      const alt1 = localStorage.getItem('lcns_screening_scores');
+      if (alt1) return JSON.parse(alt1);
+      const alt2 = localStorage.getItem('lcns_interview_scores');
+      if (alt2) return JSON.parse(alt2);
+      const alt3 = localStorage.getItem('lcns_erp_screening_scores');
+      if (alt3) return JSON.parse(alt3);
+      return [];
+    } catch { return []; }
+  },
+  saveScreeningScores: (s: ScreeningScore[]) => {
+    // Original save
+    setStorage(STORAGE_KEYS.SCREENING_SCORES, s);
+    // ADDED - Save to all keys ApplicantDashboard checks
+    try {
+      localStorage.setItem('lcns_screening_scores', JSON.stringify(s));
+      localStorage.setItem('lcns_interview_scores', JSON.stringify(s));
+      localStorage.setItem('lcns_applicant_interview_scores', JSON.stringify(s));
+      localStorage.setItem('lcns_final_admission_scores', JSON.stringify(s));
+      localStorage.setItem('applicant_results', JSON.stringify(s.map((sc: any) => ({
+        application_number: sc.application_number,
+        applicationNumber: sc.application_number,
+        formNo: sc.application_number,
+        exam_number: sc.exam_number,
+        interview_score: sc.interview_score,
+        interviewScore: sc.interview_score,
+        screening_score: sc.screening_score,
+        total_score: sc.total_score,
+        totalScore: sc.total_score,
+        remarks: sc.remarks,
+        is_published: sc.is_published,
+        published: sc.is_published,
+        scored_by: sc.scored_by,
+        publishedAt: new Date().toISOString(),
+      }))));
+
+      // ADDED - Save individual key lcns_applicant_final_result_${formNo} for each applicant
+      s.forEach((sc: any) => {
+        const formNo = sc.application_number || sc.applicationNumber || sc.formNo;
+        if (!formNo) return;
+        const finalPayload = {
+          application_number: formNo,
+          applicationNumber: formNo,
+          formNo: formNo,
+          form_no: formNo,
+          exam_number: sc.exam_number,
+          examNumber: sc.exam_number,
+          cbtScore: 0,
+          cbt_score: 0,
+          screeningScore: sc.screening_score,
+          screening_score: sc.screening_score,
+          interviewScore: sc.interview_score,
+          interview_score: sc.interview_score,
+          totalScore: sc.total_score,
+          total_score: sc.total_score,
+          remarks: sc.remarks || (sc.total_score >= 50 ? 'PASSED' : 'FAILED'),
+          is_published: sc.is_published,
+          published: sc.is_published,
+          scored_by: sc.scored_by,
+          publishedBy: sc.scored_by,
+          publishedAt: new Date().toISOString(),
+          published_at: new Date().toISOString(),
+        };
+        localStorage.setItem(`lcns_applicant_final_result_${formNo}`, JSON.stringify(finalPayload));
+        if (sc.exam_number) {
+          localStorage.setItem(`lcns_applicant_final_result_${sc.exam_number}`, JSON.stringify(finalPayload));
+        }
+      });
+    } catch (e) {
+      console.warn('Interview scores extra save failed', e);
+    }
+    // Dispatch updates so dashboards refresh instantly
+    window.dispatchEvent(new Event('lcns_storage_update'));
+    window.dispatchEvent(new Event('storage'));
+  },
+  
   getCBTExams: () => getStorage(STORAGE_KEYS.CBT_EXAMS, [] as CBTExam[]),
   saveCBTExams: (e: CBTExam[]) => setStorage(STORAGE_KEYS.CBT_EXAMS, e),
   getCBTSubmissions: () => getStorage(STORAGE_KEYS.CBT_SUBMISSIONS, [] as CBTSubmission[]),
