@@ -40,11 +40,10 @@ export const InterviewScoresEntryView: React.FC = () => {
     const existing = getScoreFor(formNo);
     const editData = editing[formNo] || {};
     
-    // 2. Provost / Registrar / Admission Officer enters Interview Score + Total + Remarks
     const interviewScore = Number(editData.interview_score ?? existing?.interview_score ?? 0);
     const screeningScore = Number(editData.screening_score ?? existing?.screening_score ?? 0);
-    // Total = Interview + Screening composite or direct total if admin enters
     const totalScore = editData.total_score ? Number(editData.total_score) : Math.round((screeningScore + interviewScore) / 2);
+    const remarks = (editData.remarks ?? existing?.remarks ?? (totalScore >= 50 ? 'PASSED' : 'FAILED')) as string;
 
     const newScore: ScreeningScore = {
       id: existing?.id || `scr-${Date.now()}-${formNo}`,
@@ -53,7 +52,7 @@ export const InterviewScoresEntryView: React.FC = () => {
       screening_score: screeningScore,
       interview_score: interviewScore,
       total_score: totalScore,
-      remarks: (editData.remarks ?? existing?.remarks ?? '') as string,
+      remarks: remarks,
       is_published: (editData.is_published ?? existing?.is_published ?? false) as boolean,
       scored_by: 'Provost / Registrar / Admission Officer',
       created_at: new Date().toISOString(),
@@ -63,13 +62,66 @@ export const InterviewScoresEntryView: React.FC = () => {
     setScores(updated);
     StorageService.saveScreeningScores(updated);
 
+    // ===== NEW - FIX FOR APPLICANT DASHBOARD TO SEE IT =====
+    // 1. Save individual key that ApplicantDashboard reads
+    const finalResultPayload = {
+      applicationNumber: formNo,
+      application_number: formNo,
+      formNo: formNo,
+      form_no: formNo,
+      examNumber: newScore.exam_number,
+      exam_number: newScore.exam_number,
+      cbtScore: 0, // CBT is separate, but keep for compatibility
+      cbt_score: 0,
+      screeningScore: screeningScore,
+      screening_score: screeningScore,
+      interviewScore: interviewScore,
+      interview_score: interviewScore,
+      totalScore: totalScore,
+      total_score: totalScore,
+      remarks: remarks,
+      is_published: newScore.is_published,
+      published: newScore.is_published,
+      publishedBy: newScore.scored_by,
+      published_by: newScore.scored_by,
+      publishedAt: new Date().toISOString(),
+      published_at: new Date().toISOString(),
+    };
+    localStorage.setItem(`lcns_applicant_final_result_${formNo}`, JSON.stringify(finalResultPayload));
+    if (newScore.exam_number) {
+      localStorage.setItem(`lcns_applicant_final_result_${newScore.exam_number}`, JSON.stringify(finalResultPayload));
+    }
+    // 2. Save to global arrays that ApplicantDashboard checks
+    const globalKeys = ['lcns_interview_scores', 'lcns_applicant_interview_scores', 'lcns_final_admission_scores', 'lcns_applicant_final_results'];
+    globalKeys.forEach(k => {
+      try {
+        const existingArr = JSON.parse(localStorage.getItem(k) || '[]');
+        const filteredArr = existingArr.filter((x:any) => (x.applicationNumber || x.application_number || x.formNo) !== formNo);
+        filteredArr.push(finalResultPayload);
+        localStorage.setItem(k, JSON.stringify(filteredArr));
+      } catch {}
+    });
+    // 3. Also save applicant_results style for ApplicantDashboard
+    try {
+      const applicantResults = JSON.parse(localStorage.getItem('applicant_results') || '[]');
+      const filteredResults = applicantResults.filter((x:any) => x.application_number !== formNo);
+      filteredResults.push(finalResultPayload);
+      localStorage.setItem('applicant_results', JSON.stringify(filteredResults));
+    } catch {}
+    window.dispatchEvent(new Event('lcns_storage_update'));
+
     try {
       const sb = getSupabase();
-      if (sb) await sb.from('screening_scores').upsert([newScore as any], { onConflict: 'application_number' });
+      if (sb) {
+        await sb.from('screening_scores').upsert([newScore as any], { onConflict: 'application_number' });
+        // Also try applicant_results table if exists
+        await sb.from('applicant_results').upsert([finalResultPayload as any], { onConflict: 'application_number' });
+      }
     } catch (e) { console.warn(e); }
 
     setEditing(prev => { const { [formNo]: _, ...rest } = prev; return rest; });
     setSavingId(null);
+    alert(`✅ Saved for ${formNo}: Interview ${interviewScore}% | Total ${totalScore}% | Remarks: ${remarks} | ${newScore.is_published ? 'PUBLISHED' : 'Saved as draft - Click Publish to show to applicant'}`);
   };
 
   const handleTogglePublish = async (formNo: string) => {
@@ -79,7 +131,28 @@ export const InterviewScoresEntryView: React.FC = () => {
     const newList = scores.map(s => s.application_number.toLowerCase() === formNo.toLowerCase() ? updated : s);
     setScores(newList);
     StorageService.saveScreeningScores(newList);
+    
+    // NEW - Update all final result keys with publish status
+    try {
+      const finalKey = `lcns_applicant_final_result_${formNo}`;
+      const existingFinal = JSON.parse(localStorage.getItem(finalKey) || '{}');
+      const updatedFinal = { ...existingFinal, is_published: updated.is_published, published: updated.is_published, publishedAt: new Date().toISOString() };
+      localStorage.setItem(finalKey, JSON.stringify(updatedFinal));
+      if (existing.exam_number) {
+        localStorage.setItem(`lcns_applicant_final_result_${existing.exam_number}`, JSON.stringify(updatedFinal));
+      }
+      ['lcns_interview_scores', 'lcns_applicant_interview_scores', 'lcns_final_admission_scores'].forEach(k => {
+        try {
+          const arr = JSON.parse(localStorage.getItem(k) || '[]');
+          const newArr = arr.map((x:any) => (x.applicationNumber === formNo || x.application_number === formNo) ? {...x, is_published: updated.is_published, published: updated.is_published} : x);
+          localStorage.setItem(k, JSON.stringify(newArr));
+        } catch {}
+      });
+    } catch {}
+    
+    window.dispatchEvent(new Event('lcns_storage_update'));
     try { const sb = getSupabase(); if (sb) await sb.from('screening_scores').update({ is_published: updated.is_published }).eq('application_number', formNo); } catch {}
+    alert(updated.is_published ? '✅ PUBLISHED - Applicant can now see in dashboard!' : '⏸️ UNPUBLISHED - Hidden from applicant');
   };
 
   return (
@@ -148,12 +221,12 @@ export const InterviewScoresEntryView: React.FC = () => {
                     <span className="text-[10px] text-slate-500 block mt-0.5">Composite</span>
                   </td>
                   <td className="p-3">
-                    <input value={remarksVal} onChange={(e) => handleChange(app.formNo, 'remarks', e.target.value)} placeholder="e.g. Excellent, Recommended for Admission, Good..." className="w-44 p-2.5 border rounded-xl text-xs" />
+                    <input value={remarksVal} onChange={(e) => handleChange(app.formNo, 'remarks', e.target.value)} placeholder="e.g. Excellent, PASSED, FAILED, Admitted..." className="w-44 p-2.5 border rounded-xl text-xs" />
                   </td>
                   <td className="p-3">
                     {existing ? (
                       <button onClick={() => handleTogglePublish(app.formNo)} className={`px-3 py-2 rounded-xl text-[11px] font-bold flex items-center gap-1 ${existing.is_published ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                        {existing.is_published ? <><Eye className="w-3.5 h-3.5" />Published - Applicant can see</> : <><EyeOff className="w-3.5 h-3.5" />Hidden</>}
+                        {existing.is_published ? <><Eye className="w-3.5 h-3.5" />Published - Applicant can see</> : <><EyeOff className="w-3.5 h-3.5" />Hidden - Click to Publish</>}
                       </button>
                     ) : <span className="text-[11px] text-slate-400">Save first</span>}
                   </td>
@@ -168,8 +241,8 @@ export const InterviewScoresEntryView: React.FC = () => {
 
       <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-xs text-amber-900">
         <strong>How it works for Provost / Registrar / Admission Officer:</strong><br/>
-                1. Search candidate → Enter <strong>Interview Score (%)</strong> (main score) + Screening % (if needed) → Total auto-calculates but you fit edit Total manually → Enter Remarks (e.g. Excellent, Admitted, Recommended)<br/>
-                2. Click <strong>Save Scores</strong> → Click <strong>Publish</strong> → Applicant go immediately see for dashboard Section D: <em>Interview Score, Total, Remarks</em> + Official badge.
+                1. Search candidate → Enter <strong>Interview Score (%)</strong> (main score) + Screening % (if needed) → Total auto-calculates but you fit edit Total manually → Enter Remarks (e.g. PASSED / FAILED)<br/>
+                2. Click <strong>Save Scores</strong> → Click <strong>Publish</strong> → Applicant go immediately see for dashboard: <em>Interview Score, Total, Remarks</em> + Official badge. Key saved as <code>lcns_applicant_final_result_{"{formNo}"}</code> so applicant dashboard reads am.
       </div>
     </div>
   );
