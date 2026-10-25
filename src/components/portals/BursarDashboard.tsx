@@ -3,7 +3,7 @@ import { getSupabase } from '../../lib/supabase';
 import { StorageService } from '../../services/storage';
 import { COLLEGE_CONFIG } from '../../types';
 import { CollegeLogo } from '../common/CollegeLogo';
-import { ApiService } from '../../services/api'; // ADDED
+import { ApiService } from '../../services/api';
 
 interface FeeItem { id: string; name: string; amount: number; level: string; session: string; category: string; applicant_type: string; account_number: string; bank_name: string; created_at: string; }
 interface Payment { id: string; user_name: string; matric_no: string; user_type: string; fee_name: string; amount: number; amount_paid: number; status: string; proof_url?: string; created_at?: string; academic_year?: string; semester?: string; level?: string; bursar_name?: string; bursar_email?: string; payment_type?: string; balance?: number; receipt_no?: string; }
@@ -13,10 +13,11 @@ export const BursarFeeManager: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [tab, setTab] = useState('dashboard');
   const [feeName, setFeeName] = useState(''); const [feeAmount, setFeeNameAmount] = useState(''); const [accNo, setAccNo] = useState(''); const [bank, setBank] = useState('Zenith Bank'); const [applyTo, setApplyTo] = useState('BOTH'); const [level, setLevel] = useState('ND1');
-
-  // ADDED - APPLICANTS STATE FOR BURSAR
   const [applicants, setApplicants] = useState<any[]>([]);
   const [searchApplicant, setSearchApplicant] = useState('');
+  // ADDED - VIEW RECEIPT MODAL
+  const [selectedApp, setSelectedApp] = useState<any>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
 
   const safeCurrentUser = (() => {
     try {
@@ -46,7 +47,6 @@ export const BursarFeeManager: React.FC = () => {
   const [searchStudent, setSearchStudent] = useState('');
 
   const allUsersRaw = (() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } })();
-  
   const allUsers = allUsersRaw.filter((u: any) => {
     const r = (u.role || '').toUpperCase();
     const isStaffRole = r.includes('STAFF') || r.includes('LECTURER') || r.includes('ADMIN') || r.includes('BURSAR') || r.includes('HOD') || r.includes('REGISTRAR') || r.includes('PROVOST') || r.includes('CHIEF') || r.includes('EXAM_OFFICER') || r.includes('LIBRARIAN');
@@ -57,13 +57,10 @@ export const BursarFeeManager: React.FC = () => {
     if (hasMatric) return true;
     return false;
   });
-
   const filteredStudentsForPay = allUsers.filter((u:any) => {
     if (!searchStudent) return true;
     return `${u.fullName || u.name || ''} ${u.matricNumber || u.matric_number || u.matricNo || ''} ${u.email || ''}`.toLowerCase().includes(searchStudent.toLowerCase());
   }).slice(0,20);
-
-  // ADDED - FILTER APPLICANTS FOR BURSAR
   const filteredApplicants = applicants.filter((a:any) => {
     if (!searchApplicant) return true;
     const txt = `${a.fullName || ''} ${a.formNo || ''} ${a.email || ''} ${a.program || ''}`.toLowerCase();
@@ -98,8 +95,6 @@ export const BursarFeeManager: React.FC = () => {
       });
       setPayments(filtered);
     }
-
-    // ADDED - LOAD APPLICANTS FOR BURSAR
     try {
       const apps = await ApiService.getApplicants();
       console.log("Bursar loaded applicants:", apps);
@@ -162,6 +157,12 @@ export const BursarFeeManager: React.FC = () => {
     win.document.close();
   };
 
+  // ADDED - OPEN VIEW MODAL FOR RECEIPT
+  const openView = (app:any) => {
+    setSelectedApp(app);
+    setShowViewModal(true);
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-4 bg-white rounded-xl shadow space-y-4">
       <div className="bg-gradient-to-r from-emerald-950 to-slate-900 text-white rounded-2xl p-5 flex justify-between">
@@ -180,14 +181,14 @@ export const BursarFeeManager: React.FC = () => {
 
       {tab==='applicants' && (
         <div className="space-y-3 bg-purple-50 border-2 border-purple-300 p-4 rounded-2xl">
-          <h3 className="font-black text-purple-900">🎓 BURSAR - APPLICANT VERIFICATION - {applicants.length} Applications - From college_applications table</h3>
+          <h3 className="font-black text-purple-900">🎓 BURSAR - APPLICANT VERIFICATION - {applicants.length} Applications - View Receipt Before Approve</h3>
           <div className="flex gap-2">
             <input value={searchApplicant} onChange={e=>setSearchApplicant(e.target.value)} placeholder="Search Applicant - Form No / Name / Email" className="flex-1 border-2 border-purple-300 px-4 py-2 rounded-xl text-sm font-bold"/>
             <button onClick={load} className="px-4 py-2 bg-purple-700 text-white rounded-xl font-black">Reload</button>
           </div>
           <div className="overflow-x-auto bg-white rounded-xl border">
             <table className="w-full text-xs">
-              <thead className="bg-purple-900 text-white"><tr><th className="p-3 text-left">Form No</th><th className="p-3 text-left">Applicant Name</th><th className="p-3">Email / Phone</th><th className="p-3">Program</th><th className="p-3">Status</th><th className="p-3">Payment</th><th className="p-3">Date</th><th className="p-3">Action</th></tr></thead>
+              <thead className="bg-purple-900 text-white"><tr><th className="p-3 text-left">Form No</th><th className="p-3 text-left">Applicant Name</th><th className="p-3">Email / Phone</th><th className="p-3">Program</th><th className="p-3">Status</th><th className="p-3">Receipt</th><th className="p-3">Action</th></tr></thead>
               <tbody>
                 {filteredApplicants.map((a:any) => (
                   <tr key={a.id} className="border-b hover:bg-purple-50">
@@ -196,21 +197,121 @@ export const BursarFeeManager: React.FC = () => {
                     <td className="p-3 text-[11px]"><div>{a.email}</div><div className="font-mono">{a.phone}</div></td>
                     <td className="p-3 text-[11px]">{a.program}<br/>{a.courseChoice1?.slice(0,40)}</td>
                     <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${a.status?.includes('PENDING')?'bg-amber-100 text-amber-800':'bg-emerald-100 text-emerald-800'}`}>{a.status}</span></td>
-                    <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${a.bursarStatus?.includes('PENDING')||a.payment_status?.includes('PENDING')?'bg-red-100 text-red-800':'bg-green-100 text-green-800'}`}>{a.bursarStatus || a.payment_status || a.status}</span></td>
-                    <td className="p-3 text-[10px]">{new Date(a.createdAt||'').toLocaleDateString()}</td>
-                    <td className="p-3"><button onClick={async()=>{
-                      const sb=getSupabase();
-                      try{
-                        if(sb) await sb.from('college_applications').update({status:'APPROVED', payment_status:'PAID'}).eq('id', a.id);
-                      }catch{}
-                      alert(`✅ Applicant ${a.fullName} approved by ${bursarDisplayName}`);
-                      load();
-                    }} className="px-3 py-1 bg-emerald-700 text-white rounded-lg font-black text-[11px]">Approve</button></td>
+                    <td className="p-3">
+                      <button onClick={()=>openView(a)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg font-black text-[11px] flex items-center gap-1">📄 View Receipt</button>
+                    </td>
+                    <td className="p-3 flex gap-1">
+                      <button onClick={()=>openView(a)} className="px-2 py-1 bg-slate-700 text-white rounded-lg font-black text-[11px]">View</button>
+                      <button onClick={async()=>{
+                        const sb=getSupabase();
+                        try{
+                          if(sb) await sb.from('college_applications').update({status:'APPROVED', payment_status:'PAID'}).eq('id', a.id);
+                        }catch{}
+                        alert(`✅ Applicant ${a.fullName} approved by ${bursarDisplayName}`);
+                        load();
+                      }} className="px-3 py-1 bg-emerald-700 text-white rounded-lg font-black text-[11px]">Approve</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {filteredApplicants.length===0 && <div className="p-10 text-center text-slate-400 font-bold">No applicants found - Submit one from homepage with fixed api.ts - {applicants.length} total loaded - Check console.log</div>}
+            {filteredApplicants.length===0 && <div className="p-10 text-center text-slate-400 font-bold">No applicants found - Submit one from homepage with fixed api.ts - {applicants.length} total loaded</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ADDED - VIEW RECEIPT MODAL FOR BURSAR */}
+      {showViewModal && selectedApp && (
+        <div className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto shadow-2xl">
+            <div className="sticky top-0 bg-gradient-to-r from-purple-900 to-slate-900 text-white p-4 rounded-t-2xl flex justify-between items-center">
+              <div>
+                <h3 className="font-black text-lg">Applicant Receipt Verification - {selectedApp.formNo}</h3>
+                <p className="text-xs text-purple-200">{selectedApp.fullName} - {selectedApp.email} - Bursar: {bursarDisplayName}</p>
+              </div>
+              <button onClick={()=>setShowViewModal(false)} className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl font-black">✕ Close</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2 bg-slate-50 p-4 rounded-xl border">
+                  <h4 className="font-black text-sm">Applicant Details</h4>
+                  <p className="text-xs"><b>Full Name:</b> {selectedApp.fullName}</p>
+                  <p className="text-xs"><b>Form No:</b> {selectedApp.formNo}</p>
+                  <p className="text-xs"><b>Email:</b> {selectedApp.email}</p>
+                  <p className="text-xs"><b>Phone:</b> {selectedApp.phone}</p>
+                  <p className="text-xs"><b>Program:</b> {selectedApp.program}</p>
+                  <p className="text-xs"><b>Course 1:</b> {selectedApp.courseChoice1}</p>
+                  <p className="text-xs"><b>JAMB Reg:</b> {selectedApp.jambRegNo} | Score: {selectedApp.jambScore}</p>
+                  <p className="text-xs"><b>Status:</b> {selectedApp.status} | Payment: {selectedApp.bursarStatus || selectedApp.payment_status || selectedApp.status}</p>
+                  <p className="text-xs"><b>Created:</b> {new Date(selectedApp.createdAt || '').toLocaleString()}</p>
+                </div>
+                <div className="space-y-2 bg-white p-4 rounded-xl border-2">
+                  <h4 className="font-black text-sm">Passport Photo</h4>
+                  {selectedApp.passportPhotoUrl || selectedApp.photo_url || selectedApp.full_application?.passportPhotoUrl ? (
+                    <img src={selectedApp.passportPhotoUrl || selectedApp.photo_url || selectedApp.full_application?.passportPhotoUrl} alt="Passport" className="w-40 h-48 object-cover rounded-xl border-2 mx-auto"/>
+                  ) : <div className="w-40 h-48 bg-slate-200 rounded-xl flex items-center justify-center text-xs text-slate-500 mx-auto">No Photo Uploaded</div>}
+                  <h4 className="font-black text-sm mt-3">O-Level Grades</h4>
+                  <div className="text-[11px] bg-amber-50 p-2 rounded border max-h-20 overflow-auto">
+                    {JSON.stringify(selectedApp.olevelGrades || selectedApp.o_level || selectedApp.full_application?.olevelGrades || 'No grades')}
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border-2 border-blue-300 p-4 rounded-xl">
+                <h4 className="font-black text-sm text-blue-900">📄 Payment Receipt Uploaded by Applicant - Bursar Must Verify Before Approve</h4>
+                {selectedApp.paymentReceiptPdfUrl || selectedApp.full_application?.paymentReceiptPdfUrl || selectedApp.full_application?.paymentReceiptName ? (
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs font-bold">File: {selectedApp.paymentReceiptName || selectedApp.full_application?.paymentReceiptName || 'Payment Receipt'}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <a href={selectedApp.paymentReceiptPdfUrl || selectedApp.full_application?.paymentReceiptPdfUrl} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-blue-700 text-white rounded-xl font-black text-sm">📥 Open Receipt PDF / Image - New Tab</a>
+                      {(selectedApp.paymentReceiptPdfUrl || selectedApp.full_application?.paymentReceiptPdfUrl) && (
+                        selectedApp.paymentReceiptPdfUrl?.includes('.pdf') || selectedApp.full_application?.paymentReceiptPdfUrl?.includes('.pdf') || selectedApp.paymentReceiptPdfUrl?.startsWith('data:application/pdf') || selectedApp.full_application?.paymentReceiptPdfUrl?.startsWith('data:application/pdf') ? (
+                          <div className="w-full mt-2 border-2 rounded-xl overflow-hidden bg-white">
+                            <iframe src={selectedApp.paymentReceiptPdfUrl || selectedApp.full_application?.paymentReceiptPdfUrl} className="w-full h-[500px]" title="Receipt PDF"/>
+                          </div>
+                        ) : (
+                          <div className="w-full mt-2 border-2 rounded-xl overflow-hidden bg-white p-2">
+                            <img src={selectedApp.paymentReceiptPdfUrl || selectedApp.full_application?.paymentReceiptPdfUrl} alt="Payment Receipt" className="max-w-full max-h-[600px] mx-auto rounded-xl"/>
+                          </div>
+                        )
+                      )}
+                    </div>
+                    <div className="bg-white p-3 rounded-xl border mt-3">
+                      <p className="text-[11px] font-bold text-slate-600">Full Application JSON (includes all fields):</p>
+                      <pre className="text-[10px] max-h-40 overflow-auto bg-slate-50 p-2 rounded mt-1">{JSON.stringify(selectedApp.full_application || selectedApp, null, 2).slice(0, 3000)}</pre>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 p-6 bg-white rounded-xl border-2 border-dashed text-center">
+                    <p className="text-sm font-bold text-slate-500">No Payment Receipt Uploaded Yet</p>
+                    <p className="text-xs text-slate-400 mt-1">Applicant did not upload payment_receipt - Check full_application JSON</p>
+                    <p className="text-[11px] font-mono mt-2 break-all bg-slate-50 p-2 rounded">{selectedApp.full_application?.paymentReceiptPdfUrl || 'NULL'}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 justify-end sticky bottom-0 bg-white p-3 border-t rounded-b-2xl">
+                <button onClick={()=>setShowViewModal(false)} className="px-5 py-2.5 bg-slate-200 text-slate-800 rounded-xl font-black">Close</button>
+                <button onClick={async()=>{
+                  const sb=getSupabase();
+                  try{
+                    if(sb) await sb.from('college_applications').update({status:'REJECTED', payment_status:'REJECTED'}).eq('id', selectedApp.id);
+                  }catch{}
+                  alert(`❌ Applicant ${selectedApp.fullName} rejected by ${bursarDisplayName}`);
+                  setShowViewModal(false);
+                  load();
+                }} className="px-5 py-2.5 bg-red-600 text-white rounded-xl font-black">Reject Receipt</button>
+                <button onClick={async()=>{
+                  const sb=getSupabase();
+                  try{
+                    if(sb) await sb.from('college_applications').update({status:'APPROVED', payment_status:'PAID'}).eq('id', selectedApp.id);
+                  }catch{}
+                  alert(`✅ Applicant ${selectedApp.fullName} approved by ${bursarDisplayName} - Receipt Verified`);
+                  setShowViewModal(false);
+                  load();
+                }} className="px-5 py-2.5 bg-emerald-700 text-white rounded-xl font-black">✅ Approve After Viewing Receipt</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
