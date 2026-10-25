@@ -60,7 +60,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  // FIXED RESET - NOW SAVES TO SUPABASE public.users, NOT localStorage
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setResetSuccess(null);
@@ -78,17 +79,24 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    const res = StorageService.resetUserPassword(resetIdentifier, newPassword);
-    if (res.success) {
-      setResetSuccess(res.message);
-      setIdentifier(resetIdentifier);
-      setPassword(newPassword);
-      setTimeout(() => {
-        setIsResetMode(false);
-        setResetSuccess(null);
-      }, 2500);
-    } else {
-      setError(res.message);
+    setLoading(true);
+    try {
+      const res = await ApiService.resetPassword(resetIdentifier, newPassword);
+      if (res.success) {
+        setResetSuccess(res.message);
+        setIdentifier(resetIdentifier);
+        setPassword(newPassword);
+        setTimeout(() => {
+          setIsResetMode(false);
+          setResetSuccess(null);
+        }, 2500);
+      } else {
+        setError(res.message);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to reset in Supabase');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -188,9 +196,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 px-4 bg-[#0a4d2e] hover:bg-[#06321e] text-white font-bold text-xs rounded-xl shadow-md transition-all"
+                  disabled={loading}
+                  className="flex-1 py-2.5 px-4 bg-[#0a4d2e] hover:bg-[#06321e] text-white font-bold text-xs rounded-xl shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Save New Password
+                  {loading ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save New Password</span>
+                  )}
                 </button>
               </div>
             </form>
