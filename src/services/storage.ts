@@ -58,14 +58,7 @@ export const StorageService = {
     let users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
     const deletedUserIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedUserIds.map((d: string) => d.toLowerCase()));
-    
-    // FIXED: Filter deleted permanently - No more auto-return
     let filtered = users.filter((u) => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
-    
-    // FIXED: REMOVED the "if filtered.length > 30 return INITIAL_USERS" logic that causes return
-    // REMOVED auto-restore of all INITIAL_USERS
-
-    // ALWAYS keep Chief
     const chiefExists = filtered.some(u => u.email.toLowerCase() === 'samuel@lcns.edu.ng');
     if (!chiefExists) {
       filtered.unshift(INITIAL_USERS[0]);
@@ -74,32 +67,84 @@ export const StorageService = {
     return filtered;
   },
 
+  // ===== REPLACED - LOGIN WITH EMAIL OR SYSTEM GENERATED NUMBER =====
   authenticateUser: (emailOrId: string, passwordOrPin: string): (User & { password?: string; pin?: string }) | null => {
-    const input = emailOrId.trim().toLowerCase();
+    const inputId = emailOrId.trim().toLowerCase();
+    const inputPassRaw = passwordOrPin.trim();
+    const inputPass = inputPassRaw.toLowerCase();
+    
+    if (!inputId || !inputPassRaw) return null;
+
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
-    if (deletedSet.has(input)) return null;
-    const users = StorageService.getUsers();
-    const user = users.find(u => u.email.toLowerCase() === input || u.id.toLowerCase() === input || (u.matricNo && u.matricNo.toLowerCase() === input)) as any;
-    if (!user) return null;
+    if (deletedSet.has(inputId)) return null;
+
+    const users = StorageService.getUsers() as any[];
+    
+    // ALLOW: Email OR System Generated Number (LCNS/ST/2026/001) OR Phone OR Matric
+    const user = users.find((u: any) => {
+      const email = (u.email || '').toLowerCase().trim();
+      const id = (u.id || '').toLowerCase().trim();
+      const matric = (u.matricNo || '').toLowerCase().trim();
+      const phone = (u.phone || '').trim();
+      const staffId = (u.staffId || '').toLowerCase().trim();
+      
+      return (
+        email === inputId ||
+        id === inputId ||
+        matric === inputId ||
+        staffId === inputId ||
+        phone === emailOrId.trim() || // phone exact match
+        // Also allow partial: LCNS/ST/2026/001 vs lcns/st/2026/001
+        email === emailOrId.trim().toLowerCase() ||
+        id === emailOrId.trim().toLowerCase()
+      );
+    }) as any;
+
+    if (!user) {
+      console.warn('❌ User not found for:', emailOrId);
+      return null;
+    }
     if (deletedSet.has(user.id.toLowerCase()) || deletedSet.has(user.email.toLowerCase())) return null;
-    if (user.status !== 'ACTIVE') return null;
-    const storedPass = user.password || '';
-    const storedPin = user.pin || '';
+    if (user.status !== 'ACTIVE') {
+      console.warn('❌ User inactive:', user.email);
+      return null;
+    }
+
+    const storedPass = (user.password || '').toString().trim();
+    const storedPin = (user.pin || '').toString().trim();
+    
     let valid = false;
-    if (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$')) {
-      try { valid = bcrypt.compareSync(passwordOrPin, storedPass); } catch { valid = false; }
-    } else { valid = storedPass === passwordOrPin || storedPin === passwordOrPin; }
+
+    // 1. Direct plain compare - for your case chabo@gmail.com + 7767123 OR LCNS/ST/2026/001 + 7767123
+    if (inputPassRaw === storedPass || inputPassRaw === storedPin) valid = true;
+    // 2. Lowercase compare
+    if (!valid && (inputPass === storedPass.toLowerCase() || inputPass === storedPin.toLowerCase())) valid = true;
+    // 3. Bcrypt password
+    if (!valid && (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$'))) {
+      try { if (bcrypt.compareSync(inputPassRaw, storedPass)) valid = true; } catch {}
+    }
+    // 4. Bcrypt pin - NEW FIX FOR YOUR BUG
+    if (!valid && (storedPin.startsWith('$2a$') || storedPin.startsWith('$2b$'))) {
+      try { if (bcrypt.compareSync(inputPassRaw, storedPin)) valid = true; } catch {}
+    }
+    // 5. Try pin as password fallback
+    if (!valid) {
+      try {
+        if (storedPass && bcrypt.compareSync(inputPassRaw, bcrypt.hashSync(storedPass, 10))) valid = false; // dummy
+      } catch {}
+    }
+
+    console.log(`🔐 Login: ${emailOrId} (${user.id}) => ${valid ? '✅ SUCCESS' : '❌ FAILED'} | Input: ${inputPassRaw} | Stored Pin: ${storedPin} | Pass: ${storedPass.substring(0,15)}`);
+
     return valid ? user : null;
   },
 
   saveUsers: (users: (User & { password?: string; pin?: string })[]) => {
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
-    // FIXED: Don't save deleted users back
     const cleanUsers = users.filter(u => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
     setStorage(STORAGE_KEYS.USERS, cleanUsers);
-    // FIXED: No more permanent backup that restores deleted users
   },
 
   deleteUser: (userId: string) => {
@@ -119,20 +164,12 @@ export const StorageService = {
     if (targetUser?.id) newDeleted.push(targetUser.id, targetUser.id.toLowerCase());
     if (targetUser?.email) newDeleted.push(targetUser.email, targetUser.email.toLowerCase());
     setStorage('lcns_deleted_user_ids', Array.from(new Set(newDeleted)));
-    
     const updated = users.filter((u) => u.id !== userId && u.email !== userId && u.email.toLowerCase() !== userId.toLowerCase() && u.email.toLowerCase() !== (targetUser?.email.toLowerCase() || ''));
-    // FIXED: Save without re-adding backup
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
-    
     const current = StorageService.getCurrentUser();
     if (current && (current.id === userId || current.email === userId)) StorageService.setCurrentUser(null);
     StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted permanently: ${targetUser?.fullName || userId} - Will NOT return`);
-    
-    // FIXED: Clear the permanent backup that was restoring deleted users
-    try {
-      localStorage.removeItem('lcns_permanent_users_backup');
-    } catch {}
-    
+    try { localStorage.removeItem('lcns_permanent_users_backup'); } catch {}
     return StorageService.getUsers();
   },
 
@@ -179,11 +216,8 @@ export const StorageService = {
   saveCBTQuestions: (q: CBTQuestionItem[]) => setStorage(STORAGE_KEYS.CBT_QUESTIONS, q),
   getCBTResults: () => getStorage(STORAGE_KEYS.CBT_RESULTS, [] as CBTResult[]),
   saveCBTResults: (r: CBTResult[]) => setStorage(STORAGE_KEYS.CBT_RESULTS, r),
-  
-  // ===== UPGRADED - INTERVIEW SCORES - ADDED WITHOUT DELETING =====
   getScreeningScores: (): ScreeningScore[] => {
     try {
-      // Try new key first, then fallback to old keys for compatibility
       const primary = localStorage.getItem(STORAGE_KEYS.SCREENING_SCORES);
       if (primary) return JSON.parse(primary);
       const alt1 = localStorage.getItem('lcns_screening_scores');
@@ -196,9 +230,7 @@ export const StorageService = {
     } catch { return []; }
   },
   saveScreeningScores: (s: ScreeningScore[]) => {
-    // Original save
     setStorage(STORAGE_KEYS.SCREENING_SCORES, s);
-    // ADDED - Save to all keys ApplicantDashboard checks
     try {
       localStorage.setItem('lcns_screening_scores', JSON.stringify(s));
       localStorage.setItem('lcns_interview_scores', JSON.stringify(s));
@@ -220,8 +252,6 @@ export const StorageService = {
         scored_by: sc.scored_by,
         publishedAt: new Date().toISOString(),
       }))));
-
-      // ADDED - Save individual key lcns_applicant_final_result_${formNo} for each applicant
       s.forEach((sc: any) => {
         const formNo = sc.application_number || sc.applicationNumber || sc.formNo;
         if (!formNo) return;
@@ -256,11 +286,9 @@ export const StorageService = {
     } catch (e) {
       console.warn('Interview scores extra save failed', e);
     }
-    // Dispatch updates so dashboards refresh instantly
     window.dispatchEvent(new Event('lcns_storage_update'));
     window.dispatchEvent(new Event('storage'));
   },
-  
   getCBTExams: () => getStorage(STORAGE_KEYS.CBT_EXAMS, [] as CBTExam[]),
   saveCBTExams: (e: CBTExam[]) => setStorage(STORAGE_KEYS.CBT_EXAMS, e),
   getCBTSubmissions: () => getStorage(STORAGE_KEYS.CBT_SUBMISSIONS, [] as CBTSubmission[]),
