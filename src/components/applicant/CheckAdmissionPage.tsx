@@ -11,11 +11,6 @@ import {
   Printer,
   Sparkles,
   ArrowRight,
-  ShieldCheck,
-  FileText,
-  CreditCard,
-  Award,
-  Hash,
 } from 'lucide-react';
 
 interface CheckAdmissionPageProps {
@@ -49,7 +44,6 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
     setLoading(true);
     setSearched(true);
 
-    // First search in local storage
     const applicants = StorageService.getApplicants();
     let found = applicants.find(
       (a) =>
@@ -60,18 +54,15 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
         a.jambRegNo.toLowerCase() === clean
     );
 
-    // === FIXED - SEARCH FROM REAL college_applications TABLE - NOT OLD applications TABLE - NO DELETE YOUR LOGIC ===
     try {
       const sb = getSupabase();
       if (sb) {
-        // 1. Try exact form_no ilike - For LCNS/2026/89C
-        let { data, error } = await sb
+        let { data } = await sb
           .from('college_applications')
           .select('*')
           .ilike('form_no', `%${cleanRaw}%`)
           .limit(1);
 
-        // 2. If not found, try searching all and filter by email or fullName inside jsonb
         if ((!data || data.length === 0) && cleanRaw) {
           const all = await sb.from('college_applications').select('*').order('created_at', { ascending: false }).limit(50);
           if (all.data) {
@@ -88,19 +79,16 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
           }
         }
 
-        console.log("CheckAdmission found from college_applications:", data);
-
         if (data && data.length > 0) {
           const row = data[0];
-          // Map college_applications row to Applicant type - YOUR FIELDS KEPT
           const mapped: any = {
             id: row.id,
             formNo: row.form_no,
             form_no: row.form_no,
-            fullName: row.full_application?.fullName || row.bio_data?.fullName || row.full_application?.fullName || 'Applicant',
+            fullName: row.full_application?.fullName || row.bio_data?.fullName || 'Applicant',
             email: row.full_application?.email || row.bio_data?.email || '',
-            phone: row.full_application?.phone || row.bio_data?.phone || row.sponsor_phone || '',
-            program: row.program || 'ND/HND Nursing Sciences (4 Years)',
+            phone: row.full_application?.phone || row.bio_data?.phone || '',
+            program: row.program || 'ND/HND Nursing Sciences',
             jambRegNo: row.jamb_reg_no || row.full_application?.jambRegNo || '',
             jambScore: row.jamb_score || row.full_application?.jambScore || '',
             status: row.status || 'PENDING_BURSAR',
@@ -111,48 +99,14 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
             exam_number: row.exam_number || row.full_application?.examNumber || row.form_no,
             examNumber: row.exam_number || row.form_no,
             photo_url: row.photo_url || row.full_application?.passportPhotoUrl,
-            passportPhotoUrl: row.photo_url || row.full_application?.passportPhotoUrl,
-            paymentReceiptPdfUrl: row.full_application?.paymentReceiptPdfUrl,
             created_at: row.created_at,
             full_application: row.full_application,
-            bio_data: row.bio_data,
-            o_level: row.o_level,
           };
 
           if (found) {
-            found = {
-              ...found,
-              ...mapped,
-              bursar_cleared: mapped.bursar_cleared || found.bursar_cleared,
-              bursarCleared: mapped.bursarCleared || found.bursarCleared,
-              exam_number: mapped.exam_number || found.exam_number,
-              examNumber: mapped.examNumber || found.examNumber,
-              status: mapped.status || found.status,
-            };
+            found = { ...found, ...mapped } as any;
           } else {
             found = mapped as any;
-          }
-        }
-
-        // 3. ALSO try old applications table for backward compatibility - NOT DELETED
-        if (!found) {
-          const old = await sb
-            .from('applications')
-            .select('*')
-            .or(`form_no.ilike.%${clean}%,exam_number.ilike.%${clean}%,email.ilike.%${clean}%`)
-            .limit(1);
-          if (old.data && old.data.length > 0) {
-            const row = old.data[0];
-            if (found) {
-              found = {
-                ...found,
-                bursar_cleared: row.bursar_cleared ?? found.bursar_cleared,
-                bursarCleared: row.bursar_cleared ?? found.bursarCleared,
-                exam_number: row.exam_number || found.exam_number,
-                examNumber: row.exam_number || found.examNumber,
-                status: row.status || found.status,
-              };
-            }
           }
         }
       }
@@ -178,9 +132,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-8">
-        {/* Header Hero */}
         <div className="bg-gradient-to-r from-emerald-950 via-[#0a4d2e] to-emerald-950 text-white rounded-3xl p-8 shadow-2xl border border-emerald-800 text-center relative overflow-hidden">
-          <div className="absolute top-0 right-0 transform translate-x-10 -translate-y-10 w-48 h-48 bg-emerald-700/20 rounded-full blur-3xl pointer-events-none" />
           <div className="flex justify-center mb-3">
             <CollegeLogo size="lg" />
           </div>
@@ -191,12 +143,10 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
             Check Admission &amp; Screening Status
           </h1>
           <p className="text-xs sm:text-sm text-emerald-200 mt-2 max-w-2xl mx-auto">
-            Labe College of Nursing Sciences, Gboko &bull; 2026/2027 Academic Session.
-            Verify Bursary clearance, check your assigned Examination Number, and take the CBT Attitude Test.
+            Labe College of Nursing Sciences, Gboko • 2026/2027 Academic Session.
           </p>
         </div>
 
-        {/* Search Card */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-lg border border-slate-200 space-y-4">
           <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
             Enter Application Number / JAMB Reg No / Email
@@ -208,7 +158,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="e.g. LCNS/2026/89C or LCNS/APP/2026/102"
+                placeholder="Enter your Application Form No"
                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#0a4d2e] focus:bg-white text-slate-900 transition-all"
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
@@ -224,12 +174,10 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
           </div>
         </div>
 
-        {/* Results Section */}
         {searched && (
           <div>
             {applicant ? (
               <div className="space-y-6">
-                {/* Candidate Overview Card */}
                 <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-lg border border-slate-200 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                     <div>
@@ -240,51 +188,34 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                         {applicant.fullName}
                       </h2>
                       <p className="text-xs text-slate-600">
-                        Application Form No: <strong className="font-mono text-slate-900">{applicant.formNo}</strong> &bull; JAMB Reg: <strong>{applicant.jambRegNo}</strong> ({applicant.jambScore} pts)
+                        Application Form No: <strong className="font-mono text-slate-900">{applicant.formNo}</strong> • JAMB Reg: <strong>{applicant.jambRegNo}</strong> ({applicant.jambScore} pts)
                       </p>
                     </div>
-
                     <div className="text-left sm:text-right">
                       <span className="text-xs text-slate-500 font-semibold block">Programme Applied:</span>
                       <span className="text-sm font-bold text-[#0a4d2e]">{applicant.program}</span>
                     </div>
                   </div>
 
-                  {/* BURSAR STATUS LOGIC */}
                   {isBursarCleared ? (
                     <div className="space-y-5">
                       <div className="p-6 bg-emerald-50 border-2 border-emerald-500 rounded-2xl space-y-4">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-2.5 text-emerald-950 font-bold text-base">
-                            <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                            <span className="uppercase tracking-wide font-black">
-                              Bursar Cleared &bull; Official Examination Number Assigned
-                            </span>
-                          </div>
-                          <span className="px-3 py-1 bg-emerald-200 text-emerald-900 rounded-full text-xs font-black uppercase">
-                            Eligible for CBT
+                        <div className="flex items-center gap-2.5 text-emerald-950 font-bold text-base">
+                          <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                          <span className="uppercase tracking-wide font-black">
+                            Bursar Cleared • Official Examination Number Assigned
                           </span>
                         </div>
-
-                        <p className="text-xs sm:text-sm text-emerald-900 leading-relaxed">
-                          Your screening fee payment has been officially audited and cleared by the College Bursar on{' '}
-                          <strong>{(applicant as any).bursarClearedDate || (applicant as any).bursar_clearance_date?.substring(0, 10) || new Date().toISOString().split('T')[0]}</strong>.
-                          You are eligible to sit for the online CBT Attitude Test.
-                        </p>
-
-                        <div className="bg-white p-4 rounded-xl border border-emerald-300 shadow-xs flex items-center justify-between flex-wrap gap-3">
+                        <div className="bg-white p-4 rounded-xl border border-emerald-300 flex items-center justify-between flex-wrap gap-3">
                           <div>
                             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                               Your Assigned Examination Number
                             </span>
                             <span className="text-xl sm:text-2xl font-black font-mono text-[#0a4d2e]">
-                              {applicant.exam_number || applicant.examNumber || 'LCNS/EXAM/2025/001'}
+                              {applicant.exam_number || applicant.examNumber}
                             </span>
                           </div>
-                          <button
-                            onClick={() => window.print()}
-                            className="px-4 py-2 bg-[#0a4d2e] hover:bg-[#073822] text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-2"
-                          >
+                          <button onClick={() => window.print()} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold flex items-center gap-2">
                             <Printer className="w-4 h-4 text-amber-300" />
                             <span>Print Clearance Slip</span>
                           </button>
@@ -292,42 +223,21 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                       </div>
 
                       <div className="bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-700 space-y-4">
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-amber-500 text-slate-950 rounded-2xl font-black shadow-md">
-                              <Sparkles className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-black uppercase tracking-wide">
-                                CBT Attitude Test
-                              </h3>
-                              <p className="text-xs text-emerald-300">
-                                Standard Attitude &amp; Clinical Aptitude Screening &bull; 30 Minutes
-                              </p>
-                            </div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2.5 bg-amber-500 text-slate-950 rounded-2xl font-black">
+                            <Sparkles className="w-6 h-6" />
                           </div>
-                          <span className="px-3 py-1 bg-emerald-600/60 border border-emerald-400 text-emerald-200 rounded-full text-xs font-bold uppercase tracking-wider">
-                            Active Test
-                          </span>
+                          <div>
+                            <h3 className="text-lg font-black uppercase tracking-wide">CBT Attitude Test</h3>
+                            <p className="text-xs text-emerald-300">Standard Attitude & Clinical Aptitude Screening • 30 Minutes</p>
+                          </div>
                         </div>
-
-                        <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-                          Your examination profile is active. You may now start your 30-minute timed CBT Attitude Test session. Your responses and score will be automatically saved to your admissions file.
-                        </p>
-
                         <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                          <a
-                            href={`/applicant/cbt/test-attitude-01?app_no=${encodeURIComponent(applicant.formNo)}`}
-                            className="flex-1 py-3.5 px-6 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition-all text-center flex items-center justify-center gap-2"
-                          >
+                          <a href={`/applicant/cbt/test-attitude-01?app_no=${encodeURIComponent(applicant.formNo)}`} className="flex-1 py-3.5 px-6 bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl text-center flex items-center justify-center gap-2">
                             <span>Launch CBT Attitude Test</span>
                             <ArrowRight className="w-4 h-4" />
                           </a>
-
-                          <a
-                            href={`/applicant/dashboard?app_no=${encodeURIComponent(applicant.formNo)}`}
-                            className="py-3.5 px-6 bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider rounded-2xl border border-white/20 transition-all text-center flex items-center justify-center gap-2"
-                          >
+                          <a href={`/applicant/dashboard?app_no=${encodeURIComponent(applicant.formNo)}`} className="py-3.5 px-6 bg-white/10 text-white font-bold text-xs uppercase tracking-wider rounded-2xl border border-white/20 text-center">
                             <span>Open Candidate Dashboard</span>
                           </a>
                         </div>
@@ -337,34 +247,17 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                     <div className="p-6 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-4">
                       <div className="flex items-center gap-2.5 text-amber-950 font-bold text-base">
                         <Clock className="w-6 h-6 text-amber-700" />
-                        <span className="uppercase tracking-wide font-black">
-                          Awaiting Bursar Clearance - Pay Screening Fee
-                        </span>
+                        <span className="uppercase tracking-wide font-black">Awaiting Bursar Clearance</span>
                       </div>
-
                       <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
-                        Candidate <strong>{applicant.fullName}</strong> ({applicant.formNo}) is currently awaiting bursary clearance.
-                        In accordance with College Academic Board regulations, <strong>Examination Numbers are only generated and CBT examination unlocked after screening fee verification</strong>.
+                        Candidate <strong>{applicant.fullName}</strong> is currently awaiting bursary clearance. Examination Number will be generated after screening fee verification.
                       </p>
-
                       <div className="bg-white p-4 rounded-xl border border-amber-200 space-y-2 text-xs text-slate-700">
                         <div className="font-bold text-slate-900 uppercase">Screening Fee Payment Instructions:</div>
-                        <div>&bull; Amount: <strong>₦15,000 (Non-Refundable Screening &amp; CBT Processing Fee)</strong></div>
-                        <div>&bull; Bank: <strong>Zenith Bank PLC / First Bank of Nigeria</strong></div>
-                        <div>&bull; Account Name: <strong>Labe College of Nursing Sciences, Gboko</strong></div>
-                        <div>&bull; Account No: <strong>1018894231</strong></div>
-                        <div>&bull; Or Pay via Remita RRR on College Portal</div>
-                        <div className="mt-2 p-2 bg-slate-900 text-white rounded-lg font-mono text-[11px]">Your Form No: {applicant.formNo} | Status: {applicant.status} - Bursar will view your receipt and approve</div>
-                      </div>
-
-                      <div className="flex items-center gap-3 pt-2 flex-wrap">
-                        <a
-                          href={`/applicant/dashboard?app_no=${encodeURIComponent(applicant.formNo)}`}
-                          className="px-5 py-2.5 bg-[#0a4d2e] hover:bg-[#073822] text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-2"
-                        >
-                          <span>Go to Applicant Dashboard</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </a>
+                        <div>• Amount: <strong>₦15,000 (Non-Refundable)</strong></div>
+                        <div>• Bank: <strong>Zenith Bank PLC / First Bank</strong></div>
+                        <div>• Account Name: <strong>Labe College of Nursing Sciences, Gboko</strong></div>
+                        <div>• Account No: <strong>1018894231</strong></div>
                       </div>
                     </div>
                   )}
@@ -373,9 +266,9 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
             ) : (
               <div className="bg-white rounded-3xl p-8 text-center text-slate-500 space-y-3 shadow-md border border-slate-200">
                 <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
-                <h3 className="text-base font-bold text-slate-800">No applicant record found for "{query}"</h3>
+                <h3 className="text-base font-bold text-slate-800">No applicant record found</h3>
                 <p className="text-xs max-w-md mx-auto text-slate-600">
-                  Please verify that you entered your complete Application Form Number (e.g. <code>LCNS/2026/89C</code> or <code>LCNS/APP/2026/014</code>) or Registered Email Address. Your data is now from college_applications table - Search with LCNS/2026/...
+                  Please verify that you entered your correct Application Form Number or Registered Email Address.
                 </p>
               </div>
             )}
