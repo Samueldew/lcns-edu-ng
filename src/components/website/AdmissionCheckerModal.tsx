@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -8,12 +8,23 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  defaultFormNo?: string;
+  onOpenLogin?: () => void;
+  onFound?: (formNo: string) => void;
 }
 
-export const AdmissionCheckerModal: React.FC<Props> = ({ isOpen, onClose }) => {
+export const AdmissionCheckerModal: React.FC<Props> = ({ isOpen, onClose, defaultFormNo, onFound }) => {
   const [formNo, setFormNo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // === ADD ONLY - AUTO FILL WHEN COMING FROM APPLICATION FORM ===
+  useEffect(() => {
+    if (defaultFormNo) {
+      setFormNo(defaultFormNo);
+    }
+  }, [defaultFormNo, isOpen]);
+  // === END ADD ===
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,24 +36,45 @@ export const AdmissionCheckerModal: React.FC<Props> = ({ isOpen, onClose }) => {
     try {
       const cleanFormNo = formNo.trim().toUpperCase();
       
-      // Search in Supabase
-      const { data, error: dbError } = await supabase
+      // Search in Supabase - FIXED: use eq for exact match first, then fallback to ilike
+      let { data, error: dbError } = await supabase
         .from('college_applications')
         .select('form_no')
-        .ilike('form_no', `%${cleanFormNo}%`)
-        .limit(1)
-        .single();
+        .eq('form_no', cleanFormNo)
+        .maybeSingle();
 
-      if (dbError || !data) {
-        setError(`No record found for ${cleanFormNo}. Please check your Form Number.`);
+      // If not found with exact, try ilike
+      if (!data) {
+        const result = await supabase
+          .from('college_applications')
+          .select('form_no')
+          .ilike('form_no', `%${cleanFormNo}%`)
+          .limit(1)
+          .maybeSingle();
+        data = result.data;
+        dbError = result.error;
+      }
+
+      if (!data) {
+        setError(`No record found for ${cleanFormNo}. Please check your Form Number. Example: LCNS/2026/8902`);
         setLoading(false);
         return;
       }
 
-      // FOUND - Redirect to private dashboard
-      window.location.href = `/applicant/dashboard?app_no=${encodeURIComponent(data.form_no)}`;
+      // FOUND - Redirect to private dashboard using App.tsx method
+      setLoading(false);
+      onClose();
+      
+      if (onFound) {
+        onFound(data.form_no);
+      } else {
+        // Fallback for old App.tsx
+        window.history.pushState({}, '', `/applicant/dashboard?app_no=${encodeURIComponent(data.form_no)}`);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
 
     } catch (err) {
+      console.error(err);
       setError('Something went wrong. Please try again.');
       setLoading(false);
     }
