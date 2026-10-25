@@ -31,6 +31,9 @@ import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
 // ADDED - Individual Result Print with School Full Name + Logo - FOR REGISTRAR, EXAM OFFICER, ADMIN, HOD, PROVOST FINAL
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
+// === ADD ONLY - ENTRANCE EXAM PUBLISH CONTROL - REGISTRAR + PROVOST + ADMIN ===
+import { AdminExamSettings } from './AdminExamSettings';
+// === END ADD ===
 
 // ===== REGISTRAR APPLICANT ENTRANCE CBT MANAGER - NEW FEATURE ADDED =====
 const RegistrarApplicantCBTManager = () => {
@@ -261,7 +264,7 @@ const RegistrarApplicantCBTManager = () => {
 };
 
 export const RegistrarDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'scoresheets' | 'applicant_cbt' | 'individual_result'>('applicant_cbt');
+  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'scoresheets' | 'applicant_cbt' | 'individual_result' | 'entrance_exam'>('applicant_cbt');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -284,6 +287,59 @@ export const RegistrarDashboard: React.FC = () => {
       return { approved: localStorage.getItem('lcns_senate_approved')==='true', date: new Date().toISOString(), provost: 'Mrs Terna Fiase - Provost' };
     } catch { return { approved: false, date: new Date().toISOString(), provost: 'Mrs Terna Fiase - Provost' }; }
   });
+
+  // === ADD ONLY - ENTRANCE EXAM PUBLISH STATE FOR REGISTRAR ===
+  const [examSettings, setExamSettings] = useState<any>(() => {
+    try { return JSON.parse(localStorage.getItem('lcns_exam_settings') || '{}'); } catch { return {}; }
+  });
+  const [examResultsPublished, setExamResultsPublished] = useState(() => {
+    try { return localStorage.getItem('lcns_entrance_results_published') === 'true'; } catch { return false; }
+  });
+  const [examSubmissions, setExamSubmissions] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem('lcns_exam_submissions') || '[]'); } catch { return []; }
+  });
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      try {
+        const s = JSON.parse(localStorage.getItem('lcns_exam_settings') || '{}');
+        setExamSettings(s);
+        setExamResultsPublished(localStorage.getItem('lcns_entrance_results_published') === 'true');
+        setExamSubmissions(JSON.parse(localStorage.getItem('lcns_exam_submissions') || '[]'));
+      } catch {}
+    }, 2000);
+    return () => clearInterval(iv);
+  }, []);
+
+  const handlePublishExam = () => {
+    if (!examSettings.examDate) { alert('Set Exam Date first below!'); return; }
+    if (!confirm(`Publish Entrance Exam? Date: ${examSettings.examDate} - Applicants login with Application Number LCNS/2026/XXXX at /exam - Rolling Batch`)) return;
+    const updated = { ...examSettings, status: 'PUBLISHED', publishedAt: new Date().toISOString(), publishedBy: displayName };
+    localStorage.setItem('lcns_exam_settings', JSON.stringify(updated));
+    setExamSettings(updated);
+    alert(`✅ ENTRANCE EXAM PUBLISHED - ${updated.examDate} - Applicants can now start with Application Number - Rolling Batch - Miss=Join Next`);
+  };
+  const handleUnpublishExam = () => {
+    if (!confirm('Close Entrance Exam? Applicants will no longer write')) return;
+    const updated = { ...examSettings, status: 'CLOSED', closedAt: new Date().toISOString(), closedBy: displayName };
+    localStorage.setItem('lcns_exam_settings', JSON.stringify(updated));
+    setExamSettings(updated);
+    alert('🔒 EXAM CLOSED - Now publish results so applicants see on dashboard with Application Number');
+  };
+  const handlePublishEntranceResults = () => {
+    if (examSubmissions.length===0) { alert('No submissions yet'); return; }
+    if (!confirm(`Publish ${examSubmissions.length} Entrance Results? Applicant will see on dashboard with Application Number`)) return;
+    localStorage.setItem('lcns_entrance_results_published', 'true');
+    setExamResultsPublished(true);
+    alert(`✅ Results Published - ${examSubmissions.length} - Applicants see on /applicant/dashboard with LCNS/2026/XXXX`);
+  };
+  const handleUnpublishEntranceResults = () => {
+    if (!confirm('Unpublish Results? Hide from dashboard')) return;
+    localStorage.setItem('lcns_entrance_results_published', 'false');
+    setExamResultsPublished(false);
+    alert('🔒 Results Unpublished - Hidden from dashboard');
+  };
+  // === END ADD ===
 
   const safeCurrentUser = (() => {
     try {
@@ -335,15 +391,18 @@ export const RegistrarDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-blue-950 via-blue-900 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar - {displayName} - Score Sheets + Applicant Entrance CBT + Individual Result Print with Logo</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-blue-800 px-3 py-1 rounded-full">Office of the Registrar - {displayName} - Score Sheets + Applicant Entrance CBT + Individual Result Print with Logo + Entrance Publish/Unpublish</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
-            <p className="text-xs text-blue-200">{displayEmail} - Executive Overview + Score Sheets Download + All Students Biodata + All Applicants + APPLICANT ENTRANCE CBT + Print Individual Result with SCHOOL FULL NAME Labe College of Nursing Sciences, Gboko + Logo - CGPA + Class + Carry Over</p>
+            <p className="text-xs text-blue-200">{displayEmail} - Executive Overview + Score Sheets Download + All Students Biodata + All Applicants + APPLICANT ENTRANCE CBT + Print Individual Result with SCHOOL FULL NAME Labe College of Nursing Sciences, Gboko + Logo - CGPA + Class + Carry Over + Entrance Exam Publish → Applicant Starts with App Number → Unpublish Close → Publish Result → Applicant sees on dashboard</p>
           </div>
-          <div className="text-right"><span className="text-xs text-blue-300 font-semibold block">Academic Session</span><span className="text-lg font-black text-amber-400 font-mono-code">{COLLEGE_CONFIG.CURRENT_SESSION}</span></div>
+          <div className="text-right"><span className="text-xs text-blue-300 font-semibold block">Academic Session</span><span className="text-lg font-black text-amber-400 font-mono-code">{COLLEGE_CONFIG.CURRENT_SESSION}</span><span className={`block text-[10px] px-2 py-1 rounded-full mt-1 font-black ${examSettings.status==='PUBLISHED'?'bg-amber-400 text-black':'bg-slate-600 text-white'}`}>{examSettings.status==='PUBLISHED'?`📝 ENTRANCE PUBLISHED ${examSettings.examDate}`:'📝 ENTRANCE NOT PUBLISHED'}</span></div>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        {/* === ADD ONLY - ENTRANCE EXAM TAB FOR REGISTRAR === */}
+        <button onClick={() => setActiveTab('entrance_exam')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='entrance_exam'?'bg-amber-500 text-black shadow ring-2 ring-amber-300 animate-pulse':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Send className="w-4 h-4"/><span>📝 ENTRANCE EXAM - Publish/Unpublish - Result on Dashboard with App No</span><span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-black ${examSettings.status==='PUBLISHED'?'bg-green-600 text-white':'bg-red-600 text-white'}`}>{examSettings.status==='PUBLISHED'?'PUBLISHED':'NOT'}</span></button>
+        {/* === END ADD === */}
         <button onClick={() => setActiveTab('applicant_cbt')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='applicant_cbt'?'bg-red-700 text-white shadow ring-2 ring-red-300 animate-pulse':'bg-red-50 border-2 border-red-400 text-red-800'}`}><ShieldAlert className="w-4 h-4"/><span>🚨 APPLICANT ENTRANCE CBT</span></button>
         <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-blue-700 text-white shadow':'bg-blue-50 border text-blue-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets 40+60</span></button>
         <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='overview'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Building className="w-4 h-4 text-emerald-400"/><span>Overview</span></button>
@@ -353,7 +412,38 @@ export const RegistrarDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Individual Result - School Full Name + Logo - Registrar/Exam Officer/Admin/HOD/Provost</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">NEW</span></button>
       </div>
 
-      {activeTab==='applicant_cbt' ? (
+      {activeTab==='entrance_exam' ? (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border-2 border-amber-400 rounded-2xl p-5">
+            <h2 className="text-lg font-black">📝 Registrar Entrance Exam Control - Publish → Applicant Starts with App Number → Unpublish → Publish Result → Applicant Sees on Dashboard</h2>
+            <p className="text-xs font-bold mt-2">Flow: Publish Exam → Applicants write at /exam with LCNS/2026/XXXX - Rolling Batch Miss=Join Next Many batches → Unpublish Close → Publish Results → Applicants see result at /applicant/dashboard with Application Number</p>
+            <div className="grid md:grid-cols-4 gap-3 mt-4">
+              <div className={`p-3 rounded-xl border-2 text-center ${examSettings.status==='PUBLISHED'?'bg-green-100 border-green-500':'bg-slate-100'}`}><p className="text-[10px] font-black">EXAM STATUS</p><p className="font-black">{examSettings.status||'NOT SET'}</p><p className="text-[11px]">{examSettings.examDate||'No date'}</p></div>
+              <div className="p-3 rounded-xl border-2 bg-white text-center"><p className="text-[10px] font-black">SUBMISSIONS</p><p className="font-black text-xl">{examSubmissions.length}</p></div>
+              <div className={`p-3 rounded-xl border-2 text-center ${examResultsPublished?'bg-green-100 border-green-500':'bg-red-50 border-red-300'}`}><p className="text-[10px] font-black">RESULTS PUBLISHED</p><p className="font-black">{examResultsPublished?'✅ YES - Applicants see dashboard':'🔒 NO'}</p></div>
+              <div className="p-3 rounded-xl border-2 bg-white text-center"><p className="text-[10px] font-black">MAX PER BATCH</p><p className="font-black text-xl">{examSettings.maxPerBatch||100}</p></div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              <button onClick={handlePublishExam} disabled={examSettings.status==='PUBLISHED'} className={`px-6 py-3 rounded-full font-black text-xs ${examSettings.status==='PUBLISHED'?'bg-slate-200':'bg-emerald-700 text-white'}`}>✅ Publish Exam - Applicant Starts with App No</button>
+              <button onClick={handleUnpublishExam} disabled={examSettings.status!=='PUBLISHED'} className={`px-6 py-3 rounded-full font-black text-xs ${examSettings.status!=='PUBLISHED'?'bg-slate-200':'bg-red-600 text-white'}`}>🔒 Unpublish / Close Exam</button>
+              <button onClick={handlePublishEntranceResults} disabled={examResultsPublished || examSubmissions.length===0} className={`px-6 py-3 rounded-full font-black text-xs ${examResultsPublished?'bg-slate-200':'bg-amber-500 text-black'}`}>🎓 Publish Results - {examSubmissions.length} - Applicant Sees on Dashboard</button>
+              <button onClick={handleUnpublishEntranceResults} disabled={!examResultsPublished} className={`px-6 py-3 rounded-full font-black text-xs ${!examResultsPublished?'bg-slate-200':'bg-slate-700 text-white'}`}>⏸️ Unpublish Results</button>
+            </div>
+            <div className="mt-4 bg-white border rounded-xl p-3 text-xs">
+              <p className="font-black">Applicant sees result with Application Number:</p>
+              <p>/applicant/dashboard or /check-admission → Enter LCNS/2026/XXXX → If lcns_entrance_results_published=true, shows score, batch, rolling status</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border-2 p-4">
+            <h3 className="font-black text-sm mb-3">Set Exam Date + Max Per Batch - Registrar/Provost/Admin</h3>
+            <AdminExamSettings />
+          </div>
+          <div className="bg-white rounded-2xl border-2 p-4 overflow-x-auto">
+            <h3 className="font-black text-sm mb-3">Recent Submissions - {examSubmissions.length}</h3>
+            <table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Form No</th><th className="p-2">Name</th><th className="p-2">Original</th><th className="p-2">Joined - Rolling</th><th className="p-2">Answered</th><th className="p-2">Published?</th></tr></thead><tbody>{examSubmissions.slice(-20).reverse().map((s:any,i:number)=><tr key={i} className="border-b"><td className="p-2 font-mono font-black">{s.form_no}</td><td className="p-2">{s.full_name}</td><td className="p-2 text-center">{s.original_batch}</td><td className="p-2 text-center">{s.joined_batch} {s.joined_batch!==s.original_batch?'(MISSED JOINED NEXT)':''}</td><td className="p-2 text-center">{s.total_answered}</td><td className="p-2 text-center">{examResultsPublished?'✅ Sees dashboard':''}</td></tr>)}</tbody></table>
+          </div>
+        </div>
+      ) : activeTab==='applicant_cbt' ? (
         <RegistrarApplicantCBTManager />
       ) : activeTab==='scoresheets' ? (
         <ScoreSheetViewer currentUser={currentUser} />
