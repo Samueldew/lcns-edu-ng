@@ -4,17 +4,13 @@ import { Course, Student } from '../../types';
 import {
   BookOpen,
   UserCheck,
-  Stethoscope,
   Plus,
   Users,
   CheckCircle2,
-  Calendar,
-  Building,
   GraduationCap,
   Search,
   Download,
   Printer,
-  FileText,
   FileSpreadsheet,
   ArrowRight,
   ArrowLeft,
@@ -28,6 +24,33 @@ import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { supabase } from '@/lib/supabase';
 
 export const HODDashboard: React.FC = () => {
+  // ===== SINGLE USER DECLARATION - FIXED DUPLICATE =====
+  const safeCurrentUser = (() => {
+    try {
+      const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
+      for (const k of keys) {
+        const v = localStorage.getItem(k);
+        if (v) {
+          const parsed = JSON.parse(v);
+          if (parsed && parsed.email) return parsed;
+        }
+      }
+      return StorageService.getCurrentUser();
+    } catch { return null; }
+  })();
+
+  const currentUser = safeCurrentUser || {
+    id: 'LCNS/2026/HOD/001',
+    email: 'hod.nursing@lcns.edu.ng',
+    role: 'HOD',
+    fullName: 'Dr. (Mrs) Rebecca M. Chia',
+    status: 'ACTIVE',
+  };
+
+  const displayName = (currentUser?.fullName || (currentUser as any)?.full_name || 'Dr. (Mrs) Rebecca M. Chia').toString().toUpperCase();
+  const displayEmail = currentUser?.email || 'hod.nursing@lcns.edu.ng';
+  const displayRole = currentUser?.role || 'HOD';
+
   const [courses, setCourses] = useState<Course[]>(StorageService.getCourses());
   const [students] = useState<Student[]>(StorageService.getStudents());
   const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'individual_result' | 'vet_result'>('course_reg');
@@ -55,7 +78,6 @@ export const HODDashboard: React.FC = () => {
     } catch { return { approved: false, date: new Date().toISOString(), provost: 'Mrs Terna Fiase - Provost' }; }
   });
 
-  // ===== ADDED - HOD VETTING FEATURE - AFTER EXAM OFFICER =====
   const [examSubmissions, setExamSubmissions] = useState<any[]>(() => {
     try { 
       const s1 = JSON.parse(localStorage.getItem('lcns_exam_officer_submitted') || '[]');
@@ -167,32 +189,6 @@ export const HODDashboard: React.FC = () => {
     return (r.matricNo||r.matric_no||'').toLowerCase().includes(term) || (r.fullName||'').toLowerCase().includes(term) || (r.courseCode||r.course_code||'').toLowerCase().includes(term);
   });
 
-  const safeCurrentUser = (() => {
-    try {
-      const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
-      for (const k of keys) {
-        const v = localStorage.getItem(k);
-        if (v) {
-          const parsed = JSON.parse(v);
-          if (parsed && parsed.email) return parsed;
-        }
-      }
-      return StorageService.getCurrentUser();
-    } catch { return null; }
-  })();
-
-  const currentUser = safeCurrentUser || {
-    id: 'LCNS/2026/HOD/001',
-    email: 'hod.nursing@lcns.edu.ng',
-    role: 'HOD',
-    fullName: 'Dr. (Mrs) Rebecca M. Chia',
-    status: 'ACTIVE',
-  };
-
-  const displayName = (currentUser?.fullName || (currentUser as any)?.full_name || 'Dr. (Mrs) Rebecca M. Chia').toString().toUpperCase();
-  const displayEmail = currentUser?.email || 'hod.nursing@lcns.edu.ng';
-  const displayRole = currentUser?.role || 'HOD';
-
   const filteredStudents = students.filter((s: any) => {
     if (levelFilter !== 'ALL' && s.level !== levelFilter) return false;
     if (!searchBiodata) return true;
@@ -230,17 +226,17 @@ export const HODDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • {displayRole} • Course Registration Approval - Credit Units Check + Score Sheets + Individual Result Print + HOD VET RESULT</span>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">{displayName}</h1>
-            <p className="text-xs text-emerald-200">{displayEmail} - Approve Course Registration - If credit units exceed limit - MUST DISAPPROVE + See Lecturers Score Sheets - Download PDF with SCHOOL NAME + LOGO + Print Individual Result with School Full Name Labe College of Nursing Sciences, Gboko + Logo - VET RESULT FROM EXAM OFFICER AND FORWARD TO REGISTRAR - Logged in as {displayName} - Status: {vetStatus}</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • {displayRole} • Course Registration Approval + HOD VET RESULT</span>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
+            <p className="text-xs text-emerald-200">VET RESULT FROM EXAM OFFICER AND FORWARD TO REGISTRAR - Status: {vetStatus}</p>
           </div>
           <button onClick={() => setShowAddCourse(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-md self-start sm:self-auto"><Plus className="w-4 h-4"/><span>Allocate New Course</span></button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
-        <button onClick={() => setActiveTab('vet_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='vet_result'?'bg-orange-600 text-white shadow ring-2 ring-orange-300':'bg-orange-50 border-2 border-orange-400 text-orange-900'}`}><CheckCircle2 className="w-4 h-4"/><span>🔍 HOD VET RESULT - FROM EXAM OFFICER - FORWARD TO REGISTRAR - PRINT MASTER SHEET - MANUAL CORRECTION</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{examSubmissions.length}</span></button>
-        <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Registration Approval</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">CREDIT</span></button>
+        <button onClick={() => setActiveTab('vet_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='vet_result'?'bg-orange-600 text-white shadow ring-2 ring-orange-300':'bg-orange-50 border-2 border-orange-400 text-orange-900'}`}><CheckCircle2 className="w-4 h-4"/><span>🔍 HOD VET RESULT - FROM EXAM OFFICER</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{examSubmissions.length}</span></button>
+        <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Registration</span></button>
         <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-400 text-emerald-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets</span></button>
         <button onClick={() => setActiveTab('biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='biodata'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Biodata</span></button>
         <button onClick={() => setActiveTab('courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='courses'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><BookOpen className="w-4 h-4"/><span>Courses</span><span className="ml-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px]">{courses.length}</span></button>
@@ -248,41 +244,35 @@ export const HODDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Individual Result</span></button>
       </div>
 
-      {/* ADDED - HOD VETTING - VIEW FROM EXAM OFFICER - FORWARD TO REGISTRAR OR RETURN */}
       {activeTab==='vet_result' && (
         <div className="bg-white rounded-3xl border-2 border-orange-400 p-6 space-y-6">
           <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 p-4 rounded-xl">
-            <h2 className="text-lg font-black flex items-center gap-2 text-orange-900"><CheckCircle2 className="w-6 h-6"/> HOD VETTING PANEL - After Receiving From Exam Officer - View & Vet Result - Forward to Registrar or Return to Exam Officer</h2>
-            <p className="text-xs font-bold mt-2">HOD {displayName} - You received results from Exam Officer. You must vet: If OK, forward to Registrar. If NOT OK, return to Exam Officer with reason. You can manually correct scores, print master sheet PDF/Excel with GPA/CGPA.</p>
+            <h2 className="text-lg font-black flex items-center gap-2 text-orange-900"><CheckCircle2 className="w-6 h-6"/> HOD VETTING PANEL - After Receiving From Exam Officer</h2>
+            <p className="text-xs font-bold mt-2">HOD {displayName} - You received results from Exam Officer. Vet: If OK forward to Registrar, If NOT OK return to Exam Officer. You can manually correct scores, print master sheet PDF/Excel with GPA/CGPA.</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className={`px-3 py-1 rounded-full text-xs font-black ${vetStatus==='FORWARDED_TO_REGISTRAR'?'bg-green-600 text-white': vetStatus==='RETURNED_TO_EXAM_OFFICER'?'bg-red-600 text-white':'bg-yellow-400 text-black'}`}>Status: {vetStatus}</span>
-              <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-xs font-black">{examSubmissions.length} Records From Exam Officer</span>
-              <span className="px-3 py-1 bg-blue-900 text-white rounded-full text-xs font-black">GPA/CGPA from student_gpa_view</span>
+              <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-xs font-black">{examSubmissions.length} Records</span>
             </div>
           </div>
-
           <div className="flex flex-wrap gap-2">
-            <button onClick={downloadMasterPDF} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> Print Master Sheet PDF - With School Name + Logo + GPA/CGPA + HOD Signature</button>
-            <button onClick={downloadMasterExcel} className="px-4 py-2.5 bg-green-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> Download Master Sheet Excel - GPA/CGPA + CO</button>
-            <button onClick={handleForwardToRegistrar} className="px-4 py-2.5 bg-blue-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><ArrowRight className="w-4 h-4"/> ✅ Vet OK - Forward to Registrar</button>
-            <button onClick={handleReturnToExamOfficer} className="px-4 py-2.5 bg-red-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><ArrowLeft className="w-4 h-4"/> ↩️ Not OK - Return to Exam Officer</button>
+            <button onClick={downloadMasterPDF} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> Print Master Sheet PDF</button>
+            <button onClick={downloadMasterExcel} className="px-4 py-2.5 bg-green-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> Download Excel</button>
+            <button onClick={handleForwardToRegistrar} className="px-4 py-2.5 bg-blue-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><ArrowRight className="w-4 h-4"/> ✅ Forward to Registrar</button>
+            <button onClick={handleReturnToExamOfficer} className="px-4 py-2.5 bg-red-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><ArrowLeft className="w-4 h-4"/> ↩️ Return to Exam Officer</button>
           </div>
-
           <div className="flex items-center gap-2 bg-slate-50 p-3 rounded-xl border">
             <Search className="w-4 h-4 text-orange-600"/>
-            <input value={searchVet} onChange={e=>setSearchVet(e.target.value)} placeholder="Search by Matric, Name, Course - For Manual Correction" className="flex-1 py-2 text-xs font-bold outline-none bg-transparent"/>
+            <input value={searchVet} onChange={e=>setSearchVet(e.target.value)} placeholder="Search by Matric, Name, Course" className="flex-1 py-2 text-xs font-bold outline-none bg-transparent"/>
           </div>
-
           <div className="overflow-x-auto border-2 rounded-xl">
             <table className="w-full text-xs">
-              <thead className="bg-orange-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2">Name</th><th className="p-2">Course</th><th className="p-2">CA</th><th className="p-2">Exam</th><th className="p-2">Total - Editable</th><th className="p-2">CU</th><th className="p-2">Grade</th><th className="p-2">GP</th><th className="p-2">GPA</th><th className="p-2">CGPA</th><th className="p-2">CO</th><th className="p-2">Action - Manual Correction</th></tr></thead>
+              <thead className="bg-orange-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2">Name</th><th className="p-2">Course</th><th className="p-2">CA</th><th className="p-2">Exam</th><th className="p-2">Total - Editable</th><th className="p-2">CU</th><th className="p-2">Grade</th><th className="p-2">GP</th><th className="p-2">CO</th><th className="p-2">Manual Correction</th></tr></thead>
               <tbody>
                 {filteredVet.map((r:any, idx:number)=>{
                   const score = r.score || r.total_score || r.totalScore || 0;
                   const grade = score>=70?'A':score>=60?'B':score>=50?'C':score>=40?'D':'F';
                   const point = score>=70?4:score>=60?3:score>=50?2:score>=40?1:0;
                   const gp = (r.creditUnit||r.credit_unit||3)*point;
-                  const cgpaData = supabaseGpa.find((g:any)=>g.matric_no===(r.matricNo||r.matric_no));
                   const isEditing = editingId === (r.id||r.scoreId||idx.toString());
                   return (
                     <tr key={idx} className={`border-b ${grade==='F'?'bg-red-50':''}`}>
@@ -295,14 +285,12 @@ export const HODDashboard: React.FC = () => {
                       <td className="p-2 text-center">{r.creditUnit||r.credit_unit||3}</td>
                       <td className="p-2 text-center font-bold">{grade}</td>
                       <td className="p-2 text-center">{gp}</td>
-                      <td className="p-2 text-center text-blue-700 font-bold">{cgpaData?.gpa||'-'}</td>
-                      <td className="p-2 text-center text-blue-900 font-black">{cgpaData?.cgpa||'-'}</td>
                       <td className="p-2 text-center font-bold text-red-700">{grade==='F' ? `REPEAT ${r.courseCode||r.course_code}` : 'PASS'}</td>
                       <td className="p-2 text-center">
                         {isEditing ? (
                           <div className="flex gap-1"><button onClick={()=>handleManualCorrection(r.id||r.scoreId||idx.toString())} className="px-2 py-1 bg-green-600 text-white rounded text-[10px] font-black flex items-center gap-1"><Save className="w-3 h-3"/>Save</button><button onClick={()=>setEditingId(null)} className="px-2 py-1 bg-slate-200 rounded text-[10px]">Cancel</button></div>
                         ) : (
-                          <button onClick={()=>{setEditingId(r.id||r.scoreId||idx.toString()); setEditScore(score);}} className="px-2 py-1 bg-amber-500 text-black rounded text-[10px] font-black flex items-center gap-1 mx-auto"><Edit className="w-3 h-3"/>Edit Score - Manual Correction</button>
+                          <button onClick={()=>{setEditingId(r.id||r.scoreId||idx.toString()); setEditScore(score);}} className="px-2 py-1 bg-amber-500 text-black rounded text-[10px] font-black flex items-center gap-1 mx-auto"><Edit className="w-3 h-3"/>Edit Score</button>
                         )}
                       </td>
                     </tr>
@@ -310,31 +298,24 @@ export const HODDashboard: React.FC = () => {
                 })}
               </tbody>
             </table>
-            {filteredVet.length===0 && <div className="p-8 text-center text-slate-500 font-bold">No results from Exam Officer yet - Waiting for Exam Officer to submit</div>}
+            {filteredVet.length===0 && <div className="p-8 text-center text-slate-500 font-bold">No results from Exam Officer yet</div>}
           </div>
         </div>
       )}
 
       {activeTab==='individual_result' && (
         <div className="bg-white rounded-3xl border-2 border-amber-300 p-6 space-y-6">
-          <div>
-            <h2 className="text-lg font-black flex items-center gap-2"><Printer className="w-5 h-5 text-amber-600"/> Print Individual Student Result with School Full Name & Logo - HOD View - {displayName}</h2>
-            <p className="text-xs bg-amber-50 border p-2 rounded mt-1 font-bold">HOD {displayName} can print individual student result - With LABE COLLEGE OF NURSING SCIENCES, GBOKO full name + Logo + CGPA + Class of Diploma + Carry Over Auto Reflect - Search by Name and Matric No - Same format for Exam Officer, Registrar, Admin, Provost Final</p>
-          </div>
-
           <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border">
             <div className="flex items-center gap-2 flex-1 bg-white border-2 border-amber-400 rounded-xl px-3">
               <Search className="w-4 h-4 text-amber-600"/>
-              <input value={searchIndividual} onChange={e=>setSearchIndividual(e.target.value)} placeholder="🔍 Search by Name and Matric No - e.g. Okonkwo or LCNS/2026/ND1/001" className="flex-1 py-2.5 text-xs font-black outline-none"/>
-              {searchIndividual && <button onClick={()=>setSearchIndividual('')} className="px-2 py-1 bg-slate-100 rounded-full text-[10px] font-black">Clear</button>}
+              <input value={searchIndividual} onChange={e=>setSearchIndividual(e.target.value)} placeholder="🔍 Search by Name and Matric No" className="flex-1 py-2.5 text-xs font-black outline-none"/>
             </div>
-            <div className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">{filteredIndividual.length} Students - Search by Name and Matric</div>
+            <div className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">{filteredIndividual.length} Students</div>
           </div>
-
           {!selectedPrintStudent ? (
             <div className="overflow-x-auto border-2 rounded-xl">
               <table className="w-full text-xs">
-                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric No + Name</th><th className="p-3 text-left">Level + Program</th><th className="p-3 text-left">Results + CGPA + Carry Over</th><th className="p-3 text-center">Print with School Name + Logo - HOD</th></tr></thead>
+                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric No + Name</th><th className="p-3 text-left">Level</th><th className="p-3 text-left">CGPA + Carry Over</th><th className="p-3 text-center">Print</th></tr></thead>
                 <tbody>
                   {filteredIndividual.map((s:any) => {
                     const studResults = computationResults.filter((r:any)=> r.matricNo===s.matricNo);
@@ -343,9 +324,9 @@ export const HODDashboard: React.FC = () => {
                     return (
                       <tr key={s.matricNo} className="border-b hover:bg-amber-50">
                         <td className="p-3"><p className="font-mono font-black text-emerald-800">{s.matricNo}</p><p className="font-black uppercase">{s.fullName}</p></td>
-                        <td className="p-3"><p className="font-bold">{s.level} - {s.program}</p><p className="text-[11px]">{s.session}</p></td>
-                        <td className="p-3"><p className="text-[11px]">Courses: {studResults.length} | CGPA: {cgpa}</p><p className="text-[10px]">{studResults.filter((r:any)=>r.score<40).length ? `⚠️ Carry: ${studResults.filter((r:any)=>r.score<40).map((r:any)=>r.courseCode).join(', ')}` : '✅ No Carry'}</p></td>
-                        <td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 mx-auto"><Printer className="w-4 h-4"/> Print {s.matricNo} - School Full Name + Logo - HOD</button></td>
+                        <td className="p-3"><p className="font-bold">{s.level}</p></td>
+                        <td className="p-3"><p className="text-[11px]">CGPA: {cgpa}</p></td>
+                        <td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 mx-auto"><Printer className="w-4 h-4"/> Print</button></td>
                       </tr>
                     );
                   })}
@@ -355,8 +336,8 @@ export const HODDashboard: React.FC = () => {
           ) : (
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border">
-                <p className="font-black text-sm">Selected: {selectedPrintStudent.fullName} - {selectedPrintStudent.matricNo} - Printing as HOD - {displayName}</p>
-                <button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-black">← Back to List</button>
+                <p className="font-black text-sm">Selected: {selectedPrintStudent.fullName} - {selectedPrintStudent.matricNo}</p>
+                <button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-black">← Back</button>
               </div>
               <PrintableResultWithLogo
                 matricNo={selectedPrintStudent.matricNo}
@@ -375,46 +356,15 @@ export const HODDashboard: React.FC = () => {
         </div>
       )}
 
-      {activeTab==='course_reg' ? (
-        <CourseRegistrationApproval currentUser={currentUser} />
-      ) : activeTab==='scoresheets' ? (
-        <ScoreSheetViewer currentUser={currentUser} />
-      ) : activeTab==='biodata' ? (
+      {activeTab==='course_reg' ? <CourseRegistrationApproval currentUser={currentUser} /> : activeTab==='scoresheets' ? <ScoreSheetViewer currentUser={currentUser} /> : activeTab==='biodata' ? (
         <div className="bg-white rounded-3xl border-2 border-emerald-300 p-4 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between gap-3">
-            <div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata - Current Level ND1 ND2 HND1 HND2 - HOD View - {displayName}</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">HOD {displayName} see all student biodata + approve course registration - If credit units exceed limit - MUST DISAPPROVE - Print with SCHOOL FULL NAME + LOGO</p></div>
-            <button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-1 self-start"><Download className="w-4 h-4"/>Print Biodata</button>
-          </div>
-          <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border">
-            <div className="flex items-center gap-2 flex-1 bg-white border rounded-xl px-3"><Search className="w-4 h-4 text-slate-400"/><input value={searchBiodata} onChange={e=>setSearchBiodata(e.target.value)} placeholder="Search Name, Matric No, Program" className="flex-1 py-2 text-xs font-bold outline-none"/></div>
-            <select value={levelFilter} onChange={e=>setLevelFilter(e.target.value)} className="px-4 py-2 border-2 border-emerald-300 rounded-xl text-xs font-black"><option value="ALL">All Levels ({students.length})</option><option value="ND 1">ND 1</option><option value="ND 2">ND 2</option><option value="HND 1">HND 1</option><option value="HND 2">HND 2</option></select>
-            <div className="px-3 py-2 bg-emerald-900 text-white rounded-xl text-xs font-black">{filteredStudents.length} Students</div>
-          </div>
+          <div className="flex items-center gap-2 bg-white border rounded-xl px-3"><Search className="w-4 h-4 text-slate-400"/><input value={searchBiodata} onChange={e=>setSearchBiodata(e.target.value)} placeholder="Search Name, Matric" className="flex-1 py-2 text-xs font-bold outline-none"/></div>
           <div className="overflow-x-auto border-2 rounded-xl">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Matric No + Photo + Level</th><th className="p-2 text-left">Full Name + Biodata</th><th className="p-2 text-left">Program + Current Level</th><th className="p-2 text-left">State + Contact</th><th className="p-2">View Full Biodata</th></tr></thead>
-              <tbody>
-                {filteredStudents.map((s:any)=>(
-                  <tr key={s.matricNo} className="border-b hover:bg-slate-50">
-                    <td className="p-2"><div className="flex items-center gap-2"><img src={s.photoUrl || 'https://via.placeholder.com/50'} alt="p" className="w-10 h-12 object-cover rounded border"/><div><p className="font-mono font-black text-emerald-800">{s.matricNo}</p><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${s.level.includes('ND 1')?'bg-blue-100 text-blue-800':s.level.includes('ND 2')?'bg-green-100 text-green-800':s.level.includes('HND 1')?'bg-purple-100 text-purple-800':'bg-amber-100 text-amber-900'}`}>{s.level}</span></div></div></td>
-                    <td className="p-2"><p className="font-black uppercase">{s.fullName}</p><p className="text-[11px]">Blood: {s.bloodGroup} | {s.genotype}</p></td>
-                    <td className="p-2"><p className="font-bold">{s.program}</p><p className="text-[11px]">Current Level: <b className="bg-yellow-200 px-1 rounded">{s.level}</b></p><p className="text-[11px]">Session: {s.session}</p></td>
-                    <td className="p-2"><p className="text-[11px]">{s.stateOfOrigin} / {s.lga}</p><p className="text-[11px]">{s.phone || 'N/A'}</p></td>
-                    <td className="p-2 text-center"><button onClick={()=>setSelectedBiodata(s)} className="px-3 py-1.5 bg-blue-700 text-white rounded-lg font-black text-[11px]">View Full Biodata</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2">Name</th><th className="p-2">Level</th></tr></thead><tbody>{filteredStudents.map((s:any)=><tr key={s.matricNo} className="border-b"><td className="p-2 font-mono">{s.matricNo}</td><td className="p-2 font-bold">{s.fullName}</td><td className="p-2">{s.level}</td></tr>)}</tbody></table>
           </div>
-          {selectedBiodata && (<div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-3"><div className="flex justify-between border-b pb-2"><h3 className="font-black">Biodata - {selectedBiodata.fullName} - Current Level: {selectedBiodata.level}</h3><button onClick={()=>setSelectedBiodata(null)} className="px-3 py-1 bg-slate-100 rounded-full font-black">X</button></div><div className="text-xs space-y-1"><p>Matric: {selectedBiodata.matricNo}</p><p>Program: {selectedBiodata.program}</p><p>Level: {selectedBiodata.level}</p><p>Session: {selectedBiodata.session}</p><p>State: {selectedBiodata.stateOfOrigin}</p></div><button onClick={()=>window.print()} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Print Biodata</button></div></div>)}
         </div>
-      ) : activeTab==='admissions_all' ? (
-        <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">HOD View All Applicants Records - {displayName} - Link</div><AdminAdmissionManager currentUser={currentUser} /></div>
-      ) : activeTab==='courses' ? (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
-          <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-900 text-base uppercase">Semester Course Allocations & Academic Staff - {displayName}</h3><p className="text-xs text-slate-500">Accredited courses assigned to lecturers. HOD: {displayName}</p></div><span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">{courses.length} Active Courses</span></div>
-          <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-700 font-bold uppercase border-b"><tr><th className="p-3">Course Code</th><th className="p-3">Course Title</th><th className="p-3 text-center">Units</th><th className="p-3">Level / Semester</th><th className="p-3">Assigned Staff</th><th className="p-3">Department</th></tr></thead><tbody className="divide-y divide-slate-100">{courses.map((c)=>(<tr key={c.id} className="hover:bg-slate-50"><td className="p-3 font-mono font-bold text-emerald-900">{c.code}</td><td className="p-3 font-bold text-slate-900">{c.title}</td><td className="p-3 text-center font-bold">{c.units} Units</td><td className="p-3 text-slate-600"><span className="font-semibold text-slate-800">{c.level}</span><span className="block text-[10px] text-slate-500">{c.semester} Semester</span></td><td className="p-3 font-semibold text-emerald-950 flex items-center gap-1.5"><UserCheck className="w-3.5 h-3.5 text-emerald-700"/><span>{c.lecturerName}</span></td><td className="p-3 text-slate-500">{c.department}</td></tr>))}</tbody></table></div>
-        </div>
+      ) : activeTab==='admissions_all' ? <AdminAdmissionManager currentUser={currentUser} /> : activeTab==='courses' ? (
+        <div className="bg-white rounded-3xl border p-6"><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 font-bold"><tr><th className="p-3">Code</th><th className="p-3">Title</th><th className="p-3">Units</th><th className="p-3">Level</th><th className="p-3">Lecturer</th></tr></thead><tbody>{courses.map((c)=><tr key={c.id} className="border-b"><td className="p-3 font-mono font-bold">{c.code}</td><td className="p-3 font-bold">{c.title}</td><td className="p-3 text-center">{c.units}</td><td className="p-3">{c.level}</td><td className="p-3">{c.lecturerName}</td></tr>)}</tbody></table></div></div>
       ) : null}
 
       {showAddCourse && (
@@ -422,9 +372,9 @@ export const HODDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border space-y-4">
             <h3 className="text-base font-bold uppercase">Allocate Course to Lecturer - HOD {displayName}</h3>
             <form onSubmit={handleCreateCourse} className="space-y-3 text-xs">
-              <div><label className="block font-bold mb-1">Course Code *</label><input type="text" required value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. NSC 201" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs uppercase font-mono-code"/></div>
-              <div><label className="block font-bold mb-1">Course Title *</label><input type="text" required value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Medical-Surgical Nursing I" className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"/></div>
-              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Credit Units</label><input type="number" min="1" max="6" value={units} onChange={e=>setUnits(Number(e.target.value))} className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"/></div><div><label className="block font-bold mb-1">Level</label><select value={level} onChange={e=>setLevel(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"><option value="ND 1">ND 1</option><option value="ND 2">ND 2</option><option value="HND 1">HND 1</option><option value="HND 2">HND 2</option></select></div></div>
+              <div><label className="block font-bold mb-1">Course Code *</label><input type="text" required value={code} onChange={e=>setCode(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs uppercase"/></div>
+              <div><label className="block font-bold mb-1">Course Title *</label><input type="text" required value={title} onChange={e=>setTitle(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"/></div>
+              <div className="grid grid-cols-2 gap-3"><div><label className="block font-bold mb-1">Credit Units</label><input type="number" min="1" max="6" value={units} onChange={e=>setUnits(Number(e.target.value))} className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold"/></div><div><label className="block font-bold mb-1">Level</label><select value={level} onChange={e=>setLevel(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"><option>ND 1</option><option>ND 2</option><option>HND 1</option><option>HND 2</option></select></div></div>
               <div><label className="block font-bold mb-1">Lecturer in Charge *</label><input type="text" required value={lecturerName} onChange={e=>setLecturerName(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"/></div>
               <div className="pt-3 flex justify-end gap-2"><button type="button" onClick={()=>setShowAddCourse(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl font-bold">Cancel</button><button type="submit" className="px-4 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl font-bold">Save Course Allocation</button></div>
             </form>
@@ -435,4 +385,5 @@ export const HODDashboard: React.FC = () => {
   );
 };
 
+// ===== FIX FOR PORTAL SHELL - BOTH EXPORTS NEEDED =====
 export default HODDashboard;
