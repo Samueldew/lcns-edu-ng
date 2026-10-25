@@ -22,16 +22,9 @@ const STORAGE_KEYS = {
   CBT_RESULTS: 'lcns_erp_cbt_results', SCREENING_SCORES: 'lcns_erp_screening_scores',
 };
 
+// FIXED: ONLY CHIEF - ALL OTHER DEMO USERS REMOVED PERMANENTLY
 const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
   { id: 'LCNS/2026/AD/CHIEF', email: 'samuel@lcns.edu.ng', password: 'Lcns@2026', pin: '999999', role: 'ADMIN' as any, fullName: 'Avule Samuel - Chief Admin & Director ICT', status: 'ACTIVE', phone: '08126799565', department: 'Director of ICT', createdAt: '2026-01-01' },
-  { id: 'LCNS/2026/AD/001', email: 'info@lcns.edu.ng', password: 'Lcns@Info2026', pin: '849201', role: 'ADMIN', fullName: 'Director of ICT / Admin', status: 'ACTIVE', phone: '08126799565', department: 'ICT & Systems Unit', createdAt: '2026-01-10' },
-  { id: 'LCNS/2026/PV/001', email: 'provost@lcns.edu.ng', password: 'Lcns@Provost2026', pin: '739104', role: 'PROVOST', fullName: 'Mrs Terna Fiase Msc, Bnsc', department: 'Office of the Provost', status: 'ACTIVE', phone: '08034567891', createdAt: '2026-01-10' },
-  { id: 'LCNS/2026/RG/001', email: 'registrar@lcns.edu.ng', password: 'Lcns@Registrar2026', pin: '628491', role: 'REGISTRAR', fullName: 'Barr. Timothy J. Iorbee', department: 'Academic Registry', status: 'ACTIVE', phone: '08023456789', createdAt: '2026-01-11' },
-  { id: 'LCNS/2026/BS/001', email: 'bursar@lcns.edu.ng', password: 'Lcns@Bursar2026', pin: '194827', role: 'BURSAR', fullName: 'Mr. Simon T. Tyavyar (FCA)', department: 'College Bursary', status: 'ACTIVE', phone: '08089012345', createdAt: '2026-01-15' },
-  { id: 'LCNS/2026/HD/001', email: 'hod.nursing@lcns.edu.ng', password: 'Lcns@Hod2026', pin: '394821', role: 'HOD', fullName: 'Dr. (Mrs) Rebecca M. Chia', department: 'Nursing Sciences', status: 'ACTIVE', phone: '08078901234', createdAt: '2026-01-12' },
-  { id: 'LCNS/2026/EO/001', email: 'exam@lcns.edu.ng', password: 'Lcns@Exam2026', pin: '492817', role: 'EXAM_OFFICER', fullName: 'Dr. Emmanuel O. Agada', department: 'Examination & Records', status: 'ACTIVE', phone: '08056789012', createdAt: '2026-01-12' },
-  { id: 'LCNS/2026/AO/001', email: 'admission@lcns.edu.ng', password: 'Lcns@Admis2026', pin: '519283', role: 'ADMISSION_OFFICER', fullName: 'Mrs. Bridget N. Terfa', department: 'Admissions Unit', status: 'ACTIVE', phone: '08134567890', createdAt: '2026-01-12' },
-  { id: 'LCNS/2026/LC/001', email: 'lecturer@lcns.edu.ng', password: 'Lcns@Lecturer2026', pin: '284910', role: 'LECTURER', fullName: 'Nurse Emmanuel Gbaorun', department: 'Nursing Sciences', status: 'ACTIVE', phone: '08167890123', createdAt: '2026-01-15' },
 ];
 
 function getStorage<T>(key: string, defaultVal: T): T {
@@ -48,7 +41,7 @@ function setStorage<T>(key: string, val: T): void {
     window.dispatchEvent(new Event('storage'));
     localStorage.setItem('lcns_last_update', Date.now().toString());
   } catch (e) {
-    console.warn('Storage quota hit, clearing gallery cache to free memory', e);
+    console.warn('Storage quota hit, clearing gallery cache', e);
     try {
       localStorage.removeItem('lcns_gallery');
       localStorage.removeItem('college_gallery');
@@ -65,32 +58,19 @@ export const StorageService = {
     let users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
     const deletedUserIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedUserIds.map((d: string) => d.toLowerCase()));
+    
+    // FIXED: Filter deleted permanently - No more auto-return
     let filtered = users.filter((u) => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
-    if (filtered.length > 30) {
-      filtered = INITIAL_USERS;
-      setStorage(STORAGE_KEYS.USERS, filtered);
-      localStorage.setItem('lcns_deleted_user_ids', JSON.stringify([]));
-    }
+    
+    // FIXED: REMOVED the "if filtered.length > 30 return INITIAL_USERS" logic that causes return
+    // REMOVED auto-restore of all INITIAL_USERS
+
+    // ALWAYS keep Chief
     const chiefExists = filtered.some(u => u.email.toLowerCase() === 'samuel@lcns.edu.ng');
     if (!chiefExists) {
       filtered.unshift(INITIAL_USERS[0]);
       setStorage(STORAGE_KEYS.USERS, filtered);
     }
-    try {
-      const backupRaw = localStorage.getItem('lcns_permanent_users_backup');
-      if (backupRaw) {
-        const backupUsers = JSON.parse(backupRaw);
-        if (Array.isArray(backupUsers)) {
-          for (const bu of backupUsers) {
-            if (deletedSet.has(bu.id.toLowerCase()) || deletedSet.has(bu.email.toLowerCase())) continue;
-            if (bu.email.toLowerCase() === 'samuel@lcns.edu.ng') continue;
-            const idx = filtered.findIndex((u) => u.id === bu.id || u.email.toLowerCase() === bu.email.toLowerCase());
-            if (idx === -1) filtered.push(bu);
-          }
-          setStorage(STORAGE_KEYS.USERS, filtered);
-        }
-      }
-    } catch {}
     return filtered;
   },
 
@@ -114,31 +94,45 @@ export const StorageService = {
   },
 
   saveUsers: (users: (User & { password?: string; pin?: string })[]) => {
-    setStorage(STORAGE_KEYS.USERS, users);
-    try {
-      const nonDefaultUsers = users.filter((u) => !INITIAL_USERS.some((init) => init.email.toLowerCase() === u.email.toLowerCase()));
-      localStorage.setItem('lcns_permanent_users_backup', JSON.stringify(nonDefaultUsers));
-    } catch {}
+    const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
+    const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
+    // FIXED: Don't save deleted users back
+    const cleanUsers = users.filter(u => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
+    setStorage(STORAGE_KEYS.USERS, cleanUsers);
+    // FIXED: No more permanent backup that restores deleted users
   },
 
   deleteUser: (userId: string) => {
-    if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF') {
-      console.warn('Blocked delete of Chief Admin');
+    if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF' || userId.toLowerCase() === 'samuel@lcns.edu.ng') {
+      console.warn('Blocked delete of Chief Admin samuel@lcns.edu.ng');
+      alert('Cannot delete Chief Admin samuel@lcns.edu.ng - Protected!');
       return StorageService.getUsers();
     }
     const users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
     const targetUser = users.find((u) => u.id === userId || u.email === userId || u.email.toLowerCase() === userId.toLowerCase());
-    if (targetUser?.email.toLowerCase() === 'samuel@lcns.edu.ng') return StorageService.getUsers();
+    if (targetUser?.email.toLowerCase() === 'samuel@lcns.edu.ng') {
+      alert('Cannot delete samuel@lcns.edu.ng - Protected!');
+      return StorageService.getUsers();
+    }
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const newDeleted = [...deletedIds, userId, userId.toLowerCase()];
     if (targetUser?.id) newDeleted.push(targetUser.id, targetUser.id.toLowerCase());
     if (targetUser?.email) newDeleted.push(targetUser.email, targetUser.email.toLowerCase());
     setStorage('lcns_deleted_user_ids', Array.from(new Set(newDeleted)));
-    const updated = users.filter((u) => u.id !== userId && u.email !== userId && u.email.toLowerCase() !== userId.toLowerCase() && u.email.toLowerCase() !== targetUser?.email.toLowerCase());
-    setStorage(STORAGE_KEYS.USERS, updated);
+    
+    const updated = users.filter((u) => u.id !== userId && u.email !== userId && u.email.toLowerCase() !== userId.toLowerCase() && u.email.toLowerCase() !== (targetUser?.email.toLowerCase() || ''));
+    // FIXED: Save without re-adding backup
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+    
     const current = StorageService.getCurrentUser();
     if (current && (current.id === userId || current.email === userId)) StorageService.setCurrentUser(null);
-    StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted: ${targetUser?.fullName || userId}`);
+    StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted permanently: ${targetUser?.fullName || userId} - Will NOT return`);
+    
+    // FIXED: Clear the permanent backup that was restoring deleted users
+    try {
+      localStorage.removeItem('lcns_permanent_users_backup');
+    } catch {}
+    
     return StorageService.getUsers();
   },
 
@@ -198,12 +192,15 @@ export const StorageService = {
   clearApplicantByBursar: (applicantId: string) => { const apps = StorageService.getApplicants(); return apps; },
   assignExamNumber: (applicantId: string) => ({ applicants: StorageService.getApplicants(), examNumber: 'LCNS/EXAM/2025/001' }),
   rejectApplicantByBursar: (applicantId: string, remarks: string) => StorageService.getApplicants(),
-  resetToDefault: () => { localStorage.clear(); location.reload(); },
-
-  // ========== FIXED: NO MORE Out of Memory - Only HTTPS URLs, no base64 bloat ==========
+  resetToDefault: () => { 
+    const deleted = getStorage('lcns_deleted_user_ids', []);
+    localStorage.clear(); 
+    localStorage.setItem('lcns_deleted_user_ids', JSON.stringify(deleted));
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
+    location.reload(); 
+  },
   getSupabase: () => supabase,
   supabase: supabase,
-
   getSettings: async () => {
     try {
       if (supabase) {
@@ -218,10 +215,8 @@ export const StorageService = {
     } catch {}
     try { return JSON.parse(localStorage.getItem('lcns_settings') || localStorage.getItem('lcns_erp_cms_config') || '{}'); } catch { return {}; }
   },
-
   getGallery: async () => {
     try {
-      // FIX: Backend first, limit 12, HTTPS only - Prevents Out of Memory
       if (supabase) {
         const { data, error } = await supabase.from('gallery').select('*').eq('is_published', true).order('created_at', { ascending: false }).limit(12);
         if (!error && data && data.length > 0) {
@@ -229,26 +224,16 @@ export const StorageService = {
             const url = g.image_url || g.image || g.url || '';
             return url && !url.startsWith('data:');
           }).map((g: any) => ({
-            id: g.id,
-            title: g.title || g.name || 'Campus Image',
-            description: g.description || g.desc || g.category || 'Labe College of Nursing Sciences, Gboko',
-            category: g.category || 'Campus',
-            image: g.image_url || g.image || g.url,
-            image_url: g.image_url || g.image || g.url,
-            url: g.image_url || g.image || g.url,
-            created_at: g.created_at
+            id: g.id, title: g.title || g.name || 'Campus Image', description: g.description || g.desc || g.category || 'Labe College', category: g.category || 'Campus',
+            image: g.image_url || g.image || g.url, image_url: g.image_url || g.image || g.url, url: g.image_url || g.image || g.url, created_at: g.created_at
           }));
-          // FIX: Save only once, not 4 times - Save to one key only
           if (normalized.length > 0) {
-            try {
-              localStorage.setItem('lcns_gallery', JSON.stringify(normalized.slice(0,8)));
-            } catch {}
+            try { localStorage.setItem('lcns_gallery', JSON.stringify(normalized.slice(0,8))); } catch {}
             return normalized;
           }
         }
       }
-    } catch (e) { console.warn('Backend gallery restore failed, using local', e); }
-    // FALLBACK: Filter out base64 to prevent memory crash
+    } catch (e) { console.warn('Backend gallery restore failed', e); }
     const galleryKeys = ['lcns_gallery', 'college_gallery', 'gallery', 'official_gallery', 'lcns_erp_gallery'];
     for (const k of galleryKeys) {
       try { 
@@ -264,7 +249,6 @@ export const StorageService = {
     }
     return [];
   },
-
   getFacilities: async () => {
     try {
       if (supabase) {
@@ -281,41 +265,32 @@ export const StorageService = {
     } catch {}
     try { return JSON.parse(localStorage.getItem('lcns_facilities') || '[]').slice(0,12); } catch { return []; }
   },
-
   saveGalleryWithDescription: async (item: { title: string; description: string; category?: string; image_url: string }) => {
     if (item.image_url.startsWith('data:')) {
-      console.warn('Blocked base64 save - Use Supabase Storage URL to prevent Out of Memory');
       return { error: 'Base64 too large - Upload to Supabase Storage first' };
     }
     const existing = getStorage('lcns_gallery', [] as any[]);
     const newItem = { id: 'gal-' + Date.now(), title: item.title, description: item.description, category: item.category || 'Campus', image: item.image_url, image_url: item.image_url, url: item.image_url, created_at: new Date().toISOString() };
     const updated = [newItem, ...existing].slice(0,12);
     setStorage('lcns_gallery', updated);
-
     try {
       if (supabase) {
         const { data, error } = await supabase.from('gallery').insert([{
-          title: item.title,
-          description: item.description,
-          category: item.category || 'Campus',
-          image_url: item.image_url,
-          image: item.image_url,
-          url: item.image_url,
-          is_published: true
+          title: item.title, description: item.description, category: item.category || 'Campus',
+          image_url: item.image_url, image: item.image_url, url: item.image_url, is_published: true
         }]).select();
         if (error) throw error;
         return data;
       }
-    } catch (e) { console.warn('Backend save failed, saved locally only', e); }
+    } catch (e) { console.warn('Backend save failed', e); }
     return updated;
   },
-
   restoreBackendPictures: async () => {
     if (!supabase) return { error: 'Supabase not configured' };
     try {
       const { data: storageFiles, error } = await supabase.storage.from('college-gallery').list('', { limit: 100 });
       if (error) throw error;
-      if (!storageFiles || storageFiles.length === 0) return { message: 'No files in college-gallery bucket', files: [] };
+      if (!storageFiles || storageFiles.length === 0) return { message: 'No files', files: [] };
       const restored: any[] = [];
       for (const file of storageFiles) {
         if (file.name === '.emptyFolderPlaceholder') continue;
@@ -325,42 +300,27 @@ export const StorageService = {
         if (existing) continue;
         const title = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
         const payload = {
-          title: title || 'Campus Image',
-          description: `${title} — Labe College of Nursing Sciences, Gboko. Off Gboko Hill Road opposite Sinai College.`,
-          category: 'Campus',
-          image_url: publicUrl,
-          image: publicUrl,
-          url: publicUrl,
-          is_published: true
+          title: title || 'Campus Image', description: `${title} — Labe College`, category: 'Campus',
+          image_url: publicUrl, image: publicUrl, url: publicUrl, is_published: true
         };
         const { data, error: insErr } = await supabase.from('gallery').insert([payload]).select();
         if (!insErr && data) restored.push(data[0]);
       }
-      return { restored: restored.length, items: restored, message: `Restored ${restored.length} backend pictures` };
+      return { restored: restored.length, items: restored, message: `Restored ${restored.length}` };
     } catch (e: any) {
       return { error: e.message };
     }
   },
-
-  submitApplication: async (data: any) => {
-    return (StorageService as any).saveApplication(data);
-  },
+  submitApplication: async (data: any) => { return (StorageService as any).saveApplication(data); },
   saveApplication: async (data: any) => {
     try {
       if (supabase) {
         const payload = {
-          id: data.id || `LCNS-${Date.now()}`,
-          applicant_name: data.fullName || data.applicant_name || data.biodata?.fullName || 'Applicant',
-          email: data.email || data.biodata?.email || '',
-          phone: data.phone || data.biodata?.phone || '',
-          choice_one: data.choice_one || 'ND Nursing Sciences',
-          choice_two: data.choice_two || 'HND Nursing Sciences',
-          jamb_reg_no: data.jambRegNo || data.jamb?.regNo || '',
-          jamb_score: data.jambScore || data.jamb?.score || '',
-          status: 'submitted',
-          full_data: data,
-          biodata: data.biodata || {},
-          created_at: new Date().toISOString()
+          id: data.id || `LCNS-${Date.now()}`, applicant_name: data.fullName || data.applicant_name || data.biodata?.fullName || 'Applicant',
+          email: data.email || data.biodata?.email || '', phone: data.phone || data.biodata?.phone || '',
+          choice_one: data.choice_one || 'ND Nursing Sciences', choice_two: data.choice_two || 'HND Nursing Sciences',
+          jamb_reg_no: data.jambRegNo || data.jamb?.regNo || '', jamb_score: data.jambScore || data.jamb?.score || '',
+          status: 'submitted', full_data: data, biodata: data.biodata || {}, created_at: new Date().toISOString()
         };
         const { data: result, error } = await supabase.from('applications').insert([payload]).select();
         if (error) throw error;
@@ -372,7 +332,6 @@ export const StorageService = {
       const existing = getStorage('lcns_erp_applicants', [] as any[]);
       const payload = { id: `LCNS-${Date.now()}`, ...data, status: 'submitted', created_at: new Date().toISOString() };
       setStorage('lcns_erp_applicants', [payload, ...existing]);
-      console.warn('Backend application save failed, saved locally', e);
       return [payload];
     }
   },
