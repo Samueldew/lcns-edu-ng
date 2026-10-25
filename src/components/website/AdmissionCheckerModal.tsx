@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CollegeLogo } from '../common/CollegeLogo';
 import { Applicant, COLLEGE_CONFIG } from '../../types';
 import { StorageService } from '../../services/storage';
-import { getSupabase } from '../../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 import {
   X,
   Search,
@@ -16,6 +16,13 @@ import {
   UserCheck,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const getSupabase = () => {
+  if (!supabaseUrl || !supabaseAnonKey) return null as any;
+  return createClient(supabaseUrl, supabaseAnonKey);
+};
 
 interface AdmissionCheckerModalProps {
   isOpen: boolean;
@@ -76,32 +83,15 @@ export const AdmissionCheckerModal: React.FC<AdmissionCheckerModalProps> = ({
   const handleSearch = async (searchVal: string = query) => {
     const clean = searchVal.trim();
     if (!clean) return;
-
     setLoading(true);
     setSearched(true);
-
     try {
       const sb = getSupabase();
       if (!sb) throw new Error("Supabase client not initialized");
-
-      // 1. Search by form_no (exact or ilike)
-      let { data, error } = await sb
-        .from('college_applications')
-        .select('*')
-        .or(`form_no.ilike.%${clean}%,exam_number.ilike.%${clean}%`)
-        .limit(5);
-
-      if (error) {
-        console.error("Supabase search error:", error);
-      }
-
-      // 2. If not found, search inside JSON email or by full text
+      let { data, error } = await sb.from('college_applications').select('*').or(`form_no.ilike.%${clean}%,exam_number.ilike.%${clean}%`).limit(5);
+      if (error) console.error("Supabase search error:", error);
       if (!data || data.length === 0) {
-        const { data: allData } = await sb
-          .from('college_applications')
-          .select('*')
-          .limit(200);
-        
+        const { data: allData } = await sb.from('college_applications').select('*').limit(200);
         const lower = clean.toLowerCase();
         const found = allData?.find((r: any) => {
           const email = (r.full_application?.email || r.applicant_email || '').toLowerCase();
@@ -109,34 +99,22 @@ export const AdmissionCheckerModal: React.FC<AdmissionCheckerModalProps> = ({
           const form = (r.form_no || '').toLowerCase();
           return form === lower || email === lower || jamb === lower || form.includes(lower);
         });
-        if (found) {
-          data = [found];
-        }
+        if (found) data = [found];
       }
-
       if (data && data.length > 0) {
         const mapped = mapRowToApplicant(data[0]);
         setApplicant(mapped);
-
         if (mapped.status === 'ADMITTED') {
-          try {
-            confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } });
-          } catch {}
+          try { confetti({ particleCount: 100, spread: 80, origin: { y: 0.5 } }); } catch {}
         }
       } else {
         setApplicant(null);
       }
     } catch (e) {
       console.error("Search failed:", e);
-      // Fallback to local storage for legacy demo
       const applicants = StorageService.getApplicants();
       const lower = clean.toLowerCase();
-      const found = applicants.find(
-        (a) =>
-          a.formNo.toLowerCase() === lower ||
-          a.email.toLowerCase() === lower ||
-          a.jambRegNo.toLowerCase() === lower
-      );
+      const found = applicants.find((a) => a.formNo.toLowerCase() === lower || a.email.toLowerCase() === lower || a.jambRegNo.toLowerCase() === lower);
       setApplicant(found || null);
     } finally {
       setLoading(false);
@@ -146,37 +124,24 @@ export const AdmissionCheckerModal: React.FC<AdmissionCheckerModalProps> = ({
   const handlePayAcceptance = async () => {
     if (!applicant) return;
     setPayingAcceptance(true);
-
     setTimeout(() => {
       const applicants = StorageService.getApplicants();
       const receiptNo = `LCNS-ACC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
       const updated = applicants.map((a) => {
-        if (a.id === applicant.id) {
-          return { ...a, acceptanceFeePaid: true, acceptanceReceiptNo: receiptNo };
-        }
+        if (a.id === applicant.id) return { ...a, acceptanceFeePaid: true, acceptanceReceiptNo: receiptNo };
         return a;
       });
-
       StorageService.saveApplicants(updated);
       setApplicant({ ...applicant, acceptanceFeePaid: true, acceptanceReceiptNo: receiptNo } as any);
-
       const payments = StorageService.getPayments();
       const newPay = {
-        id: 'pay-' + Date.now(),
-        receiptNo,
+        id: 'pay-' + Date.now(), receiptNo,
         rrr: `${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
-        matricOrFormNo: applicant.formNo,
-        payerName: applicant.fullName,
-        feeType: 'Provisional Acceptance Fee',
-        amount: 25000,
-        session: COLLEGE_CONFIG.CURRENT_SESSION,
-        paymentDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        paymentMethod: 'Remita / Card' as const,
-        status: 'PAID' as const,
-        verifiedBy: 'Remita Automated Gateway',
+        matricOrFormNo: applicant.formNo, payerName: applicant.fullName, feeType: 'Provisional Acceptance Fee', amount: 25000,
+        session: COLLEGE_CONFIG.CURRENT_SESSION, paymentDate: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        paymentMethod: 'Remita / Card' as const, status: 'PAID' as const, verifiedBy: 'Remita Automated Gateway',
       };
       StorageService.savePayments([newPay, ...payments]);
-
       setPayingAcceptance(false);
       setPaymentSuccess(true);
     }, 900);
@@ -188,122 +153,32 @@ export const AdmissionCheckerModal: React.FC<AdmissionCheckerModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full my-8 overflow-hidden border border-slate-200">
         <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 text-white p-5 flex items-center justify-between no-print border-b border-emerald-950">
-          <div className="flex items-center gap-3">
-            <CollegeLogo size="sm" />
-            <div>
-              <h2 className="text-base font-bold uppercase font-serif-crest leading-tight">Admission Status Checker</h2>
-              <p className="text-xs text-emerald-300">2026/2027 Academic Session • Labe College of Nursing Sciences</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg text-emerald-300 hover:text-white hover:bg-emerald-800 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3"><CollegeLogo size="sm" /><div><h2 className="text-base font-bold uppercase font-serif-crest leading-tight">Admission Status Checker</h2><p className="text-xs text-emerald-300">2026/2027 Academic Session • Labe College of Nursing Sciences</p></div></div>
+          <button onClick={onClose} className="p-1 rounded-lg text-emerald-300 hover:text-white hover:bg-emerald-800"><X className="w-5 h-5" /></button>
         </div>
-
         <div className="p-6">
           <div className="no-print space-y-3">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Enter Application Form No / JAMB Reg No / Email
-            </label>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Enter Application Form No / JAMB Reg No / Email</label>
             <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="e.g. LCNS/2026/8902 or your email"
-                  className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-600 focus:bg-white text-slate-900"
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                />
-              </div>
-              <button
-                onClick={() => handleSearch()}
-                disabled={loading}
-                className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1.5 disabled:opacity-60"
-              >
-                <span>{loading ? 'Checking...' : 'Check Status'}</span>
-              </button>
+              <div className="relative flex-1"><Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" /><input type="text" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="e.g. LCNS/2026/8902 or your email" className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-600 text-slate-900" onKeyDown={(e) => e.key === 'Enter' && handleSearch()} /></div>
+              <button onClick={() => handleSearch()} disabled={loading} className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold shadow-md disabled:opacity-60">{loading ? 'Checking...' : 'Check Status'}</button>
             </div>
           </div>
-
           {searched && (
             <div className="mt-6 pt-5 border-t border-slate-200">
               {applicant ? (
                 <div>
                   {applicant.status === 'ADMITTED' && (
                     <div className="space-y-5">
-                      <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl relative overflow-hidden">
-                        <div className="flex items-start gap-3.5">
-                          <div className="p-2.5 bg-emerald-600 text-white rounded-xl shrink-0 shadow-md">
-                            <Sparkles className="w-6 h-6 animate-spin" />
-                          </div>
-                          <div>
-                            <span className="inline-block bg-emerald-200 text-emerald-900 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase tracking-wider mb-1">Provisional Admission Offered</span>
-                            <h3 className="text-base sm:text-lg font-black text-emerald-950 font-serif-crest uppercase">Congratulations, {applicant.fullName}!</h3>
-                            <p className="text-xs text-emerald-900 mt-1 leading-relaxed">
-                              You have been offered provisional admission into <strong>Labe College of Nursing Sciences, Gboko</strong> for the <strong>{applicant.program}</strong> programme (2026/2027 Academic Session).
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-4 pt-3 border-t border-emerald-200 flex flex-wrap items-center justify-between text-xs gap-2">
-                          <div className="flex items-center gap-1.5 font-bold">
-                            <span>Acceptance Fee (₦25,000):</span>
-                            {applicant.acceptanceFeePaid ? (
-                              <span className="text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> PAID (Receipt: {applicant.acceptanceReceiptNo})</span>
-                            ) : (
-                              <span className="text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> PENDING PAYMENT</span>
-                            )}
-                          </div>
-                          {!applicant.acceptanceFeePaid && (
-                            <button onClick={handlePayAcceptance} disabled={payingAcceptance} className="inline-flex items-center gap-1.5 bg-emerald-800 hover:bg-emerald-900 text-white px-3.5 py-1.5 rounded-xl font-bold text-xs shadow-sm transition-all">
-                              <CreditCard className="w-3.5 h-3.5" />
-                              <span>{payingAcceptance ? 'Processing Payment...' : 'Pay Acceptance Fee Online'}</span>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 no-print">
-                        <button onClick={() => setShowPrintLetter(!showPrintLetter)} className="inline-flex items-center gap-2 bg-emerald-900 hover:bg-emerald-950 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md transition-all">
-                          <FileText className="w-4 h-4" />
-                          <span>{showPrintLetter ? 'Hide Admission Letter' : 'View & Print Admission Letter'}</span>
-                        </button>
-                        <button onClick={() => { onClose(); onOpenLogin(); }} className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold transition-all border border-slate-300">
-                          <UserCheck className="w-4 h-4 text-emerald-700" />
-                          <span>Proceed to Student Portal</span>
-                        </button>
-                      </div>
+                      <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl"><div className="flex items-start gap-3.5"><div className="p-2.5 bg-emerald-600 text-white rounded-xl"><Sparkles className="w-6 h-6" /></div><div><span className="inline-block bg-emerald-200 text-emerald-900 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase mb-1">Provisional Admission Offered</span><h3 className="text-lg font-black text-emerald-950 uppercase">Congratulations, {applicant.fullName}!</h3><p className="text-xs text-emerald-900 mt-1">You have been offered provisional admission into <strong>Labe College of Nursing Sciences, Gboko</strong> for the <strong>{applicant.program}</strong> programme.</p></div></div></div>
                     </div>
                   )}
-
                   {applicant.status !== 'ADMITTED' && (
-                    <>
-                      {(applicant as any).bursar_cleared || (applicant as any).bursarCleared ? (
-                        <div className="space-y-4">
-                          <div className="p-5 bg-emerald-50 border-2 border-emerald-500 rounded-2xl space-y-3">
-                            <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm"><CheckCircle2 className="w-5 h-5 text-emerald-600" /><span className="uppercase font-black">Bursar Cleared & Examination Number Assigned</span></div>
-                            <p className="text-xs text-emerald-900">Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}) • Programme: <strong>{applicant.program}</strong>.</p>
-                            <div className="p-3 bg-white border border-emerald-300 rounded-xl flex items-center justify-between">
-                              <div><span className="text-[10px] text-slate-500 font-bold uppercase block">Official Examination Number</span><span className="text-base font-black font-mono text-[#0a4d2e]">{(applicant as any).exam_number || applicant.formNo}</span></div>
-                              <button onClick={handlePrint} className="px-3 py-1.5 bg-[#0a4d2e] text-white rounded-lg text-xs font-bold flex items-center gap-1.5"><Printer className="w-3.5 h-3.5 text-amber-300" /><span>Print Slip</span></button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3">
-                          <div className="flex items-center gap-2 text-amber-950 font-bold text-sm"><Clock className="w-5 h-5 text-amber-700" /><span className="uppercase font-black">Awaiting Bursar Clearance</span></div>
-                          <p className="text-xs text-amber-900">Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}). Your application is awaiting bursary payment verification.</p>
-                        </div>
-                      )}
-                    </>
+                    <div className="p-5 bg-emerald-50 border-2 border-emerald-500 rounded-2xl space-y-3"><div className="flex items-center gap-2 font-bold text-sm"><CheckCircle2 className="w-5 h-5 text-emerald-600" /><span className="uppercase font-black">{(applicant as any).bursar_cleared ? 'Bursar Cleared & Examination Number Assigned' : 'Application Found - Awaiting Clearance'}</span></div><p className="text-xs">Candidate: <strong>{applicant.fullName}</strong> ({applicant.formNo}) • Programme: <strong>{applicant.program}</strong></p><div className="p-3 bg-white border border-emerald-300 rounded-xl"><span className="text-[10px] text-slate-500 font-bold uppercase">Official Examination Number</span><div className="text-base font-black font-mono text-[#0a4d2e]">{(applicant as any).exam_number || applicant.formNo}</div></div></div>
                   )}
                 </div>
               ) : (
-                <div className="p-6 text-center text-slate-500 space-y-2">
-                  <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
-                  <p className="text-sm font-bold text-slate-700">No applicant record found for "{query}"</p>
-                  <p className="text-xs">Please ensure you typed your Application Form No (e.g. LCNS/2026/8902) or JAMB Reg No accurately. Try with your registered email too.</p>
-                </div>
+                <div className="p-6 text-center text-slate-500 space-y-2"><AlertCircle className="w-8 h-8 text-amber-500 mx-auto" /><p className="text-sm font-bold text-slate-700">No applicant record found for "{query}"</p><p className="text-xs">Please ensure you typed your Application Form No (e.g. LCNS/2026/8902) accurately.</p></div>
               )}
             </div>
           )}
