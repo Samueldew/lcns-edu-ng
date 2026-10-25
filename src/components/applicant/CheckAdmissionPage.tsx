@@ -147,29 +147,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
               <span>{loading ? 'Checking...' : 'Check Status'}</span>
             </button>
           </div>
-
-          {/* Quick candidates samples */}
-          <div className="flex items-center gap-2 pt-2 text-xs text-slate-500 flex-wrap">
-            <span className="font-semibold text-slate-600">Sample Candidate Form Numbers:</span>
-            <button
-              onClick={() => {
-                setQuery('LCNS/APP/2026/014');
-                handleSearch('LCNS/APP/2026/014');
-              }}
-              className="px-2.5 py-1 bg-emerald-50 text-[#0a4d2e] hover:bg-emerald-100 rounded-lg font-mono font-bold border border-emerald-200"
-            >
-              LCNS/APP/2026/014 (Bursar Cleared)
-            </button>
-            <button
-              onClick={() => {
-                setQuery('LCNS/APP/2026/102');
-                handleSearch('LCNS/APP/2026/102');
-              }}
-              className="px-2.5 py-1 bg-emerald-50 text-[#0a4d2e] hover:bg-emerald-100 rounded-lg font-mono font-bold border border-emerald-200"
-            >
-              LCNS/APP/2026/102 (Bursar Cleared)
-            </button>
-          </div>
+          {/* SAMPLE CANDIDATES REMOVED - Clean production checker */}
         </div>
 
         {/* Results Section */}
