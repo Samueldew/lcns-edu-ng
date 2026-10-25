@@ -153,9 +153,9 @@ export const ApiService = {
         sex: data.sex || '',
         age: data.age || '',
         address: data.address || '',
-        staying: data.staying || data.staying || 'hostel', // ADDED - In Campus (Hostel) / Off Campus (Day) - Linked to Provost/Registrar/HOD
-        parentName: data.parentName || data.parent_name || '', // ADDED - Parent/Guardian Name - Linked
-        parentPhone: data.parentPhone || data.parent_phone || '', // ADDED - Parent Phone - Linked
+        staying: data.staying || data.staying || 'hostel',
+        parentName: data.parentName || data.parent_name || '',
+        parentPhone: data.parentPhone || data.parent_phone || '',
         stateOfOrigin: data.stateOfOrigin || data.state_of_origin || '',
         lga: data.lga || '',
         bloodGroup: data.bloodGroup || data.blood_group || '',
@@ -165,7 +165,6 @@ export const ApiService = {
         photo_url: data.photo_url || '',
         profile_picture: data.profile_picture || '',
         staffImage: data.photo_url || data.profile_picture || data.staffImage || '',
-        // ADDED - Supabase Connected + Admin Name for Dashboard
         supabaseConnected: true,
         adminName: isChief ? 'Avule Samuel' : data.full_name,
       };
@@ -173,14 +172,66 @@ export const ApiService = {
       StorageService.setCurrentUser(userObj);
       localStorage.setItem('lcns_erp_current_user', JSON.stringify(userObj));
       localStorage.setItem('lcns-current-user', JSON.stringify(userObj));
-      localStorage.setItem('lcns_current_user', JSON.stringify(userObj)); // ADDED - For AdminDashboard to show Admin Name
+      localStorage.setItem('lcns_current_user', JSON.stringify(userObj));
       localStorage.setItem('current_user', JSON.stringify(userObj));
-      localStorage.setItem('lcns_admin_name', userObj.fullName); // ADDED - For Dashboard header
+      localStorage.setItem('lcns_admin_name', userObj.fullName);
       localStorage.setItem('lcns_admin_email', userObj.email);
       localStorage.setItem('lcns_last_update', Date.now().toString());
       window.dispatchEvent(new Event('lcns_storage_update'));
       
       return { success: true, user: userObj };
+    } catch (e: any) {
+      return { success: false, message: e.message };
+    }
+  },
+
+  // ===== ADDED - RESET PASSWORD FOR SUPABASE public.users - FIXES LoginModal reset - NOT DELETED ANYTHING =====
+  resetPassword: async (identifier: string, newPassword: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return { success: false, message: 'Supabase not configured' };
+    const rawId = identifier.trim();
+    const trimmed = rawId.toLowerCase();
+    try {
+      // Try update by email, matric_no, staff_id, id, login_id
+      let result = await supabase.from('users').update({ password: newPassword }).eq('email', trimmed).select();
+      if (!result.data || result.data.length === 0) {
+        result = await supabase.from('users').update({ password: newPassword }).eq('matric_no', rawId).select();
+      }
+      if (!result.data || result.data.length === 0) {
+        result = await supabase.from('users').update({ password: newPassword }).eq('staff_id', rawId).select();
+      }
+      if (!result.data || result.data.length === 0) {
+        result = await supabase.from('users').update({ password: newPassword }).eq('id', rawId).select();
+      }
+      if (!result.data || result.data.length === 0) {
+        result = await supabase.from('users').update({ password: newPassword }).eq('login_id', rawId).select();
+      }
+      // Fallback search all for loginId case-insensitive
+      if (!result.data || result.data.length === 0) {
+        const all = await supabase.from('users').select('*');
+        if (all.data) {
+          const found = all.data.find((u: any) => 
+            (u.email && u.email.toLowerCase() === trimmed) ||
+            (u.matric_no && u.matric_no.toLowerCase() === trimmed) ||
+            (u.staff_id && u.staff_id.toLowerCase() === trimmed) ||
+            (u.id && u.id.toLowerCase() === trimmed)
+          );
+          if (found) {
+            result = await supabase.from('users').update({ password: newPassword }).eq('id', found.id).select();
+          }
+        }
+      }
+
+      if (result.error) return { success: false, message: result.error.message };
+      if (!result.data || result.data.length === 0) {
+        return { success: false, message: `No user found with ${rawId} in Supabase public.users - Check ID/Email` };
+      }
+
+      // Sync to localStorage for other tabs
+      localStorage.setItem('lcns_last_update', Date.now().toString());
+      window.dispatchEvent(new Event('lcns_storage_update'));
+
+      return { success: true, message: `✅ Password reset successful for ${result.data[0].email} (${result.data[0].id}). Now login with new password.` };
     } catch (e: any) {
       return { success: false, message: e.message };
     }
@@ -192,7 +243,6 @@ export const ApiService = {
     localStorage.removeItem('lcns-current-user');
     localStorage.removeItem('lcns_current_user');
     localStorage.removeItem('current_user');
-    // Keep admin name for next login? Clear all for security
     localStorage.clear();
   },
 
@@ -215,13 +265,12 @@ export const ApiService = {
           loginId: m.loginId || m.staff_id || m.matric_no || m.email,
           password: m.password,
           createdAt: m.created_at?.split('T')[0],
-          // ADDED - Manual fields + Picture - NOT DELETED YOUR FIELDS
           sex: m.sex || '',
           age: m.age || '',
           address: m.address || '',
-          staying: m.staying || '', // ADDED - Linked to Provost/Registrar/HOD
-          parentName: m.parentName || m.parent_name || '', // ADDED - Linked
-          parentPhone: m.parentPhone || m.parent_phone || '', // ADDED - Linked
+          staying: m.staying || '',
+          parentName: m.parentName || m.parent_name || '',
+          parentPhone: m.parentPhone || m.parent_phone || '',
           stateOfOrigin: m.stateOfOrigin || '',
           bloodGroup: m.bloodGroup || '',
           level: m.level || '',
@@ -241,7 +290,6 @@ export const ApiService = {
     const supabase = getSupabase();
     if (!supabase) throw new Error('Supabase not configured');
 
-    // ADDED - Safe payload with manual Sex + Picture + Full Biodata - NOT DELETED YOUR PAYLOAD - ONLY ADDED FIELDS
     const payload: any = {
       email: userData.email.toLowerCase().trim(),
       password: plainPassword,
@@ -250,16 +298,15 @@ export const ApiService = {
       department: userData.department,
       phone: userData.phone,
       matric_no: userData.matricNo || userData.matricNumber || null,
-      staff_id: userData.staffId || userData.staff_id || null, // ADDED - LCNS/ST/2026/001
+      staff_id: userData.staffId || userData.staff_id || null,
     };
 
-    // ADD NEW FIELDS ONLY IF PROVIDED - This fixes blank tab - NOT DELETED - YOUR LOGIC KEPT
     if (userData.sex) payload.sex = userData.sex;
     if (userData.age) payload.age = userData.age;
     if (userData.address) payload.address = userData.address;
-    if (userData.staying) payload.staying = userData.staying; // ADDED - In Campus/Off Campus
-    if (userData.parentName) payload.parent_name = userData.parentName; // ADDED
-    if (userData.parentPhone) payload.parent_phone = userData.parentPhone; // ADDED
+    if (userData.staying) payload.staying = userData.staying;
+    if (userData.parentName) payload.parent_name = userData.parentName;
+    if (userData.parentPhone) payload.parent_phone = userData.parentPhone;
     if (userData.stateOfOrigin) payload.state_of_origin = userData.stateOfOrigin;
     if (userData.lga) payload.lga = userData.lga;
     if (userData.bloodGroup) payload.blood_group = userData.bloodGroup;
@@ -269,12 +316,11 @@ export const ApiService = {
     }
     if (userData.profile_picture) payload.profile_picture = userData.profile_picture;
     if (userData.level) payload.level = userData.level;
-    if (userData.loginId) payload.login_id = userData.loginId; // ADDED - For LCNS/ST and LCNS/ND
+    if (userData.loginId) payload.login_id = userData.loginId;
 
     const { data, error } = await supabase.from('users').insert(payload).select().single();
 
     if (error) {
-      // If new columns not exist yet, fallback to old payload - NOT DELETED YOUR FALLBACK LOGIC
       if (error.message.includes('sex') || error.message.includes('photo_url') || error.message.includes('age') || error.message.includes('address') || error.message.includes('profile_picture') || error.message.includes('staying') || error.message.includes('parent_name') || error.message.includes('staff_id') || error.message.includes('login_id')) {
         console.warn('New columns missing, trying old payload:', error.message);
         const oldPayload = {
@@ -297,7 +343,6 @@ export const ApiService = {
       throw new Error(error.message);
     }
 
-    // SYNC TO OTHER TABS - NOT DELETED YOUR SYNC LOGIC - ENHANCED WITH FULL BIODATA
     const newLocal = { 
       id: data.id, 
       email: data.email, 
@@ -330,13 +375,12 @@ export const ApiService = {
       if (updates.fullName) upd.full_name = updates.fullName;
       if (updates.password) upd.password = updates.password;
       if (updates.department) upd.department = updates.department;
-      // ADDED - Manual fields + Picture + Full Biodata - NOT DELETED YOUR FIELDS
       if (updates.sex) upd.sex = updates.sex;
       if (updates.age) upd.age = updates.age;
       if (updates.address) upd.address = updates.address;
-      if (updates.staying) upd.staying = updates.staying; // ADDED
-      if (updates.parentName) upd.parent_name = updates.parentName; // ADDED
-      if (updates.parentPhone) upd.parent_phone = updates.parentPhone; // ADDED
+      if (updates.staying) upd.staying = updates.staying;
+      if (updates.parentName) upd.parent_name = updates.parentName;
+      if (updates.parentPhone) upd.parent_phone = updates.parentPhone;
       if (updates.stateOfOrigin) upd.state_of_origin = updates.stateOfOrigin;
       if (updates.lga) upd.lga = updates.lga;
       if (updates.bloodGroup) upd.blood_group = updates.bloodGroup;
@@ -404,7 +448,6 @@ export const ApiService = {
       createdAt: new Date().toISOString(),
     };
 
-    // Try Supabase college_applications table
     if (supabase) {
       try {
         const payload = {
@@ -431,7 +474,6 @@ export const ApiService = {
       }
     }
 
-    // Save to localStorage for Bursar dashboard fallback - ADD ONLY
     try {
       const existing = JSON.parse(localStorage.getItem('lcns_applicants') || '[]');
       existing.push(applicant);
@@ -490,5 +532,4 @@ export const ApiService = {
       return local.find((a: any) => a.formNo === formNo);
     } catch { return null; }
   },
-  // === END ADDED FIX ===
 };
