@@ -194,7 +194,7 @@ const LCNSWebsite = () => {
                   <div className="h-full w-full flex items-center justify-center text-slate-400 text-sm">Loading 13 photos... {gallery.length}</div>
                 )}
               </div>
-              <div className="absolute -bottom-4 -left-4 bg-white text-[#0f4c2e] p-4 rounded-2xl shadow-xl"><p className="font-black flex items-center gap-2"><MapPin size={16}/> Off Gboko Hill Road, Gboko</p><p className="text-xs text-slate-500">Opposite Sinai College, Gboko Hills</p></div>
+              <div className="absolute -bottom-4 -left-4 bg-white text-[#0f4c2e] p-4 rounded-2xl shadow-xl"><p className="font-black flex items-center gap-2"><MapPin size={16}/> Off Gboko Hill Road, Gboko</p></div>
             </div>
           </div>
         </div>
