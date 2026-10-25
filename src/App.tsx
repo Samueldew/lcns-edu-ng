@@ -29,6 +29,13 @@ import { supabase } from './lib/supabase';
 import { AdminExamSettings } from './components/portals/AdminExamSettings';
 import { ExamPortal } from './components/portals/ExamPortal';
 // === END ADD ===
+// === ADD ONLY - APPLICANT DASHBOARD REDIRECT FIX ===
+const navigateToApplicantDashboard = (formNo: string) => {
+  const cleanNo = formNo.trim().toUpperCase();
+  window.history.pushState({}, '', `/applicant/dashboard?app_no=${encodeURIComponent(cleanNo)}`);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
+// === END ADD ===
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(StorageService.getCurrentUser());
@@ -67,6 +74,12 @@ export default function App() {
     const pathname = window.location.pathname.toLowerCase();
     const params = new URLSearchParams(window.location.search);
     const pageParam = params.get('page');
+    // === ADD ONLY - KEEP APP_NO WHEN ON DASHBOARD ===
+    const appNoParam = params.get('app_no');
+    if (appNoParam && pathname === '/applicant/dashboard') {
+      setCheckerDefaultFormNo(appNoParam);
+    }
+    // === END ADD ===
 
     if (pathname === '/applicant/printout') {
       setCustomView('applicant-printout');
@@ -327,7 +340,18 @@ export default function App() {
 
         <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} />
         <ApplicationFormModal isOpen={isApplicationOpen} onClose={() => setIsApplicationOpen(false)} onOpenAdmissionChecker={handleOpenAdmissionCheckerWithForm} />
-        <AdmissionCheckerModal isOpen={isAdmissionCheckerOpen} onClose={() => setIsAdmissionCheckerOpen(false)} defaultFormNo={checkerDefaultFormNo} onOpenLogin={() => setIsLoginOpen(true)} />
+        {/* === MODIFIED - NOW IT REDIRECTS TO DASHBOARD === */}
+        <AdmissionCheckerModal 
+          isOpen={isAdmissionCheckerOpen} 
+          onClose={() => setIsAdmissionCheckerOpen(false)} 
+          defaultFormNo={checkerDefaultFormNo} 
+          onOpenLogin={() => setIsLoginOpen(true)}
+          onFound={(formNo: string) => {
+            setIsAdmissionCheckerOpen(false);
+            navigateToApplicantDashboard(formNo);
+          }}
+        />
+        {/* === END MODIFIED === */}
       </div>
     </ErrorBoundary>
   );
