@@ -195,7 +195,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
             </form>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                   User ID / Email / Matric Number *
@@ -209,6 +209,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     placeholder="e.g. LCNS/2026/ND/001, LCNS/2026/LC/001 or info@lcns.edu.ng"
                     className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white text-slate-900"
                     required
+                    autoComplete="off"
                   />
                 </div>
               </div>
@@ -238,6 +239,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     placeholder="Enter password or 6-digit login PIN"
                     className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white text-slate-900"
                     required
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"
@@ -265,17 +267,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   </>
                 )}
               </button>
-              <div className="pt-3 border-t border-slate-100">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 text-center">
-                  Quick Access Fill (Demo &amp; Testing)
-                </p>
-                <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                  <button type="button" onClick={() => { setIdentifier('info@lcns.edu.ng'); setPassword('admin123'); }} className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-[#0a4d2e] font-bold rounded-lg border border-emerald-200 text-left truncate transition-colors">👑 Admin (info@lcns.edu.ng)</button>
-                  <button type="button" onClick={() => { setIdentifier('provost@lcns.edu.ng'); setPassword('admin123'); }} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 text-left truncate transition-colors">🎓 Provost</button>
-                  <button type="button" onClick={() => { setIdentifier('registrar@lcns.edu.ng'); setPassword('admin123'); }} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 text-left truncate transition-colors">📜 Registrar</button>
-                  <button type="button" onClick={() => { setIdentifier('bursar@lcns.edu.ng'); setPassword('admin123'); }} className="p-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold rounded-lg border border-slate-200 text-left truncate transition-colors">💰 Bursar</button>
-                </div>
-              </div>
+              {/* REMOVED - QUICK ACCESS FILL (DEMO & TESTING) - Per user request - No auto-fill */}
             </form>
           )}
         </div>
