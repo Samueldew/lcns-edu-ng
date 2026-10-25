@@ -22,7 +22,6 @@ const STORAGE_KEYS = {
   CBT_RESULTS: 'lcns_erp_cbt_results', SCREENING_SCORES: 'lcns_erp_screening_scores',
 };
 
-// FIXED: ONLY CHIEF - ALL OTHER DEMO USERS REMOVED PERMANENTLY
 const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
   { id: 'LCNS/2026/AD/CHIEF', email: 'samuel@lcns.edu.ng', password: 'Lcns@2026', pin: '999999', role: 'ADMIN' as any, fullName: 'Avule Samuel - Chief Admin & Director ICT', status: 'ACTIVE', phone: '08126799565', department: 'Director of ICT', createdAt: '2026-01-01' },
 ];
@@ -67,40 +66,31 @@ export const StorageService = {
     return filtered;
   },
 
-  // ===== REPLACED - LOGIN WITH EMAIL OR SYSTEM GENERATED NUMBER =====
   authenticateUser: (emailOrId: string, passwordOrPin: string): (User & { password?: string; pin?: string }) | null => {
     const inputId = emailOrId.trim().toLowerCase();
     const inputPassRaw = passwordOrPin.trim();
     const inputPass = inputPassRaw.toLowerCase();
-    
     if (!inputId || !inputPassRaw) return null;
-
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
     if (deletedSet.has(inputId)) return null;
-
     const users = StorageService.getUsers() as any[];
-    
-    // ALLOW: Email OR System Generated Number (LCNS/ST/2026/001) OR Phone OR Matric
     const user = users.find((u: any) => {
       const email = (u.email || '').toLowerCase().trim();
       const id = (u.id || '').toLowerCase().trim();
       const matric = (u.matricNo || '').toLowerCase().trim();
       const phone = (u.phone || '').trim();
       const staffId = (u.staffId || '').toLowerCase().trim();
-      
       return (
         email === inputId ||
         id === inputId ||
         matric === inputId ||
         staffId === inputId ||
-        phone === emailOrId.trim() || // phone exact match
-        // Also allow partial: LCNS/ST/2026/001 vs lcns/st/2026/001
+        phone === emailOrId.trim() ||
         email === emailOrId.trim().toLowerCase() ||
         id === emailOrId.trim().toLowerCase()
       );
     }) as any;
-
     if (!user) {
       console.warn('❌ User not found for:', emailOrId);
       return null;
@@ -110,43 +100,55 @@ export const StorageService = {
       console.warn('❌ User inactive:', user.email);
       return null;
     }
-
     const storedPass = (user.password || '').toString().trim();
     const storedPin = (user.pin || '').toString().trim();
-    
     let valid = false;
-
-    // 1. Direct plain compare - for your case chabo@gmail.com + 7767123 OR LCNS/ST/2026/001 + 7767123
     if (inputPassRaw === storedPass || inputPassRaw === storedPin) valid = true;
-    // 2. Lowercase compare
     if (!valid && (inputPass === storedPass.toLowerCase() || inputPass === storedPin.toLowerCase())) valid = true;
-    // 3. Bcrypt password
     if (!valid && (storedPass.startsWith('$2a$') || storedPass.startsWith('$2b$'))) {
       try { if (bcrypt.compareSync(inputPassRaw, storedPass)) valid = true; } catch {}
     }
-    // 4. Bcrypt pin - NEW FIX FOR YOUR BUG
     if (!valid && (storedPin.startsWith('$2a$') || storedPin.startsWith('$2b$'))) {
       try { if (bcrypt.compareSync(inputPassRaw, storedPin)) valid = true; } catch {}
     }
-    // 5. Try pin as password fallback
-    if (!valid) {
-      try {
-        if (storedPass && bcrypt.compareSync(inputPassRaw, bcrypt.hashSync(storedPass, 10))) valid = false; // dummy
-      } catch {}
-    }
-
-    console.log(`🔐 Login: ${emailOrId} (${user.id}) => ${valid ? '✅ SUCCESS' : '❌ FAILED'} | Input: ${inputPassRaw} | Stored Pin: ${storedPin} | Pass: ${storedPass.substring(0,15)}`);
-
+    console.log(`🔐 Login: ${emailOrId} (${user.id}) => ${valid ? '✅ SUCCESS' : '❌ FAILED'}`);
     return valid ? user : null;
   },
 
+  // ===== UPDATED - NOW SYNC TO SUPABASE BACKEND =====
   saveUsers: (users: (User & { password?: string; pin?: string })[]) => {
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
     const cleanUsers = users.filter(u => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
     setStorage(STORAGE_KEYS.USERS, cleanUsers);
+    // BACKEND SYNC - NEW - No delete, only add/update
+    try {
+      if (supabase) {
+        cleanUsers.forEach(async (u: any) => {
+          try {
+            await supabase.from('users').upsert([{
+              id: u.id,
+              email: u.email,
+              password: u.password || u.pin || '123456',
+              pin: u.pin || u.password || '123456',
+              role: u.role,
+              full_name: u.fullName,
+              fullName: u.fullName,
+              status: u.status || 'ACTIVE',
+              phone: u.phone || '',
+              department: u.department || '',
+              staff_id: u.id,
+              matric_no: u.matricNo || u.id
+            }], { onConflict: 'id' });
+          } catch {}
+        });
+      }
+    } catch (e) {
+      console.warn('Backend user sync failed', e);
+    }
   },
 
+  // ===== UPDATED - NOW DELETE FROM BACKEND TOO - OUTRIGHT =====
   deleteUser: (userId: string) => {
     if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF' || userId.toLowerCase() === 'samuel@lcns.edu.ng') {
       console.warn('Blocked delete of Chief Admin samuel@lcns.edu.ng');
@@ -169,6 +171,21 @@ export const StorageService = {
     const current = StorageService.getCurrentUser();
     if (current && (current.id === userId || current.email === userId)) StorageService.setCurrentUser(null);
     StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted permanently: ${targetUser?.fullName || userId} - Will NOT return`);
+
+    // BACKEND DELETE - NEW - DELETE OUTRIGHT FROM SUPABASE
+    try {
+      if (supabase && targetUser) {
+        supabase.from('users').delete().eq('id', targetUser.id).then(()=>{});
+        supabase.from('users').delete().eq('email', targetUser.email).then(()=>{});
+        supabase.from('users').delete().eq('id', userId).then(()=>{});
+      } else if (supabase) {
+        supabase.from('users').delete().eq('id', userId).then(()=>{});
+        supabase.from('users').delete().eq('email', userId).then(()=>{});
+      }
+    } catch (e) {
+      console.warn('Backend delete failed', e);
+    }
+
     try { localStorage.removeItem('lcns_permanent_users_backup'); } catch {}
     return StorageService.getUsers();
   },
