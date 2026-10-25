@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CollegeLogo } from '../common/CollegeLogo';
 import { Applicant, CBTTest, CBTResult, ScreeningScore, COLLEGE_CONFIG } from '../../types';
 import { StorageService } from '../../services/storage';
@@ -14,143 +14,196 @@ import {
   Search,
   AlertCircle,
   ArrowRight,
-  ExternalLink,
   ShieldCheck,
-  Building,
   User,
-  GraduationCap,
   CreditCard,
+  Upload,
   X,
+  Building,
 } from 'lucide-react';
 
 export const ApplicantDashboard: React.FC = () => {
   const [appNo, setAppNo] = useState<string>('');
+  const [inputAppNo, setInputAppNo] = useState<string>('');
   const [applicant, setApplicant] = useState<Applicant | null>(null);
   const [cbtTests, setCbtTests] = useState<CBTTest[]>([]);
   const [cbtResults, setCbtResults] = useState<CBTResult[]>([]);
   const [screeningScores, setScreeningScores] = useState<ScreeningScore[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'all' | 'application' | 'clearance' | 'cbt' | 'scores'>('all');
+  const [uploadingFee, setUploadingFee] = useState(false);
+  const [feeSnap, setFeeSnap] = useState<string | null>(null);
   const [showAcceptanceFeeModal, setShowAcceptanceFeeModal] = useState(false);
   const [payingFee, setPayingFee] = useState(false);
   const [acceptanceFeePaid, setAcceptanceFeePaid] = useState(false);
   const [acceptanceReceiptNo, setAcceptanceReceiptNo] = useState<string>('');
+  const printRef = useRef<HTMLDivElement>(null);
 
-  // Load applicant from ?app_no= or localStorage or default
+  // Load from URL ?app_no=
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const queryAppNo = params.get('app_no') || params.get('form_no') || localStorage.getItem('lcns_current_app_no');
-    const allApplicants = StorageService.getApplicants();
-    const target =
-      (queryAppNo && allApplicants.find((a) => a.formNo.toLowerCase() === queryAppNo.toLowerCase())) ||
-      allApplicants[0] ||
-      null;
-
-    if (target) {
-      setAppNo(target.formNo);
-      setApplicant(target);
-      localStorage.setItem('lcns_current_app_no', target.formNo);
+    const queryAppNo = params.get('app_no') || params.get('form_no') || localStorage.getItem('lcns_current_app_no') || '';
+    if (queryAppNo) {
+      setInputAppNo(queryAppNo);
+      loadApplicant(queryAppNo);
+    } else {
+      setLoading(false);
     }
-
-    loadData(target?.formNo || queryAppNo || '');
   }, []);
 
-  const loadData = async (targetAppNo: string) => {
+  const loadApplicant = async (targetAppNo: string) => {
+    if (!targetAppNo.trim()) return;
     setLoading(true);
-    // Local data first
-    const tests = StorageService.getCBTTests();
-    const results = StorageService.getCBTResults();
-    const scores = StorageService.getScreeningScores();
+    const allApplicants = StorageService.getApplicants();
+    let found = allApplicants.find((a) => 
+      a.formNo.toLowerCase() === targetAppNo.toLowerCase() ||
+      a.email.toLowerCase() === targetAppNo.toLowerCase() ||
+      (a.examNumber && a.examNumber.toLowerCase() === targetAppNo.toLowerCase()) ||
+      (a.exam_number && a.exam_number.toLowerCase() === targetAppNo.toLowerCase()) ||
+      a.jambRegNo.toLowerCase() === targetAppNo.toLowerCase()
+    ) || null;
 
-    setCbtTests(tests);
-    setCbtResults(results);
-    setScreeningScores(scores);
-
-    // Sync from Supabase if available
-    try {
-      const sb = getSupabase();
-      if (sb) {
-        if (targetAppNo) {
-          const { data: appData } = await sb
-            .from('applications')
-            .select('*')
-            .eq('form_no', targetAppNo)
-            .limit(1);
-
-          if (appData && appData.length > 0) {
-            const row = appData[0];
-            setApplicant((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    bursar_cleared: row.bursar_cleared ?? prev.bursar_cleared,
-                    bursarCleared: row.bursar_cleared ?? prev.bursarCleared,
-                    exam_number: row.exam_number || prev.exam_number,
-                    examNumber: row.exam_number || prev.examNumber,
-                  }
-                : prev
-            );
-          }
-        }
-
-        const { data: dbTests } = await sb.from('cbt_tests').select('*');
-        if (dbTests && dbTests.length > 0) {
-          setCbtTests(dbTests);
-        }
-
-        const { data: dbResults } = await sb.from('cbt_results').select('*');
-        if (dbResults && dbResults.length > 0) {
-          setCbtResults(dbResults);
-        }
-
-        const { data: dbScores } = await sb.from('screening_scores').select('*');
-        if (dbScores && dbScores.length > 0) {
-          setScreeningScores(dbScores);
-        }
-      }
-    } catch (err) {
-      console.warn('Applicant dashboard Supabase sync warning:', err);
-    }
-    setLoading(false);
-  };
-
-  const handleSwitchApplicant = (newFormNo: string) => {
-    const all = StorageService.getApplicants();
-    const found = all.find((a) => a.formNo.toLowerCase() === newFormNo.toLowerCase());
     if (found) {
       setApplicant(found);
       setAppNo(found.formNo);
       localStorage.setItem('lcns_current_app_no', found.formNo);
-      window.history.replaceState({}, '', `/applicant/dashboard?app_no=${encodeURIComponent(found.formNo)}`);
-      loadData(found.formNo);
+      setFeeSnap((found as any).screeningFeeSnap || null);
+    } else {
+      setApplicant(null);
     }
+
+    // Load CBT & Scores
+    setCbtTests(StorageService.getCBTTests());
+    setCbtResults(StorageService.getCBTResults());
+    setScreeningScores(StorageService.getScreeningScores());
+
+    // Supabase sync
+    try {
+      const sb = getSupabase();
+      if (sb && targetAppNo) {
+        const { data: appData } = await sb.from('applications').select('*').or(`form_no.ilike.%${targetAppNo}%,email.ilike.%${targetAppNo}%,exam_number.ilike.%${targetAppNo}%`).limit(1);
+        if (appData && appData[0] && found) {
+          const row = appData[0];
+          const merged = {
+            ...found,
+            bursar_cleared: row.bursar_cleared ?? found.bursar_cleared,
+            bursarCleared: row.bursar_cleared ?? found.bursarCleared,
+            exam_number: row.exam_number || found.exam_number,
+            examNumber: row.exam_number || found.examNumber,
+            status: row.status || found.status,
+          };
+          setApplicant(merged as any);
+        }
+        const { data: dbTests } = await sb.from('cbt_tests').select('*').eq('is_published', true);
+        if (dbTests?.length) setCbtTests(dbTests);
+        const { data: dbResults } = await sb.from('cbt_results').select('*');
+        if (dbResults?.length) setCbtResults(dbResults);
+        const { data: dbScores } = await sb.from('screening_scores').select('*');
+        if (dbScores?.length) setScreeningScores(dbScores);
+      }
+    } catch (e) { console.warn(e); }
+    setLoading(false);
   };
 
-  const activeTest = cbtTests.find((t) => t.is_active) || cbtTests[0];
-  const candidateResult = cbtResults.find(
-    (r) =>
-      applicant &&
-      (r.application_number?.toLowerCase() === applicant.formNo.toLowerCase() ||
-        (applicant.exam_number && r.exam_number?.toLowerCase() === applicant.exam_number.toLowerCase()) ||
-        (applicant.examNumber && r.exam_number?.toLowerCase() === applicant.examNumber.toLowerCase()))
-  );
-  const candidateScreening = screeningScores.find(
-    (s) => applicant && s.application_number?.toLowerCase() === applicant.formNo.toLowerCase()
-  );
+  const isBursarCleared = Boolean(applicant && (applicant.bursar_cleared || applicant.bursarCleared || applicant.bursarStatus === 'CLEARED' || applicant.status === 'BURSAR_CLEARED' || applicant.status === 'ADMISSION_IN_PROGRESS' || applicant.status === 'ADMITTED'));
+  const examNumber = applicant?.exam_number || applicant?.examNumber || '';
 
-  const isBursarCleared = Boolean(
-    applicant &&
-      (applicant.bursar_cleared ||
-        applicant.bursarCleared ||
-        applicant.bursarStatus === 'CLEARED' ||
-        applicant.status === 'BURSAR_CLEARED' ||
-        applicant.status === 'ADMITTED')
-  );
+  const candidateResult = cbtResults.find((r) => applicant && (r.application_number?.toLowerCase() === applicant.formNo.toLowerCase() || r.exam_number?.toLowerCase() === examNumber.toLowerCase()));
+  const candidateScreening = screeningScores.find((s) => applicant && s.application_number?.toLowerCase() === applicant.formNo.toLowerCase());
 
-  const examNumber = applicant?.exam_number || applicant?.examNumber || 'LCNS/EXAM/2025/001';
+  // ===== PDF DOWNLOAD WITH PASSPORT + CATHOLIC DIOCESE =====
+  const handleDownloadApplicationPDF = () => {
+    if (!applicant) return;
+    const passport = applicant.passportPhotoUrl || (applicant as any).passport || '';
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`
+      <html>
+        <head>
+          <title>${applicant.formNo} - Application Form</title>
+          <style>
+            body { font-family: 'Times New Roman', serif; padding: 20px; color: #111; font-size: 12px; }
+            .header { text-align: center; border-bottom: 3px double #0a4d2e; padding-bottom: 12px; margin-bottom: 16px; }
+            .header h1 { margin: 0; font-size: 18px; font-weight: 900; text-transform: uppercase; color: #0a4d2e; }
+            .header h2 { margin: 2px 0; font-size: 12px; font-weight: 800; color: #b45309; text-transform: uppercase; }
+            .header p { margin: 0; font-size: 10px; color: #555; }
+            .passport-box { float: right; width: 120px; height: 140px; border: 2px solid #0a4d2e; overflow: hidden; margin-left: 12px; }
+            .passport-box img { width: 100%; height: 100%; object-fit: cover; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+            .field { border: 1px solid #ddd; padding: 6px 8px; border-radius: 6px; background: #f9fafb; }
+            .label { font-size: 9px; font-weight: 700; color: #666; text-transform: uppercase; display: block; }
+            .value { font-size: 12px; font-weight: 700; color: #111; }
+            .stamp { width: 110px; height: 110px; border: 2px dashed #0a4d2e; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 9px; font-weight: 900; color: #0a4d2e; margin-top: 20px; }
+            .footer { margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px; display: flex; justify-content: space-between; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Labe College of Nursing Sciences, Gboko</h1>
+            <h2>Catholic Diocese of Gboko</h2>
+            <p>P.M.B. 104, Off Gboko Hill Road, Opposite Sinai College, Gboko, Benue State • 2026/2027 Academic Session</p>
+            <p style="font-weight:800; margin-top:6px; color:#0a4d2e;">OFFICIAL APPLICATION FORM - APPLICANT COPY</p>
+          </div>
 
-  const handlePrint = () => {
-    window.print();
+          <div class="passport-box">
+            ${passport ? `<img src="${passport}" />` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;">NO PASSPORT</div>`}
+          </div>
+
+          <div style="font-size:13px; font-weight:800; margin-bottom:8px;">Candidate: ${applicant.fullName} • Form No: ${applicant.formNo}</div>
+          
+          <div class="grid">
+            <div class="field"><span class="label">Form Number</span><span class="value">${applicant.formNo}</span></div>
+            <div class="field"><span class="label">JAMB Reg / Score</span><span class="value">${applicant.jambRegNo} - ${applicant.jambScore} pts</span></div>
+            <div class="field"><span class="label">Full Name</span><span class="value">${applicant.fullName}</span></div>
+            <div class="field"><span class="label">Gender / DOB</span><span class="value">${applicant.gender} / ${applicant.dob}</span></div>
+            <div class="field"><span class="label">State / LGA</span><span class="value">${applicant.stateOfOrigin} / ${applicant.lga}</span></div>
+            <div class="field"><span class="label">Phone / Email</span><span class="value">${applicant.phone} / ${applicant.email}</span></div>
+            <div class="field"><span class="label">Programme Applied</span><span class="value">${applicant.program}</span></div>
+            <div class="field"><span class="label">Examination Number</span><span class="value" style="color:#0a4d2e;">${examNumber || 'AWAITING BURSAR CLEARANCE'}</span></div>
+            <div class="field"><span class="label">Bursar Status</span><span class="value">${isBursarCleared ? 'CLEARED' : 'PENDING - SCREENING FEE ₦15,000'}</span></div>
+            <div class="field"><span class="label">Admission Status</span><span class="value">${applicant.status}</span></div>
+          </div>
+
+          <div style="margin-top:16px;">
+            <strong>O-Level: </strong> English B3, Mathematics C4, Biology A1, Chemistry B2, Physics C5 (Submitted) • Next of Kin: ${(applicant as any).nextOfKin || 'N/A'}
+          </div>
+
+          <div class="footer">
+            <div>
+              <div style="width:160px; border-bottom:1px solid #111; height:20px;"></div>
+              <span style="font-size:10px; font-weight:700;">Candidate Signature</span>
+            </div>
+            <div style="text-align:center;">
+              <div class="stamp">LCNS GBOKO<br/>REGISTRAR<br/>OFFICIAL STAMP<br/>2026/2027</div>
+              <div style="margin-top:6px; font-size:10px; font-weight:800;">Barr. Timothy J. Iorbee<br/>Registrar</div>
+            </div>
+          </div>
+
+          <p style="text-align:center; margin-top:20px; font-size:9px; color:#666;">This document is system generated. Valid only with College stamp and Bursar clearance. Labe College of Nursing Sciences, Gboko - Catholic Diocese of Gboko - Excellence in Nursing Education.</p>
+        </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 600);
+  };
+
+  const handleUploadScreeningFee = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !applicant) return;
+    setUploadingFee(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      setFeeSnap(base64);
+      // Save to applicant
+      const all = StorageService.getApplicants();
+      const updated = all.map((a) => a.formNo === applicant.formNo ? { ...a, screeningFeeSnap: base64, screeningFeeUploaded: true, screeningFeeDate: new Date().toISOString() } as any : a);
+      StorageService.saveApplicants(updated);
+      setApplicant({ ...applicant, screeningFeeSnap: base64 } as any);
+      setUploadingFee(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleProcessAcceptancePayment = () => {
@@ -161,8 +214,6 @@ export const ApplicantDashboard: React.FC = () => {
       setAcceptanceReceiptNo(rec);
       setAcceptanceFeePaid(true);
       setPayingFee(false);
-
-      // Record payment in StorageService
       const payments = StorageService.getPayments();
       payments.unshift({
         id: 'acc-' + Date.now(),
@@ -170,7 +221,7 @@ export const ApplicantDashboard: React.FC = () => {
         rrr: `2409-${Math.floor(1000 + Math.random() * 9000)}-${Math.floor(1000 + Math.random() * 9000)}`,
         matricOrFormNo: applicant.formNo,
         payerName: applicant.fullName,
-        feeType: 'Acceptance Fee (2026/2027 Session)',
+        feeType: 'Acceptance Fee (2026/2027)',
         amount: 50000,
         session: COLLEGE_CONFIG.CURRENT_SESSION,
         semester: 'First',
@@ -178,821 +229,259 @@ export const ApplicantDashboard: React.FC = () => {
         paymentMethod: 'Remita / Card',
         status: 'PAID',
         verifiedBy: 'Dr. Isaac M. Agber (Bursar)',
-      });
+      } as any);
       StorageService.savePayments(payments);
     }, 1000);
   };
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-6 h-6 border-2 border-emerald-800 border-t-transparent rounded-full animate-spin" /></div>;
+  }
+
+  // NO APPLICANT - Show entry box to return with App No
   if (!applicant) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto" />
-          <h2 className="text-xl font-bold text-slate-800">No Candidate Selected</h2>
-          <p className="text-xs text-slate-600">Please provide an application number or select a candidate.</p>
-          <div className="space-y-2">
-            <button
-              onClick={() => handleSwitchApplicant('LCNS/APP/2026/014')}
-              className="w-full py-2 px-4 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold"
-            >
-              Load LCNS/APP/2026/014 (Deborah Vershima)
-            </button>
-            <button
-              onClick={() => handleSwitchApplicant('LCNS/APP/2026/102')}
-              className="w-full py-2 px-4 bg-emerald-800 text-white rounded-xl text-xs font-bold"
-            >
-              Load LCNS/APP/2026/102 (Mngunengen Cynthia)
-            </button>
+        <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full space-y-5 border border-slate-200">
+          <div className="text-center">
+            <CollegeLogo size="md" />
+            <h2 className="text-lg font-black uppercase mt-2">Applicant Dashboard Login</h2>
+            <p className="text-xs text-slate-500">Enter your Application Form No to return to your dashboard</p>
           </div>
+          <div className="relative">
+            <Search className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
+            <input type="text" value={inputAppNo} onChange={(e) => setInputAppNo(e.target.value)} placeholder="LCNS/APP/2026/..." className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-sm focus:ring-2 focus:ring-emerald-800" onKeyDown={(e) => e.key === 'Enter' && loadApplicant(inputAppNo)} />
+          </div>
+          <button onClick={() => loadApplicant(inputAppNo)} className="w-full py-3 bg-[#0a4d2e] text-white rounded-xl font-bold text-xs uppercase">Open My Dashboard</button>
+          <p className="text-[11px] text-center text-slate-400">Labe College of Nursing Sciences, Gboko<br/><span className="text-amber-700 font-bold">Catholic Diocese of Gboko</span></p>
         </div>
       </div>
     );
   }
 
+  const publishedCBTTests = cbtTests.filter(t => t.is_published || t.is_active);
+
   return (
-    <div className="min-h-screen bg-slate-100/70 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Candidate Dashboard Top Header */}
-        <div className="bg-gradient-to-r from-emerald-950 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800 no-print">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="min-h-screen bg-slate-100/70 py-6 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* HEADER WITH CATHOLIC DIOCESE */}
+        <div className="bg-gradient-to-r from-emerald-950 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 shadow-xl border border-emerald-800">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <CollegeLogo size="md" />
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-0.5 bg-amber-400 text-slate-950 font-black text-[10px] rounded-full uppercase tracking-wider">
-                    Applicant Admissions Dashboard
-                  </span>
-                  <span className="text-xs text-emerald-300">2026/2027 Session</span>
-                </div>
-                <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-1">
-                  {applicant.fullName}
-                </h1>
-                <p className="text-xs text-emerald-200">
-                  Form No: <span className="font-mono font-bold text-white">{applicant.formNo}</span> &bull; JAMB Reg: <span className="font-mono font-bold text-white">{applicant.jambRegNo}</span> &bull; {applicant.program}
-                </p>
+                <h1 className="text-xl sm:text-2xl font-black uppercase font-serif">Labe College of Nursing Sciences, Gboko</h1>
+                <p className="text-[11px] font-black tracking-widest text-amber-300 uppercase">Catholic Diocese of Gboko</p>
+                <p className="text-xs text-emerald-200 mt-1">{applicant.fullName} • <span className="font-mono text-white">{applicant.formNo}</span> • {applicant.program}</p>
               </div>
             </div>
-
-            {/* Quick Switcher dropdown for testing */}
-            <div className="bg-emerald-950/80 p-3 rounded-2xl border border-emerald-800/80 text-xs space-y-1.5 self-start md:self-auto">
-              <span className="text-[10px] text-emerald-300 font-bold uppercase block tracking-wider">Switch Candidate View:</span>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => handleSwitchApplicant('LCNS/APP/2026/014')}
-                  className={`px-2.5 py-1 rounded-lg font-mono font-bold text-[11px] transition-all ${
-                    applicant.formNo === 'LCNS/APP/2026/014' ? 'bg-amber-400 text-slate-950' : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  014 (Deborah)
-                </button>
-                <button
-                  onClick={() => handleSwitchApplicant('LCNS/APP/2026/102')}
-                  className={`px-2.5 py-1 rounded-lg font-mono font-bold text-[11px] transition-all ${
-                    applicant.formNo === 'LCNS/APP/2026/102' ? 'bg-amber-400 text-slate-950' : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  102 (Cynthia)
-                </button>
+            <div className="flex gap-2">
+              <div className="bg-emerald-950/80 p-2.5 rounded-2xl border border-emerald-800 text-[11px]">
+                <span className="text-emerald-300 block font-bold uppercase">Exam No</span>
+                <span className="font-mono font-black text-amber-300">{examNumber || 'PENDING'}</span>
+              </div>
+              <div className="bg-emerald-950/80 p-2.5 rounded-2xl border border-emerald-800 text-[11px]">
+                <span className="text-emerald-300 block font-bold uppercase">Status</span>
+                <span className="font-black text-white uppercase">{applicant.status}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* 4 SECTIONS NAV / QUICK ANCHORS */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
-          <a
-            href="#section-application-pdf"
-            className="p-4 bg-white hover:bg-emerald-50/60 rounded-2xl border border-slate-200 shadow-xs transition-all flex items-center gap-3 group"
-          >
-            <div className="p-2.5 bg-emerald-100 text-[#0a4d2e] rounded-xl group-hover:scale-105 transition-transform">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Section A</span>
-              <span className="text-xs font-bold text-slate-900 group-hover:text-[#0a4d2e]">Application PDF</span>
-            </div>
-          </a>
-
-          <a
-            href="#section-bursar-slip"
-            className="p-4 bg-white hover:bg-emerald-50/60 rounded-2xl border border-slate-200 shadow-xs transition-all flex items-center gap-3 group"
-          >
-            <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl group-hover:scale-105 transition-transform">
-              <Printer className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Section B</span>
-              <span className="text-xs font-bold text-slate-900 group-hover:text-[#0a4d2e]">Bursar Clearance Slip</span>
-            </div>
-          </a>
-
-          <a
-            href="#section-cbt-test"
-            className="p-4 bg-white hover:bg-emerald-50/60 rounded-2xl border border-slate-200 shadow-xs transition-all flex items-center gap-3 group"
-          >
-            <div className="p-2.5 bg-emerald-100 text-[#0a4d2e] rounded-xl group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Section C</span>
-              <span className="text-xs font-bold text-slate-900 group-hover:text-[#0a4d2e]">CBT Attitude Test</span>
-            </div>
-          </a>
-
-          <a
-            href="#section-screening-scores"
-            className="p-4 bg-white hover:bg-emerald-50/60 rounded-2xl border border-slate-200 shadow-xs transition-all flex items-center gap-3 group"
-          >
-            <div className="p-2.5 bg-purple-100 text-purple-800 rounded-xl group-hover:scale-105 transition-transform">
-              <Award className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[10px] text-slate-500 font-bold uppercase block">Section D</span>
-              <span className="text-xs font-bold text-slate-900 group-hover:text-[#0a4d2e]">Screening &amp; Interview</span>
-            </div>
-          </a>
+        {/* QUICK RETURN BOX */}
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row gap-3 items-center shadow-sm">
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <input value={inputAppNo} onChange={(e) => setInputAppNo(e.target.value)} placeholder="Enter another Application No to switch dashboard" className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs" onKeyDown={(e) => e.key === 'Enter' && loadApplicant(inputAppNo)} />
+          </div>
+          <button onClick={() => loadApplicant(inputAppNo)} className="px-5 py-2.5 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold uppercase w-full sm:w-auto">Open Dashboard</button>
+          <button onClick={handleDownloadApplicationPDF} className="px-5 py-2.5 bg-amber-500 text-slate-950 rounded-xl text-xs font-black uppercase flex items-center gap-2 w-full sm:w-auto justify-center"><Download className="w-4 h-4" />Download Application PDF</button>
         </div>
 
-        {/* ======================================================== */}
-        {/* ADMISSION STATUS & ACCEPTANCE FEE NOTIFICATION BANNER    */}
-        {/* ======================================================== */}
+        {/* ADMITTED BANNER */}
         {applicant.status === 'ADMITTED' && (
-          <div className="bg-gradient-to-r from-emerald-950 via-[#0a4d2e] to-emerald-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-[#ca8a04] no-print">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#ca8a04] text-slate-950 font-black text-xs rounded-full uppercase tracking-wider shadow-sm">
-                  <Award className="w-4 h-4 text-emerald-950" />
-                  <span>ADMITTED &bull; PROVISIONAL OFFER OF ADMISSION</span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black font-serif-crest text-amber-300 uppercase tracking-tight">
-                  Congratulations! Admission Granted
-                </h2>
-                <p className="text-xs sm:text-sm text-emerald-100 max-w-2xl leading-relaxed">
-                  Candidate <strong>{applicant.fullName}</strong> (<code>{applicant.formNo}</code>) has been formally admitted into the <strong>{applicant.courseChoice1 || applicant.program}</strong> program at Labe College of Nursing Sciences, Gboko for the {COLLEGE_CONFIG.CURRENT_SESSION} Academic Session.
-                </p>
-                <div className="flex items-center gap-3 pt-1 text-xs text-amber-200">
-                  <span className="font-semibold">&bull; Acceptance Fee: ₦50,000</span>
-                  <span>&bull; Status: Official Offer Confirmed</span>
-                </div>
+          <div className="bg-gradient-to-r from-emerald-950 via-[#0a4d2e] to-emerald-900 text-white rounded-3xl p-6 shadow-xl border-2 border-amber-400">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <span className="px-3 py-1 bg-amber-400 text-slate-950 font-black text-xs rounded-full uppercase">ADMITTED - Congratulations!</span>
+                <h2 className="text-xl font-black uppercase mt-2 text-amber-300">Congratulations you have been offered admission into Labe College of Nursing Sciences Gboko</h2>
+                <p className="text-xs text-emerald-100 mt-1 max-w-2xl">Candidate <strong>{applicant.fullName}</strong> ({applicant.formNo}) - {applicant.courseChoice1 || applicant.program}. Proceed to CBT Center and print your admission letter and return to school for registrations.</p>
               </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setShowAcceptanceFeeModal(true)}
-                  className="px-6 py-3.5 bg-[#ca8a04] hover:bg-[#eab308] text-slate-950 font-black text-xs uppercase tracking-wider rounded-2xl shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-2"
-                >
-                  <CreditCard className="w-4 h-4" />
-                  <span>Proceed to Pay Acceptance Fee</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
+              <button onClick={() => setShowAcceptanceFeeModal(true)} className="px-6 py-3 bg-amber-400 text-slate-950 font-black text-xs uppercase rounded-xl flex items-center gap-2"><CreditCard className="w-4 h-4" />Pay Acceptance & Print Letter <ArrowRight className="w-4 h-4" /></button>
             </div>
           </div>
         )}
 
         {applicant.status === 'ADMISSION_IN_PROGRESS' && (
-          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 text-emerald-950 shadow-sm no-print">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-emerald-200 text-emerald-900 rounded-2xl">
-                <Clock className="w-6 h-6" />
-              </div>
-              <div className="space-y-1">
-                <div className="inline-block px-3 py-0.5 bg-emerald-200 text-emerald-900 text-[10px] font-black uppercase rounded-full tracking-wider">
-                  Status: ADMISSION_IN_PROGRESS
-                </div>
-                <h3 className="text-base font-black uppercase font-serif-crest text-emerald-950">
-                  Application Under Central Admissions Board Review
-                </h3>
-                <p className="text-xs text-emerald-900 leading-relaxed">
-                  Your credentials and CBT examination performance are currently before the Registrar and Provost's committee. Final admission decisions will be published here shortly.
-                </p>
-              </div>
-            </div>
-          </div>
+          <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-5 flex gap-3"><Clock className="w-6 h-6 text-emerald-700 shrink-0" /><div><h4 className="font-black uppercase text-emerald-950 text-sm">Admission In Progress - Under Registrar & Provost Review</h4><p className="text-xs text-emerald-900">Your file is with Registrar / Admission Officer. Final status will change to ADMITTED once approved.</p></div></div>
         )}
 
-        {applicant.status === 'NOT ADMITTED' && (
-          <div className="bg-red-50 border-2 border-red-300 rounded-3xl p-6 text-red-950 shadow-sm no-print">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-red-200 text-red-900 rounded-2xl">
-                <AlertCircle className="w-6 h-6" />
+        {/* MAIN GRID */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* LEFT - Application Form + Passport */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* SECTION A - APPLICATION FORM PREVIEW WITH PASSPORT */}
+            <section ref={printRef} className="bg-white rounded-3xl p-6 shadow-md border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-black uppercase text-sm flex items-center gap-2"><FileText className="w-5 h-5 text-emerald-800" />Application Form & Passport</h3>
+                <button onClick={handleDownloadApplicationPDF} className="px-3 py-1.5 bg-[#0a4d2e] text-white rounded-lg text-xs font-bold flex items-center gap-1"><Printer className="w-4 h-4" />Download PDF</button>
               </div>
-              <div className="space-y-1">
-                <div className="inline-block px-3 py-0.5 bg-red-200 text-red-900 text-[10px] font-black uppercase rounded-full tracking-wider">
-                  Status: NOT ADMITTED
+
+              <div className="text-center border-b-2 border-double border-emerald-950 pb-3">
+                <h4 className="font-black uppercase text-[#0a4d2e] text-base">Labe College of Nursing Sciences, Gboko</h4>
+                <p className="text-[11px] font-black uppercase tracking-widest text-amber-700">Catholic Diocese of Gboko</p>
+                <p className="text-[10px] text-slate-500">P.M.B. 104, Gboko, Benue State • 2026/2027 Session • Official Applicant Copy</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 grid grid-cols-2 gap-3 text-xs">
+                  <div className="p-2.5 bg-slate-50 border rounded-xl"><span className="text-[10px] text-slate-500 font-bold uppercase block">Form No</span><strong className="font-mono text-[#0a4d2e]">{applicant.formNo}</strong></div>
+                  <div className="p-2.5 bg-slate-50 border rounded-xl"><span className="text-[10px] text-slate-500 font-bold uppercase block">JAMB / Score</span><strong>{applicant.jambRegNo} / {applicant.jambScore}</strong></div>
+                  <div className="p-2.5 bg-slate-50 border rounded-xl"><span className="text-[10px] text-slate-500 font-bold uppercase block">Full Name</span><strong className="uppercase">{applicant.fullName}</strong></div>
+                  <div className="p-2.5 bg-slate-50 border rounded-xl"><span className="text-[10px] text-slate-500 font-bold uppercase block">Programme</span><strong>{applicant.program}</strong></div>
+                  <div className="p-2.5 bg-slate-50 border rounded-xl"><span className="text-[10px] text-slate-500 font-bold uppercase block">State / LGA</span><span>{applicant.stateOfOrigin} / {applicant.lga}</span></div>
+                  <div className="p-2.5 bg-slate-50 border rounded-xl"><span className="text-[10px] text-slate-500 font-bold uppercase block">Exam Number</span><strong className="font-mono text-amber-700">{examNumber || 'AWAITING BURSAR'}</strong></div>
                 </div>
-                <h3 className="text-base font-black uppercase font-serif-crest text-red-950">
-                  Admission Notification
-                </h3>
-                <p className="text-xs text-red-900 leading-relaxed">
-                  We regret to inform you that admission was not granted for the {COLLEGE_CONFIG.CURRENT_SESSION} academic session. We wish you success in your future academic pursuits.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* SECTION A: DOWNLOAD APPLICATION PDF                      */}
-        {/* ======================================================== */}
-        <section id="section-application-pdf" className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-emerald-100 text-[#0a4d2e] rounded-xl font-bold">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-800">
-                  Section A &bull; Admissions Registration
-                </span>
-                <h2 className="text-xl font-black text-slate-900 uppercase font-serif-crest">
-                  Download Application PDF
-                </h2>
-              </div>
-            </div>
-
-            {isBursarCleared ? (
-              <a
-                href={`/applicant/printout?app_no=${encodeURIComponent(applicant.formNo)}`}
-                className="px-4 py-2 bg-[#0a4d2e] hover:bg-[#073822] text-white rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-2 self-start sm:self-auto"
-              >
-                <Download className="w-4 h-4 text-emerald-300" />
-                <span>Download / Print Application PDF</span>
-              </a>
-            ) : (
-              <button
-                disabled
-                className="px-4 py-2 bg-slate-200 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed flex items-center gap-2 self-start sm:self-auto"
-              >
-                <Printer className="w-4 h-4" />
-                <span>Locked &bull; Awaiting Bursar Clearance</span>
-              </button>
-            )}
-          </div>
-
-          {!isBursarCleared ? (
-            /* LOCKED NOTIFICATION: Applicant CANNOT download application printout if not cleared */
-            <div className="p-8 text-center bg-amber-50 rounded-2xl border-2 border-amber-300 space-y-4">
-              <Clock className="w-12 h-12 text-amber-600 mx-auto" />
-              <div className="space-y-1">
-                <div className="inline-block px-3 py-1 bg-amber-200 text-amber-950 text-[10px] font-black uppercase rounded-full tracking-wider">
-                  Status: PENDING_BURSAR
-                </div>
-                <h3 className="text-lg font-black uppercase text-amber-950 font-serif-crest">
-                  Awaiting Bursar Clearance
-                </h3>
-                <p className="text-xs text-amber-900 max-w-lg mx-auto leading-relaxed">
-                  Candidate <strong>{applicant.fullName}</strong> cannot download or print the official registration slip yet because the <strong>₦15,000 Screening Fee</strong> payment receipt has not been cleared by the College Bursar.
-                </p>
-              </div>
-              <div className="p-3 bg-white rounded-xl border border-amber-200 text-xs text-slate-700 max-w-md mx-auto">
-                Once the College Bursar audits your uploaded payment proof and clicks <strong>CLEAR</strong>, your official stamped application slip and CBT exam number will immediately become available for print at <code>/applicant/printout</code>.
-              </div>
-            </div>
-          ) : (
-            /* Printable Official Application Form Body */
-            <div className="p-6 border-2 border-slate-300 rounded-2xl bg-slate-50/40 space-y-6 text-xs text-slate-800">
-              {/* Header / Letterhead */}
-              <div className="text-center pb-4 border-b-2 border-emerald-950 flex flex-col items-center justify-center">
-                <CollegeLogo size="sm" />
-                <h3 className="text-base sm:text-lg font-black text-emerald-950 uppercase font-serif-crest tracking-tight mt-1">
-                  Labe College of Nursing Sciences, Gboko
-                </h3>
-              <p className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider">
-                Official Undergraduate Application &amp; Registration Summary
-              </p>
-              <p className="text-[10px] text-slate-500">
-                P.M.B. 104, Gboko, Benue State &bull; Academic Session: {COLLEGE_CONFIG.CURRENT_SESSION}
-              </p>
-            </div>
-
-            {/* Candidate Summary Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-              <div className="md:col-span-2 space-y-3">
-                <div className="grid grid-cols-2 gap-3 p-3 bg-white rounded-xl border border-slate-200">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Application Form No</span>
-                    <span className="font-mono font-black text-sm text-[#0a4d2e]">{applicant.formNo}</span>
+                <div className="flex flex-col items-center gap-2 p-3 bg-white border rounded-xl">
+                  <div className="w-28 h-32 bg-slate-100 rounded-xl border-2 border-emerald-800 overflow-hidden flex items-center justify-center">
+                    {applicant.passportPhotoUrl || (applicant as any).passport ? <img src={applicant.passportPhotoUrl || (applicant as any).passport} alt="Passport" className="w-full h-full object-cover" /> : <User className="w-12 h-12 text-slate-300" />}
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">JAMB Registration No</span>
-                    <span className="font-mono font-bold text-sm text-slate-900">{applicant.jambRegNo} ({applicant.jambScore} Pts)</span>
+                  <span className="text-[10px] font-bold uppercase text-slate-500">Passport Attached</span>
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">{isBursarCleared ? 'BURSAR CLEARED' : 'PENDING CLEARANCE'}</span>
+                </div>
+              </div>
+            </section>
+
+            {/* SECTION B - SCREENING FEE UPLOAD */}
+            <section className="bg-white rounded-3xl p-6 shadow-md border border-slate-200 space-y-4">
+              <h3 className="font-black uppercase text-sm flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-amber-600" />Screening Fee - Upload Payment Proof (Dashboard)</h3>
+              {!isBursarCleared ? (
+                <div className="space-y-3">
+                  <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl text-xs text-amber-900">
+                    <strong>Pay ₦15,000 Screening & CBT Fee</strong> to: Zenith Bank PLC - 1018894231 - Labe College of Nursing Sciences Gboko. Upload clear snap of teller / transfer proof here. Bursar will clear and generate your Exam Number.
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Full Name</span>
-                    <span className="font-bold text-slate-900 uppercase">{applicant.fullName}</span>
+                  <div className="flex flex-col sm:flex-row gap-3 items-center">
+                    <label className="flex-1 w-full cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={handleUploadScreeningFee} />
+                      <div className="w-full py-3 px-4 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2 hover:bg-[#073822]"><Upload className="w-4 h-4" />{uploadingFee ? 'Uploading...' : 'Upload Screening Fee Snap (Clear Photo)'}</div>
+                    </label>
+                    {feeSnap && <span className="text-xs font-bold text-emerald-700 flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />Uploaded - Awaiting Bursar</span>}
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Gender &amp; DOB</span>
-                    <span className="text-slate-800">{applicant.gender} &bull; {applicant.dob}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">State &amp; LGA of Origin</span>
-                    <span className="text-slate-800">{applicant.stateOfOrigin} State &bull; {applicant.lga}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Programme Applied</span>
-                    <span className="font-bold text-emerald-900">{applicant.program}</span>
-                  </div>
-                </div>
-
-                {/* O-Level Results */}
-                <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                  <span className="text-[10px] font-black uppercase text-slate-600 block">Submitted O-Level Credentials:</span>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-[11px]">
-                    <div className="p-1.5 bg-slate-50 rounded border border-slate-200">
-                      <span className="block font-semibold text-slate-500 text-[10px]">English</span>
-                      <strong className="text-emerald-800 font-mono">B3 (Credit)</strong>
-                    </div>
-                    <div className="p-1.5 bg-slate-50 rounded border border-slate-200">
-                      <span className="block font-semibold text-slate-500 text-[10px]">Mathematics</span>
-                      <strong className="text-emerald-800 font-mono">C4 (Credit)</strong>
-                    </div>
-                    <div className="p-1.5 bg-slate-50 rounded border border-slate-200">
-                      <span className="block font-semibold text-slate-500 text-[10px]">Biology</span>
-                      <strong className="text-emerald-800 font-mono">A1 (Distinction)</strong>
-                    </div>
-                    <div className="p-1.5 bg-slate-50 rounded border border-slate-200">
-                      <span className="block font-semibold text-slate-500 text-[10px]">Chemistry</span>
-                      <strong className="text-emerald-800 font-mono">B2 (Credit)</strong>
-                    </div>
-                    <div className="p-1.5 bg-slate-50 rounded border border-slate-200">
-                      <span className="block font-semibold text-slate-500 text-[10px]">Physics</span>
-                      <strong className="text-emerald-800 font-mono">C5 (Credit)</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Passport & QR / Stamp */}
-              <div className="flex flex-col items-center justify-center p-4 bg-white rounded-xl border border-slate-200 text-center space-y-3">
-                <div className="w-32 h-36 bg-slate-100 rounded-xl border-2 border-emerald-900 overflow-hidden shadow-inner flex items-center justify-center">
-                  {applicant.passportPhotoUrl ? (
-                    <img src={applicant.passportPhotoUrl} alt={applicant.fullName} className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-16 h-16 text-slate-300" />
-                  )}
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono">
-                  Application Registered: {applicant.createdAt || '2026-02-10'}
-                </div>
-                <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px]">
-                  Verified Application
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-        {/* ======================================================== */}
-        {/* SECTION B: PRINT BURSAR CLEARANCE SLIP                   */}
-        {/* ======================================================== */}
-        <section id="section-bursar-slip" className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl font-bold">
-                <Printer className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-800">
-                  Section B &bull; College Bursary
-                </span>
-                <h2 className="text-xl font-black text-slate-900 uppercase font-serif-crest">
-                  Print Bursar Clearance Slip
-                </h2>
-              </div>
-            </div>
-
-            <button
-              onClick={handlePrint}
-              disabled={!isBursarCleared}
-              className={`px-4 py-2 rounded-xl text-xs font-bold shadow-xs transition-all flex items-center gap-2 self-start sm:self-auto ${
-                isBursarCleared
-                  ? 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-black'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print Bursar Clearance Slip</span>
-            </button>
-          </div>
-
-          {/* Clearance Status Display */}
-          {isBursarCleared ? (
-            <div className="p-6 border-2 border-emerald-500 rounded-2xl bg-emerald-50/50 space-y-6 text-xs text-slate-800">
-              <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-emerald-200">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <span className="font-black text-sm uppercase text-emerald-950">
-                    Official Bursary Audit &amp; Screening Clearance Slip
-                  </span>
-                </div>
-                <span className="px-3 py-1 bg-emerald-600 text-white font-mono font-bold rounded-full text-xs">
-                  STATUS: CLEARED
-                </span>
-              </div>
-
-              {/* Clearance Detail Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-3 bg-white rounded-xl border border-emerald-300">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Candidate Exam Number</span>
-                  <span className="font-mono font-black text-base text-[#0a4d2e]">{examNumber}</span>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-emerald-300">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Clearance Date</span>
-                  <span className="font-bold text-slate-800">
-                    {applicant.bursarClearedDate || applicant.bursar_clearance_date?.substring(0, 10) || new Date().toISOString().split('T')[0]}
-                  </span>
-                </div>
-                <div className="p-3 bg-white rounded-xl border border-emerald-300">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Audited Amount</span>
-                  <span className="font-mono font-bold text-slate-800">₦15,000 (Screening &amp; CBT Fee)</span>
-                </div>
-              </div>
-
-              {/* Clearance Statement & Signatures */}
-              <div className="p-4 bg-white rounded-xl border border-emerald-200 text-slate-700 leading-relaxed text-xs">
-                This certifies that <strong>{applicant.fullName}</strong> (Application No: <code>{applicant.formNo}</code>) has fulfilled all institutional financial obligations for the 2026/2027 screening exercise. The candidate is hereby authorized to sit for the CBT Attitude Test using the assigned Examination Number: <strong>{examNumber}</strong>.
-              </div>
-
-              <div className="pt-2 flex justify-between items-end">
-                <div>
-                  <div className="w-40 border-b-2 border-slate-900 pb-1 font-serif-crest font-bold text-slate-900">
-                    Dr. Isaac M. Agber
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">College Bursar</span>
-                  <span className="text-[9px] text-slate-400">Finance &amp; Accounts Division</span>
-                </div>
-                <div className="w-20 h-20 border-2 border-emerald-800 rounded-full flex flex-col items-center justify-center text-[8px] font-black text-emerald-900 uppercase text-center p-1">
-                  <span>BURSARY</span>
-                  <span>LCNS GBOKO</span>
-                  <span>CLEARED</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="p-6 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3">
-              <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
-                <Clock className="w-5 h-5 text-amber-700" />
-                <span className="uppercase tracking-wide font-black">Awaiting Bursar Clearance - Pay Screening Fee</span>
-              </div>
-              <p className="text-xs text-amber-900 leading-relaxed">
-                Your clearance slip cannot be printed because your ₦15,000 screening fee payment has not yet been audited and approved by the Bursary.
-              </p>
-              <div className="p-3 bg-white rounded-xl border border-amber-200 text-xs text-slate-700">
-                Please ensure you have uploaded your bank deposit teller or Remita payment receipt on the portal, or visit the Bursary department at the College Administrative Block.
-              </div>
-            </div>
-          )}
-        </section>
-
-        {/* ======================================================== */}
-        {/* SECTION C: CBT ATTITUDE TEST                             */}
-        {/* ======================================================== */}
-        <section id="section-cbt-test" className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-emerald-100 text-[#0a4d2e] rounded-xl font-bold">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#0a4d2e]">
-                  Section C &bull; Computer Based Test
-                </span>
-                <h2 className="text-xl font-black text-slate-900 uppercase font-serif-crest">
-                  CBT Attitude Test
-                </h2>
-              </div>
-            </div>
-
-            {activeTest && (
-              <span className="px-3 py-1 bg-emerald-100 text-emerald-900 font-bold text-xs rounded-full uppercase tracking-wider self-start sm:self-auto">
-                {activeTest.title} &bull; {activeTest.duration_minutes} Mins
-              </span>
-            )}
-          </div>
-
-          {/* Test Status Box */}
-          <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-[#0a4d2e] text-white space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest block">
-                  Active Examination
-                </span>
-                <h3 className="text-xl font-black uppercase tracking-wide mt-0.5">
-                  {activeTest?.title || 'Attitude Test'}
-                </h3>
-                <p className="text-xs text-slate-300 mt-1">
-                  Duration: {activeTest?.duration_minutes || 30} Minutes &bull; Timed Computer-Based Aptitude &amp; Attitude Screening
-                </p>
-              </div>
-
-              {/* Status pill */}
-              <div>
-                {candidateResult ? (
-                  <span className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-400 text-emerald-300 font-bold rounded-xl text-xs uppercase flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Test Completed</span>
-                  </span>
-                ) : isBursarCleared ? (
-                  <span className="px-3 py-1.5 bg-amber-500/20 border border-amber-400 text-amber-300 font-bold rounded-xl text-xs uppercase flex items-center gap-1.5">
-                    <Clock className="w-4 h-4 text-amber-400" />
-                    <span>Eligible to Sit</span>
-                  </span>
-                ) : (
-                  <span className="px-3 py-1.5 bg-red-500/20 border border-red-400 text-red-300 font-bold rounded-xl text-xs uppercase flex items-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 text-red-400" />
-                    <span>Awaiting Bursar Clearance</span>
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* If test was completed, show score if published */}
-            {candidateResult ? (
-              <div className="p-4 bg-white/10 rounded-2xl border border-white/20 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-xs font-bold text-slate-200 uppercase tracking-wide">
-                    CBT Result Status:
-                  </span>
-                  {candidateResult.is_published ? (
-                    <span className="px-2.5 py-0.5 bg-emerald-500 text-slate-950 font-black text-xs rounded-full uppercase">
-                      Official Result Published
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 bg-amber-400 text-slate-950 font-bold text-xs rounded-full uppercase">
-                      Under Senate Ratification (Pending Publication)
-                    </span>
-                  )}
-                </div>
-
-                {candidateResult.is_published ? (
-                  <div className="flex items-baseline gap-4 pt-1">
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Candidate Score</span>
-                      <span className="text-3xl font-black font-mono text-amber-400">
-                        {candidateResult.score} / {candidateResult.total}
-                      </span>
-                    </div>
-                    <div className="text-xs text-emerald-300 font-bold">
-                      Percentage: {Math.round((candidateResult.score / candidateResult.total) * 100)}%
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    You have successfully submitted your CBT Attitude Test on{' '}
-                    <strong>{candidateResult.submitted_at?.substring(0, 16) || 'recently'}</strong>. Official scores will be displayed once published by the Registrar and Provost.
-                  </p>
-                )}
-              </div>
-            ) : isBursarCleared ? (
-              <div className="pt-2">
-                <a
-                  href={`/applicant/cbt/${activeTest?.id || 'test-attitude-01'}?app_no=${encodeURIComponent(applicant.formNo)}`}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Start CBT Attitude Test Now</span>
-                  <ArrowRight className="w-4 h-4" />
-                </a>
-              </div>
-            ) : (
-              <p className="text-xs text-amber-200">
-                You must obtain Bursar clearance before taking the CBT Attitude Test.
-              </p>
-            )}
-          </div>
-        </section>
-
-        {/* ======================================================== */}
-        {/* SECTION D: SCREENING & INTERVIEW SCORES                  */}
-        {/* ======================================================== */}
-        <section id="section-screening-scores" className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-slate-200 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-purple-100 text-purple-800 rounded-xl font-bold">
-                <Award className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-purple-800">
-                  Section D &bull; Academic Board Ratification
-                </span>
-                <h2 className="text-xl font-black text-slate-900 uppercase font-serif-crest">
-                  Screening &amp; Interview Scores
-                </h2>
-              </div>
-            </div>
-
-            {candidateScreening && candidateScreening.is_published && (
-              <span className="px-3 py-1 bg-purple-100 text-purple-900 font-bold text-xs rounded-full uppercase tracking-wider self-start sm:self-auto">
-                Official Scores Released
-              </span>
-            )}
-          </div>
-
-          {candidateScreening ? (
-            <div className="space-y-4">
-              {candidateScreening.is_published ? (
-                <div className="p-6 bg-purple-50/70 border-2 border-purple-300 rounded-2xl space-y-5">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-xs font-bold uppercase text-purple-900">
-                      Overall Assessment Composite Score
-                    </span>
-                    <span className="px-3 py-1 bg-purple-700 text-white font-mono font-bold text-xs rounded-full">
-                      TOTAL: {candidateScreening.total_score}%
-                    </span>
-                  </div>
-
-                  {/* 3 Metric Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="p-4 bg-white rounded-xl border border-purple-200 shadow-xs">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Screening Score</span>
-                      <span className="text-2xl font-black font-mono text-[#0a4d2e]">
-                        {candidateScreening.screening_score}%
-                      </span>
-                    </div>
-                    <div className="p-4 bg-white rounded-xl border border-purple-200 shadow-xs">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Interview Score</span>
-                      <span className="text-2xl font-black font-mono text-purple-700">
-                        {candidateScreening.interview_score}%
-                      </span>
-                    </div>
-                    <div className="p-4 bg-white rounded-xl border border-purple-200 shadow-xs">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase block">Composite Total</span>
-                      <span className="text-2xl font-black font-mono text-amber-600">
-                        {candidateScreening.total_score}%
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Remarks */}
-                  {candidateScreening.remarks && (
-                    <div className="p-3.5 bg-white rounded-xl border border-purple-200 text-xs text-slate-700">
-                      <span className="font-bold text-slate-900 block mb-0.5">Faculty Board Remarks:</span>
-                      <p>{candidateScreening.remarks}</p>
-                    </div>
-                  )}
+                  {feeSnap && <div className="mt-3 p-2 border rounded-xl bg-slate-50"><img src={feeSnap} alt="Fee Proof" className="max-h-64 rounded-lg mx-auto" /><p className="text-[11px] text-center text-slate-500 mt-1">Screening Fee Proof - Submitted for Bursar Clearance</p></div>}
                 </div>
               ) : (
-                <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
-                  <div className="flex items-center gap-2 text-[#0a4d2e] font-bold text-sm">
-                    <Clock className="w-5 h-5 text-[#16a34a]" />
-                    <span>Screening Assessment Completed &bull; Scores Pending Publication</span>
-                  </div>
-                  <p className="text-xs text-[#0a4d2e] leading-relaxed">
-                    Your physical screening and interview exercise records have been received and are currently undergoing Senate collation and verification. Scores will appear here once officially published.
-                  </p>
+                <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl flex items-center gap-3"><CheckCircle2 className="w-6 h-6 text-emerald-600" /><div><h4 className="font-black uppercase text-emerald-950 text-sm">Bursar Cleared - Exam Number Assigned</h4><p className="text-xs text-emerald-900">Fee cleared on {applicant.bursarClearedDate || new Date().toISOString().split('T')[0]}. Exam No: <strong className="font-mono">{examNumber}</strong>. You can now take CBT and print clearance slip.</p></div></div>
+              )}
+            </section>
+
+            {/* SECTION C - CBT TESTS SET BY ADMIN / REGISTRAR / PROVOST */}
+            <section className="bg-white rounded-3xl p-6 shadow-md border border-slate-200 space-y-4">
+              <h3 className="font-black uppercase text-sm flex items-center gap-2"><Sparkles className="w-5 h-5 text-emerald-800" />CBT Tests Set by Admin / Registrar / Provost - Take Test Here</h3>
+              {publishedCBTTests.length === 0 ? (
+                <p className="text-xs text-slate-500 p-4 bg-slate-50 rounded-xl border">No CBT test published yet. Check back - Tests are set by Admin, Registrar, Provost.</p>
+              ) : (
+                <div className="space-y-3">
+                  {publishedCBTTests.map((test) => {
+                    const resultForTest = cbtResults.find(r => r.test_id === test.id && r.application_number?.toLowerCase() === applicant.formNo.toLowerCase());
+                    return (
+                      <div key={test.id} className="p-4 border-2 border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-emerald-300 transition">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{test.is_active ? 'ACTIVE' : 'PUBLISHED'} • {test.duration_minutes} mins • Set by {test.created_by || 'Admin'}</span>
+                          <h4 className="font-black uppercase text-sm mt-1">{test.title}</h4>
+                          <p className="text-xs text-slate-600">{test.description || 'Attitude & Clinical Aptitude Screening - Labe College of Nursing Sciences'}</p>
+                        </div>
+                        {resultForTest ? (
+                          <span className="px-3 py-1.5 bg-emerald-100 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />Done: {resultForTest.score}/{resultForTest.total}</span>
+                        ) : isBursarCleared ? (
+                          <a href={`/applicant/cbt/${test.id}?app_no=${encodeURIComponent(applicant.formNo)}`} className="px-5 py-2.5 bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase flex items-center gap-2">Take Test <ArrowRight className="w-4 h-4" /></a>
+                        ) : (
+                          <span className="px-3 py-1.5 bg-slate-100 text-slate-400 rounded-xl text-xs font-bold">Locked - Need Bursar Clearance</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2">
-              <Clock className="w-8 h-8 text-slate-400 mx-auto" />
-              <h4 className="text-sm font-bold text-slate-700">Screening &amp; Interview Scheduled</h4>
-              <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Candidate <strong>{applicant.fullName}</strong> is slated for the physical screening &amp; oral interview at the College Conference Hall. Results will be uploaded here upon faculty completion.
-              </p>
-            </div>
-          )}
-        </section>
+            </section>
+          </div>
+
+          {/* RIGHT - Scores */}
+          <div className="space-y-6">
+            {/* SCORES PUBLISHED BY PROVOST */}
+            <section className="bg-white rounded-3xl p-6 shadow-md border border-slate-200 space-y-4">
+              <h3 className="font-black uppercase text-sm flex items-center gap-2"><Award className="w-5 h-5 text-purple-700" />Scores Published by Provost / Registrar</h3>
+              
+              {/* CBT Score */}
+              <div className="p-3 border rounded-xl bg-slate-50">
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">CBT Score</span>
+                {candidateResult ? (
+                  candidateResult.is_published ? <span className="text-lg font-black font-mono text-emerald-800">{candidateResult.score}/{candidateResult.total} ({Math.round(candidateResult.score / candidateResult.total * 100)}%)</span> : <span className="text-xs font-bold text-amber-700">Submitted - Pending Publication by Provost</span>
+                ) : <span className="text-xs text-slate-400">Not taken yet</span>}
+              </div>
+
+              {/* Screening & Interview Scores from Provost */}
+              <div className="p-3 border rounded-xl bg-purple-50/70">
+                <span className="text-[10px] font-bold uppercase text-purple-700 block">Screening & Interview Scores (Provost)</span>
+                {candidateScreening ? (
+                  candidateScreening.is_published ? (
+                    <div className="mt-2 space-y-1 text-xs">
+                      <div className="flex justify-between"><span>Screening:</span><strong>{candidateScreening.screening_score}%</strong></div>
+                      <div className="flex justify-between"><span>Interview:</span><strong>{candidateScreening.interview_score}%</strong></div>
+                      <div className="flex justify-between border-t pt-1 mt-1"><span>Total:</span><strong className="font-black text-purple-800">{candidateScreening.total_score}%</strong></div>
+                      {candidateScreening.remarks && <p className="text-[11px] text-slate-600 mt-1">Remark: {candidateScreening.remarks}</p>}
+                    </div>
+                  ) : <span className="text-xs font-bold text-amber-700">Screened - Scores pending publication by Provost</span>
+                ) : <span className="text-xs text-slate-400">No screening record yet</span>}
+              </div>
+
+              {/* Registrar Screening Status */}
+              <div className="p-3 border rounded-xl bg-white">
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">Registrar Screening Status</span>
+                {applicant.status === 'ADMISSION_IN_PROGRESS' && <span className="text-xs font-black text-amber-700 uppercase">SCREENED - Under Admission Board Review</span>}
+                {applicant.status === 'ADMITTED' && <span className="text-xs font-black text-emerald-700 uppercase flex items-center gap-1"><CheckCircle2 className="w-4 h-4" />SCREENED & ADMITTED</span>}
+                {applicant.status === 'BURSAR_CLEARED' && <span className="text-xs font-bold text-slate-600">BURSAR CLEARED - Awaiting Registrar Screening</span>}
+                {applicant.status === 'NOT ADMITTED' && <span className="text-xs font-bold text-red-700">NOT ADMITTED</span>}
+              </div>
+
+              {/* Admission Letter */}
+              {applicant.status === 'ADMITTED' && (
+                <div className="p-4 bg-gradient-to-br from-emerald-950 to-[#0a4d2e] text-white rounded-2xl space-y-2">
+                  <h4 className="font-black uppercase text-amber-300 text-xs">Admission Letter Ready</h4>
+                  <p className="text-[11px] text-emerald-100">Print your admission letter and return to school for registrations at ICT Unit with acceptance fee receipt.</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => window.open(`/applicant/admission-letter?app_no=${applicant.formNo}`, '_blank')} className="flex-1 py-2 bg-amber-400 text-slate-950 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-1"><Download className="w-4 h-4" />Print Admission Letter</button>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            {/* PRINT / DOWNLOAD */}
+            <section className="bg-white rounded-3xl p-6 shadow-md border border-slate-200 space-y-3">
+              <h3 className="font-black uppercase text-xs">Quick Actions</h3>
+              <button onClick={handleDownloadApplicationPDF} className="w-full py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2"><Printer className="w-4 h-4" />Download Application PDF with Passport</button>
+              <button onClick={() => window.print()} className="w-full py-3 bg-white border-2 border-slate-300 text-slate-800 rounded-xl text-xs font-bold uppercase">Print Clearance Slip</button>
+            </section>
+          </div>
+        </div>
       </div>
 
-      {/* ACCEPTANCE FEE PAYMENT MODAL */}
+      {/* Acceptance Fee Modal */}
       {showAcceptanceFeeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm no-print">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200">
-            <div className="bg-gradient-to-r from-emerald-950 via-[#0a4d2e] to-emerald-900 text-white p-6 flex items-center justify-between border-b border-emerald-800">
-              <div className="flex items-center gap-3">
-                <CollegeLogo size="sm" />
-                <div>
-                  <h3 className="font-black uppercase font-serif-crest text-sm tracking-wide">
-                    Admission Acceptance Fee
-                  </h3>
-                  <p className="text-[11px] text-emerald-300">
-                    {applicant.fullName} &bull; {applicant.formNo}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAcceptanceFeeModal(false);
-                  setAcceptanceFeePaid(false);
-                }}
-                className="p-1.5 text-emerald-300 hover:text-white rounded-xl hover:bg-emerald-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border">
+            <div className="bg-gradient-to-r from-emerald-950 to-emerald-900 text-white p-6 flex justify-between">
+              <div><h3 className="font-black uppercase text-sm">Pay Acceptance Fee - ₦50,000</h3><p className="text-[11px] text-emerald-300">{applicant.fullName} • {applicant.formNo}</p></div>
+              <button onClick={() => { setShowAcceptanceFeeModal(false); setAcceptanceFeePaid(false); }} className="p-1.5 text-emerald-300 hover:text-white"><X className="w-5 h-5" /></button>
             </div>
-
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-4">
               {!acceptanceFeePaid ? (
                 <>
-                  <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2 text-xs text-slate-800">
-                    <div className="flex justify-between border-b border-emerald-100 pb-1.5">
-                      <span className="text-slate-600 font-bold">Admitted Programme:</span>
-                      <span className="font-bold text-[#0a4d2e]">{applicant.courseChoice1 || applicant.program}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-emerald-100 pb-1.5">
-                      <span className="text-slate-600 font-bold">Academic Session:</span>
-                      <span className="font-bold text-slate-900">{COLLEGE_CONFIG.CURRENT_SESSION}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-emerald-100 pb-1.5">
-                      <span className="text-slate-600 font-bold">Payment Description:</span>
-                      <span className="text-slate-800">Non-Refundable Acceptance &amp; Provisional Matriculation Fee</span>
-                    </div>
-                    <div className="flex justify-between items-baseline pt-1">
-                      <span className="text-slate-700 font-black uppercase text-xs">Total Amount Payable:</span>
-                      <span className="text-xl font-black text-[#0a4d2e] font-mono">₦50,000.00</span>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
-                    <strong>College Bank Account Details:</strong><br />
-                    Bank: <strong>Zenith Bank PLC</strong> &bull; Account Number: <strong>1228491024</strong><br />
-                    Account Name: <strong>Labe College of Nursing Sciences Gboko</strong>
-                  </div>
-
-                  <div className="space-y-2 pt-2">
-                    <button
-                      type="button"
-                      disabled={payingFee}
-                      onClick={handleProcessAcceptancePayment}
-                      className="w-full py-3.5 px-4 bg-[#0a4d2e] hover:bg-[#06321e] text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                    >
-                      {payingFee ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Processing Electronic Transaction...</span>
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="w-4 h-4 text-emerald-300" />
-                          <span>Pay ₦50,000 via Remita / Card / Bank</span>
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAcceptanceFeeModal(false)}
-                      className="w-full py-2.5 text-slate-500 hover:text-slate-800 text-xs font-bold"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  <div className="p-4 bg-emerald-50 border rounded-2xl text-xs space-y-1"><div className="flex justify-between"><span>Programme:</span><strong>{applicant.program}</strong></div><div className="flex justify-between"><span>Session:</span><strong>{COLLEGE_CONFIG.CURRENT_SESSION}</strong></div><div className="flex justify-between font-black text-base"><span>Total:</span><span className="font-mono text-[#0a4d2e]">₦50,000.00</span></div></div>
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-[11px]">Bank: Zenith Bank PLC • 1228491024 • Labe College of Nursing Sciences Gboko - Catholic Diocese of Gboko</div>
+                  <button disabled={payingFee} onClick={handleProcessAcceptancePayment} className="w-full py-3.5 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold uppercase flex items-center justify-center gap-2">{payingFee ? 'Processing...' : 'Pay ₦50,000 via Remita / Card'}</button>
                 </>
               ) : (
-                <div className="text-center space-y-4 py-2">
-                  <div className="w-16 h-16 bg-emerald-100 text-[#0a4d2e] rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-10 h-10" />
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-black uppercase font-serif-crest text-[#0a4d2e]">
-                      Acceptance Fee Paid Successfully!
-                    </h4>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Official College Electronic Receipt has been generated for candidate <strong>{applicant.fullName}</strong>.
-                    </p>
-                  </div>
-
-                  <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1.5 text-left">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-bold">Receipt Number:</span>
-                      <span className="font-mono font-bold text-[#0a4d2e]">{acceptanceReceiptNo}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-bold">Amount Paid:</span>
-                      <span className="font-mono font-bold text-slate-900">₦50,000.00</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-bold">Status:</span>
-                      <span className="font-bold text-emerald-800">CONFIRMED &amp; RECONCILED</span>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="flex-1 py-3 px-4 bg-[#0a4d2e] text-white font-bold text-xs rounded-xl shadow-md flex items-center justify-center gap-2"
-                    >
-                      <Printer className="w-4 h-4 text-emerald-300" />
-                      <span>Print Acceptance Receipt</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAcceptanceFeeModal(false);
-                        setAcceptanceFeePaid(false);
-                      }}
-                      className="py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
+                <div className="text-center space-y-3"><CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" /><h4 className="font-black uppercase text-[#0a4d2e]">Acceptance Fee Paid!</h4><p className="text-xs">Receipt: <strong className="font-mono">{acceptanceReceiptNo}</strong> - Print admission letter and return to school for registrations.</p><div className="flex gap-2"><button onClick={() => window.print()} className="flex-1 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold">Print Receipt</button><button onClick={() => { setShowAcceptanceFeeModal(false); setAcceptanceFeePaid(false); }} className="py-3 px-4 bg-slate-100 rounded-xl text-xs font-bold">Close</button></div></div>
               )}
             </div>
           </div>
@@ -1001,4 +490,3 @@ export const ApplicantDashboard: React.FC = () => {
     </div>
   );
 };
-
