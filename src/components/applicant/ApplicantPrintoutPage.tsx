@@ -29,6 +29,7 @@ export function ApplicantPrintoutPage() {
     ssce_exam: "WAEC",
     ssce_year: "2024",
     ssce_no: "WAEC/2024/1234567",
+    passport_url: "https://liqwfikatnkndbdbdarx.supabase.co/storage/v1/object/public/school-assets/passport-sample.jpg",
   };
 
   const handlePrint = () => {
@@ -60,14 +61,23 @@ export function ApplicantPrintoutPage() {
         <div style={{ display: "flex", justifyContent: "center" }}>
           <div id="print-area" style={{ width: "210mm", minHeight: "297mm", background: "white", border: "2px solid black", padding: "8mm", boxSizing: "border-box" }}>
             
-            <div style={{ textAlign: "center", borderBottom: "4px double #0a4d2e", paddingBottom: 12 }}>
-              <img src={LOGO_URL} alt="School Logo" style={{ width: 90, height: 90, objectFit: "contain", margin: "0 auto", display: "block" }} />
-              <h1 style={{ margin: "8px 0 0 0", color: "#0a4d2e", fontWeight: 900, fontSize: 17, textTransform: "uppercase" }}>Labe College of Nursing Sciences, Gboko</h1>
-              <p style={{ margin: "2px 0", fontSize: 11, fontWeight: 700 }}>Catholic Diocese of Gboko</p>
-              <p style={{ margin: 0, fontSize: 11 }}>2026/2027 Academic Session - Application Form</p>
-              <div style={{ marginTop: 6, fontSize: 11 }}>
-                <span style={{ background: "#0a4d2e", color: "white", padding: "3px 12px", borderRadius: 15, fontWeight: 900 }}>Form No: {data.form_no}</span>
-                <span style={{ marginLeft: 8, fontWeight: 700 }}>Exam No: {data.exam_no}</span>
+            {/* LOGO MIDDLE + PASSPORT RIGHT */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "4px double #0a4d2e", paddingBottom: 12 }}>
+              <div style={{ width: 90 }}></div>
+              <div style={{ textAlign: "center", flex: 1 }}>
+                <img src={LOGO_URL} alt="School Logo" style={{ width: 90, height: 90, objectFit: "contain", margin: "0 auto", display: "block" }} />
+                <h1 style={{ margin: "8px 0 0 0", color: "#0a4d2e", fontWeight: 900, fontSize: 15, textTransform: "uppercase" }}>Labe College of Nursing Sciences, Gboko</h1>
+                <p style={{ margin: "2px 0", fontSize: 11, fontWeight: 700 }}>Catholic Diocese of Gboko</p>
+                <p style={{ margin: 0, fontSize: 11 }}>2026/2027 Academic Session</p>
+                <div style={{ marginTop: 6, fontSize: 11 }}>
+                  <span style={{ background: "#0a4d2e", color: "white", padding: "3px 12px", borderRadius: 15, fontWeight: 900 }}>Form No: {data.form_no}</span>
+                </div>
+              </div>
+              <div style={{ width: 100, textAlign: "center" }}>
+                <img src={data.passport_url} alt="Passport" style={{ width: 95, height: 110, objectFit: "cover", border: "3px solid #0a4d2e", display: "block" }} onError={(e:any)=>{ e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }} />
+                <div style={{ width: 95, height: 110, border: "3px solid #0a4d2e", display: "none", alignItems: "center", justifyContent: "center", fontSize: 9, background: "#f1f5f9" }}>NO PASSPORT</div>
+                <div style={{ fontSize: 9, fontWeight: 700, marginTop: 3 }}>PASSPORT</div>
+                <div style={{ fontSize: 8, marginTop: 2 }}>Exam No:<br/><b>{data.exam_no}</b></div>
               </div>
             </div>
 
@@ -122,7 +132,7 @@ export function ApplicantPrintoutPage() {
             <div style={{ border: "2px solid black", padding: 10, background: "#f8fafc", marginTop: 10 }}>
               <p style={{ fontWeight: 900, textAlign: "center", margin: "0 0 6px 0", fontSize: 11, textTransform: "uppercase", color: "#0a4d2e" }}>Applicant Declaration</p>
               <p style={{ fontSize: 10, lineHeight: "14px", margin: 0, textAlign: "justify" }}>
-                I, <b>{data.full_name}</b> with Form Number <b>{data.form_no}</b> declare that the information provided is true and correct. I understand that any false information may lead to disqualification. I will present this form at the college for verification.
+                I, <b>{data.full_name}</b> with Form Number <b>{data.form_no}</b> declare that the information provided is true and correct. I will present this form at the college for verification.
               </p>
             </div>
 
