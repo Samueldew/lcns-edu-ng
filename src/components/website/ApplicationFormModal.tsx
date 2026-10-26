@@ -38,7 +38,8 @@ export function ApplicationFormModal({ open, onClose }: any) {
       if (upErr) throw new Error(upErr.message);
       const { data: pub } = supabase.storage.from("applicant-photos").getPublicUrl(fileName);
       const photoUrl = pub.publicUrl;
-      const { count } = await supabase.from("applicants").select("*", { count: "exact", head: true });
+      // FIXED: lcns_applicants NOT applicants
+      const { count } = await supabase.from("lcns_applicants").select("*", { count: "exact", head: true });
       const num = (count || 0) + 8341 + 1;
       const appNo = `LCNS/2026/${num}`;
       const examNo = `LCNS/2026/EXM/${num}`;
@@ -54,7 +55,8 @@ export function ApplicationFormModal({ open, onClose }: any) {
           sitting2: sittingCount === 2 ? { exam: form.ssce_exam2, year: form.ssce_year2, no: form.ssce_no2, subjects: subjects2 } : null
         }
       };
-      const { data, error } = await supabase.from("applicants").insert([payload]).select().single();
+      // FIXED: lcns_applicants NOT applicants
+      const { data, error } = await supabase.from("lcns_applicants").insert([payload]).select().single();
       if (error) throw error;
       alert("Registered! Form No: " + appNo);
       window.location.href = `/print/${data.id}`;
