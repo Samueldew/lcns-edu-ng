@@ -10,8 +10,9 @@ export function ApplicantPrintoutPage() {
   useEffect(() => {
     const fetchData = async () => {
       if (!id) return;
+      // FIXED: lcns_applicants NOT applicants
       const { data: applicant, error } = await supabase
-        .from("applicants")
+        .from("lcns_applicants")
         .select("*")
         .eq("id", id)
         .single();
@@ -52,7 +53,7 @@ export function ApplicantPrintoutPage() {
       </div>
 
       <div style={{ border: "1px solid #0a4d2e", padding: 10, marginBottom: 15 }}>
-        <h4 style={{ margin: "0 0 10px 0", color: "#0a4d2e" }}>O'LEVEL RESULTS ({data.ssce_sitting_count} Sitting{sitting1 && sitting2 ? 's' : ''})</h4>
+        <h4 style={{ margin: "0 0 10px 0", color: "#0a4d2e" }}>O'LEVEL RESULTS ({data.ssce_sitting_count} Sitting{data.ssce_sitting_count > 1 ? 's' : ''})</h4>
         {sitting1 && (
           <div style={{ marginBottom: 12 }}>
             <strong>SITTING 1: {sitting1.exam} {sitting1.year} - {sitting1.no}</strong>
