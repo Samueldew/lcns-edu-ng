@@ -18,6 +18,9 @@ import {
   RotateCcw,
   UserCheck,
   School,
+  Key,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
@@ -27,7 +30,7 @@ import { supabase } from '@/lib/supabase';
 export const ExamOfficerDashboard: React.FC = () => {
   const [results, setResults] = useState<ResultScore[]>(StorageService.getResults());
   const [students] = useState<Student[]>(StorageService.getStudents());
-  const [activeTab, setActiveTab] = useState<'broadsheet' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'lecturer_courses' | 'returned'>('course_reg');
+  const [activeTab, setActiveTab] = useState<'broadsheet' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'lecturer_courses' | 'returned' | 'users'>('course_reg');
   const [selectedSession, setSelectedSession] = useState(COLLEGE_CONFIG.CURRENT_SESSION);
   const [selectedSemester, setSelectedSemester] = useState<'First' | 'Second'>('First');
   const [searchMatric, setSearchMatric] = useState('');
@@ -41,6 +44,10 @@ export const ExamOfficerDashboard: React.FC = () => {
   const [supabaseCourses, setSupabaseCourses] = useState<any[]>([]);
   const [returnedResults, setReturnedResults] = useState<any[]>([]);
   const [supabaseResults, setSupabaseResults] = useState<any[]>([]);
+  // NEW - ADDED FOR BACKEND USERS - DO NOT DELETE - SHOWS ALL 5 USERS FROM SUPABASE
+  const [users, setUsers] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } });
+  const [showPasswords, setShowPasswords] = useState<{[k:string]:boolean}>({});
+  const [userSearch, setUserSearch] = useState('');
 
   useEffect(() => {
     async function loadAll() {
@@ -53,6 +60,28 @@ export const ExamOfficerDashboard: React.FC = () => {
         if(ret) setReturnedResults(ret);
         const { data: res } = await supabase.from('student_results_workflow').select('*').order('created_at',{ascending:false});
         if(res) setSupabaseResults(res);
+        // NEW - LOAD ALL 5 USERS FROM SUPABASE BACKEND - ADMIN CREATES, EXAM OFFICER SEES
+        const { data: allUsers, error: userError } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        if(!userError && allUsers && allUsers.length>0){
+          const formatted = allUsers.map((u:any)=>({
+            id: u.id,
+            email: u.email,
+            fullName: u.full_name||u.fullName,
+            role: u.role,
+            department: u.department,
+            status: u.status||'ACTIVE',
+            phone: u.phone,
+            matricNumber: u.matric_no||'',
+            staffId: u.staff_id||'',
+            level: u.level||'',
+            createdAt: u.created_at,
+            password: u.password||'',
+            loginId: u.matric_no||u.staff_id||u.email
+          }));
+          setUsers(formatted);
+          localStorage.setItem('lcns_users', JSON.stringify(formatted));
+          localStorage.setItem('users', JSON.stringify(formatted));
+        }
       } catch {}
     }
     loadAll();
@@ -177,18 +206,25 @@ export const ExamOfficerDashboard: React.FC = () => {
     const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`LABE_Master_Sheet_CU_Grading_Point_CO_${selectedSession}_${selectedSemester}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
+  // Filter users for display
+  const filteredUsers = users.filter((u:any)=>{
+    if(!userSearch) return true;
+    const t=userSearch.toLowerCase();
+    return (u.fullName||'').toLowerCase().includes(t) || (u.email||'').toLowerCase().includes(t) || (u.matricNumber||'').toLowerCase().includes(t) || (u.staffId||'').toLowerCase().includes(t);
+  });
+
   return (
     <div className="space-y-8">
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Examination & Records Unit • {displayRole} • Course Registration + Score Sheets + Master Sheet + CO</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Examination & Records Unit • {displayRole} • Course Registration + Score Sheets + Master Sheet + CO • Users: {users.length} from Supabase Backend</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">{displayName}</h1>
-            <p className="text-xs text-emerald-200">{displayEmail} - Receives scores from lecturer - Calculates GPA/CGPA with CU, Grade, Point - Shows CO as REPEAT - Forwards to HOD - Download Master Sheet Landscape PDF + Excel</p>
+            <p className="text-xs text-emerald-200">{displayEmail} - Receives scores from lecturer - Calculates GPA/CGPA with CU, Grade, Point - Shows CO as REPEAT - Forwards to HOD - Download Master Sheet Landscape PDF + Excel - Backend Users: {users.length}</p>
           </div>
           <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border border-emerald-600 shadow-md self-start sm:self-auto"><Printer className="w-4 h-4"/><span>Print</span></button>
         </div>
-        <div className="mt-6 pt-5 border-t border-emerald-800/80 flex flex-wrap items-center justify-between gap-4 text-xs"><div className="flex items-center gap-2"><Calculator className="w-4 h-4 text-amber-400"/><span className="text-emerald-200">Grading: A=4 B=3 C=2 D=1 F=0(CO) | GP=CU×Point | If CO → REPEAT Course Code e.g. REPEAT NUR123</span></div><div className="flex gap-2"><span className="bg-red-600 px-3 py-1 rounded-full font-bold">↩️ Returned: {returnedResults.length}</span><span className="bg-blue-600 px-3 py-1 rounded-full font-bold">Biodata: {allBiodataStudents.length}</span><span className="bg-purple-600 px-3 py-1 rounded-full font-bold">Courses: {supabaseCourses.length}</span></div></div>
+        <div className="mt-6 pt-5 border-t border-emerald-800/80 flex flex-wrap items-center justify-between gap-4 text-xs"><div className="flex items-center gap-2"><Calculator className="w-4 h-4 text-amber-400"/><span className="text-emerald-200">Grading: A=4 B=3 C=2 D=1 F=0(CO) | GP=CU×Point | If CO → REPEAT Course Code e.g. REPEAT NUR123</span></div><div className="flex gap-2"><span className="bg-slate-900 px-3 py-1 rounded-full font-bold">👤 All Users from Backend: {users.length} - Admin Creates, You See</span><span className="bg-red-600 px-3 py-1 rounded-full font-bold">↩️ Returned: {returnedResults.length}</span><span className="bg-blue-600 px-3 py-1 rounded-full font-bold">Biodata: {allBiodataStudents.length}</span><span className="bg-purple-600 px-3 py-1 rounded-full font-bold">Courses: {supabaseCourses.length}</span></div></div>
       </div>
 
       {returnedResults.length > 0 && (
@@ -207,6 +243,7 @@ export const ExamOfficerDashboard: React.FC = () => {
       )}
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='users'?'bg-slate-900 text-white shadow ring-2 ring-amber-300':'bg-slate-50 border-2 border-amber-400 text-slate-800'}`}><Users className="w-4 h-4"/><span>👤 All Users - {users.length} - Backend - NEW</span></button>
         <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Reg Approval</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">CREDIT</span></button>
         <button onClick={() => setActiveTab('lecturer_courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='lecturer_courses'?'bg-purple-700 text-white shadow':'bg-purple-50 border-2 border-purple-400 text-purple-800'}`}><School className="w-4 h-4"/><span>👨‍🏫 Lecturer + Courses in Semester</span></button>
         <button onClick={() => setActiveTab('biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='biodata'?'bg-[#0a4d2e] text-white':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Biodata Created by Admin</span></button>
@@ -215,6 +252,23 @@ export const ExamOfficerDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('broadsheet')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='broadsheet'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><FileSpreadsheet className="w-4 h-4"/><span>Broadsheet + Master Sheet + CO</span></button>
         <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white':'bg-purple-50 border border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 All Applicants</span></button>
       </div>
+
+      {/* NEW TAB - USERS FROM BACKEND - ADMIN CREATES, EXAM OFFICER SEES - DO NOT DELETE OTHER TABS */}
+      {activeTab==='users' && (
+        <div className="bg-white rounded-3xl border-4 border-amber-400 p-6 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-amber-700"/>All Users from Backend - {users.length} Users - Admin Creates, Exam Officer Sees - FIXED</h2>
+              <p className="text-xs font-bold bg-amber-50 border p-2 rounded mt-1">Exam Officer sees all users created by Admin from Supabase backend — User ID + Email + Password with Eye icon — Same 5 users you have: steve@gmail.com, jude@gmail.com, avulesamuel@gmail.com, terver@gmail.com, samuel@lcns.edu.ng</p>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex items-center gap-1 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4"/><input value={userSearch} onChange={e=>setUserSearch(e.target.value)} placeholder="Search by Name, Email, ID" className="py-2 text-xs font-bold outline-none"/></div>
+            </div>
+          </div>
+          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name + Role</th><th className="p-2">Email + User ID</th><th className="p-2">Password - Click Eye</th><th className="p-2">Status</th><th className="p-2">Created At</th></tr></thead><tbody>{filteredUsers.map((u:any)=>(<tr key={u.email} className="border-b hover:bg-amber-50"><td className="p-2"><p className="font-black">{u.fullName}</p><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-white">{u.role}</span> - {u.department}</td><td className="p-2"><p className="font-bold">{u.email}</p><p className="font-mono font-black text-amber-800 text-[11px]">{u.loginId||u.staffId||u.matricNumber}</p></td><td className="p-2"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-mono font-black text-[11px]">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-[11px]">{new Date(u.createdAt).toLocaleDateString()}</td></tr>))}</tbody></table></div>
+          <p className="text-[11px] font-bold text-center bg-emerald-50 p-2 rounded border">✅ Backend Fixed: Admin creates user in Supabase users table → Exam Officer, Provost, Registrar, HOD all see it here! Password = last 4 phone + 123 or 123456 — Click Eye to show</p>
+        </div>
+      )}
 
       {selectedStudentForView && (
         <div id="individual-student-view" className="bg-white border-4 border-blue-500 p-6 rounded-2xl space-y-4">
@@ -264,7 +318,7 @@ export const ExamOfficerDashboard: React.FC = () => {
         </div>
       ) : activeTab==='admissions_all' ? (
         <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Exam Officer {displayName} - All Applicants Records Link - CBT + Interview Scores</div><AdminAdmissionManager currentUser={currentUser} /></div>
-      ) : (
+      ) : activeTab!=='users' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
             <div className="relative w-full sm:w-80"><Search className="w-4 h-4 text-slate-400 absolute left-3 top-3"/><input type="text" value={searchMatric} onChange={(e) => setSearchMatric(e.target.value)} placeholder="Search by Matric No or Course Code - Shows CU, Grade, Point, CO" className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-600"/></div>
