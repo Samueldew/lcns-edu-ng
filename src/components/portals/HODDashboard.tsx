@@ -16,6 +16,9 @@ import {
   ArrowLeft,
   Edit,
   Save,
+  Key,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
@@ -24,7 +27,6 @@ import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { supabase } from '@/lib/supabase';
 
 export const HODDashboard: React.FC = () => {
-  // ===== SINGLE USER DECLARATION - FIXED DUPLICATE =====
   const safeCurrentUser = (() => {
     try {
       const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
@@ -53,7 +55,7 @@ export const HODDashboard: React.FC = () => {
 
   const [courses, setCourses] = useState<Course[]>(StorageService.getCourses());
   const [students] = useState<Student[]>(StorageService.getStudents());
-  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'individual_result' | 'vet_result'>('course_reg');
+  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'individual_result' | 'vet_result' | 'users'>('course_reg');
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
@@ -92,6 +94,10 @@ export const HODDashboard: React.FC = () => {
   const [supabaseGpa, setSupabaseGpa] = useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem('lcns_supabase_gpa_cache') || '[]'); } catch { return []; }
   });
+  // NEW - USERS FROM BACKEND - ADMIN CREATES, HOD SEES - DO NOT DELETE
+  const [users, setUsers] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } });
+  const [showPasswords, setShowPasswords] = useState<{[k:string]:boolean}>({});
+  const [userSearch, setUserSearch] = useState('');
 
   const loadVetData = async () => {
     try {
@@ -99,6 +105,17 @@ export const HODDashboard: React.FC = () => {
       if(data) setSupabaseGpa(data);
       const { data: scores } = await supabase.from('student_results_workflow').select('*').order('matric_no');
       if(scores && scores.length > 0) setExamSubmissions(scores);
+      // NEW - LOAD ALL 5 USERS FROM SUPABASE BACKEND
+      const { data: allUsers } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+      if(allUsers && allUsers.length>0){
+        const formatted = allUsers.map((u:any)=>({
+          id: u.id, email: u.email, fullName: u.full_name||u.fullName, role: u.role, department: u.department,
+          status: u.status||'ACTIVE', phone: u.phone, matricNumber: u.matric_no||'', staffId: u.staff_id||'',
+          level: u.level||'', createdAt: u.created_at, password: u.password||'', loginId: u.matric_no||u.staff_id||u.email
+        }));
+        setUsers(formatted);
+        localStorage.setItem('lcns_users', JSON.stringify(formatted));
+      }
     } catch {}
   };
 
@@ -221,20 +238,27 @@ export const HODDashboard: React.FC = () => {
     setCode(''); setTitle(''); setShowAddCourse(false);
   };
 
+  const filteredUsers = users.filter((u:any)=>{
+    if(!userSearch) return true;
+    const t=userSearch.toLowerCase();
+    return (u.fullName||'').toLowerCase().includes(t) || (u.email||'').toLowerCase().includes(t) || (u.matricNumber||'').toLowerCase().includes(t) || (u.staffId||'').toLowerCase().includes(t);
+  });
+
   return (
     <div className="space-y-8">
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • {displayRole} • Course Registration Approval + HOD VET RESULT</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Head of Department • {displayRole} • Course Registration Approval + HOD VET RESULT • Users: {users.length} Backend</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
-            <p className="text-xs text-emerald-200">VET RESULT FROM EXAM OFFICER AND FORWARD TO REGISTRAR - Status: {vetStatus}</p>
+            <p className="text-xs text-emerald-200">VET RESULT FROM EXAM OFFICER AND FORWARD TO REGISTRAR - Status: {vetStatus} - Backend Users: {users.length}</p>
           </div>
           <button onClick={() => setShowAddCourse(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-md self-start sm:self-auto"><Plus className="w-4 h-4"/><span>Allocate New Course</span></button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='users'?'bg-slate-900 text-white shadow ring-2 ring-amber-300':'bg-slate-50 border-2 border-amber-400 text-slate-800'}`}><Users className="w-4 h-4"/><span>👤 Users - {users.length} Backend NEW</span></button>
         <button onClick={() => setActiveTab('vet_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='vet_result'?'bg-orange-600 text-white shadow ring-2 ring-orange-300':'bg-orange-50 border-2 border-orange-400 text-orange-900'}`}><CheckCircle2 className="w-4 h-4"/><span>🔍 HOD VET RESULT - FROM EXAM OFFICER</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{examSubmissions.length}</span></button>
         <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Registration</span></button>
         <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-400 text-emerald-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets</span></button>
@@ -243,6 +267,19 @@ export const HODDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white':'bg-purple-50 border border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 Applicants</span></button>
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Individual Result</span></button>
       </div>
+
+      {activeTab==='users' && (
+        <div className="bg-white rounded-3xl border-4 border-amber-400 p-6 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-amber-700"/>All Users from Backend - {users.length} Users - Admin Creates, HOD Sees</h2>
+              <p className="text-xs font-bold bg-amber-50 border p-2 rounded mt-1">HOD sees all users from Supabase backend — User ID + Email + Password — Same 5: steve@gmail.com, jude@gmail.com, avulesamuel@gmail.com, terver@gmail.com, samuel@lcns.edu.ng</p>
+            </div>
+            <div className="flex items-center gap-1 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4"/><input value={userSearch} onChange={e=>setUserSearch(e.target.value)} placeholder="Search Name, Email, ID" className="py-2 text-xs font-bold outline-none"/></div>
+          </div>
+          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name + Role</th><th className="p-2">Email + User ID</th><th className="p-2">Password - Eye</th><th className="p-2">Status</th></tr></thead><tbody>{filteredUsers.map((u:any)=>(<tr key={u.email} className="border-b hover:bg-amber-50"><td className="p-2"><p className="font-black">{u.fullName}</p><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-white">{u.role}</span></td><td className="p-2"><p className="font-bold">{u.email}</p><p className="font-mono font-black text-amber-800 text-[11px]">{u.loginId}</p></td><td className="p-2"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-mono font-black text-[11px]">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td></tr>))}</tbody></table></div>
+        </div>
+      )}
 
       {activeTab==='vet_result' && (
         <div className="bg-white rounded-3xl border-2 border-orange-400 p-6 space-y-6">
@@ -272,7 +309,7 @@ export const HODDashboard: React.FC = () => {
                   const score = r.score || r.total_score || r.totalScore || 0;
                   const grade = score>=70?'A':score>=60?'B':score>=50?'C':score>=40?'D':'F';
                   const point = score>=70?4:score>=60?3:score>=50?2:score>=40?1:0;
-                  const gp = (r.creditUnit||r.credit_unit||3)*point;
+                  const gp = (r.creditUnit||3)*point;
                   const isEditing = editingId === (r.id||r.scoreId||idx.toString());
                   return (
                     <tr key={idx} className={`border-b ${grade==='F'?'bg-red-50':''}`}>
@@ -365,7 +402,7 @@ export const HODDashboard: React.FC = () => {
         </div>
       ) : activeTab==='admissions_all' ? <AdminAdmissionManager currentUser={currentUser} /> : activeTab==='courses' ? (
         <div className="bg-white rounded-3xl border p-6"><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 font-bold"><tr><th className="p-3">Code</th><th className="p-3">Title</th><th className="p-3">Units</th><th className="p-3">Level</th><th className="p-3">Lecturer</th></tr></thead><tbody>{courses.map((c)=><tr key={c.id} className="border-b"><td className="p-3 font-mono font-bold">{c.code}</td><td className="p-3 font-bold">{c.title}</td><td className="p-3 text-center">{c.units}</td><td className="p-3">{c.level}</td><td className="p-3">{c.lecturerName}</td></tr>)}</tbody></table></div></div>
-      ) : null}
+      ) : activeTab!=='users' && activeTab!=='vet_result' && activeTab!=='individual_result' ? null : null}
 
       {showAddCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
@@ -385,5 +422,4 @@ export const HODDashboard: React.FC = () => {
   );
 };
 
-// ===== FIX FOR PORTAL SHELL - BOTH EXPORTS NEEDED =====
 export default HODDashboard;
