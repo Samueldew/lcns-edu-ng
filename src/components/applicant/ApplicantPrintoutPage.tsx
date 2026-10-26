@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 
-export default function ApplicantPrintoutPage() {
+export function ApplicantPrintoutPage() {
   const { id } = useParams();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +53,6 @@ export default function ApplicantPrintoutPage() {
 
       <div style={{ border: "1px solid #0a4d2e", padding: 10, marginBottom: 15 }}>
         <h4 style={{ margin: "0 0 10px 0", color: "#0a4d2e" }}>O'LEVEL RESULTS ({data.ssce_sitting_count} Sitting{sitting1 && sitting2 ? 's' : ''})</h4>
-        
         {sitting1 && (
           <div style={{ marginBottom: 12 }}>
             <strong>SITTING 1: {sitting1.exam} {sitting1.year} - {sitting1.no}</strong>
@@ -64,7 +63,6 @@ export default function ApplicantPrintoutPage() {
             </div>
           </div>
         )}
-
         {sitting2 && (
           <div>
             <strong>SITTING 2: {sitting2.exam} {sitting2.year} - {sitting2.no}</strong>
@@ -83,3 +81,5 @@ export default function ApplicantPrintoutPage() {
     </div>
   );
 }
+
+export default ApplicantPrintoutPage;
