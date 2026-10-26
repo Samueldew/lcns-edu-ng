@@ -9,7 +9,7 @@ const GRADES = ["A1","B2","B3","C4","C5","C6","D7","E8","F9"] as const;
 type SubjectRow = { subject: string; grade: string; };
 const makeSubjects = (): SubjectRow[] => Array.from({ length: 9 }, () => ({ subject: "", grade: "" }));
 
-export default function ApplicationFormModal({ open, onClose }: any) {
+export function ApplicationFormModal({ open, onClose }: any) {
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>("");
   const [sittingCount, setSittingCount] = useState<1 | 2>(1);
@@ -23,12 +23,10 @@ export default function ApplicationFormModal({ open, onClose }: any) {
   });
   const [subjects1, setSubjects1] = useState<SubjectRow[]>(() => makeSubjects());
   const [subjects2, setSubjects2] = useState<SubjectRow[]>(() => makeSubjects());
-
   const onSubjectChange = (sitting: 1 | 2, idx: number, field: keyof SubjectRow, value: string) => {
     if (sitting === 1) { const copy = [...subjects1]; copy[idx] = { ...copy[idx], [field]: value }; setSubjects1(copy); }
     else { const copy = [...subjects2]; copy[idx] = { ...copy[idx], [field]: value }; setSubjects2(copy); }
   };
-
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passportFile) { alert("Please upload passport"); return; }
@@ -81,24 +79,18 @@ export default function ApplicationFormModal({ open, onClose }: any) {
               <input placeholder="Phone" required value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} style={{ flex: 1, padding: 10, border: "1px solid #ccc", borderRadius: 6 }} />
               <input placeholder="Email" required type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} style={{ flex: 1, padding: 10, border: "1px solid #ccc", borderRadius: 6 }} />
             </div>
-            <input placeholder="Home Address" value={form.address} onChange={e=>setForm({...form, address:e.target.value})} style={{ padding: 10, border: "1px solid #ccc", borderRadius: 6 }} />
             <div style={{ border: "2px dashed #0a4d2e", padding: 12, textAlign: "center", borderRadius: 8 }}>
-              <p style={{ fontWeight: 700, margin: 0 }}>Upload Passport Photo</p>
+              <p style={{ fontWeight: 700, margin: 0 }}>Upload Passport</p>
               <input type="file" accept="image/*" required onChange={e=>{ const f = e.target.files && e.target.files[0]; if (f) { setPassportFile(f); setPreview(URL.createObjectURL(f)); } }} />
-              {preview && <img src={preview} alt="preview" style={{ width: 120, height: 140, objectFit: "cover", marginTop: 10, border: "2px solid #0a4d2e", display: "block", marginLeft: "auto", marginRight: "auto" }} />}
+              {preview && <img src={preview} alt="preview" style={{ width: 120, height: 140, objectFit: "cover", marginTop: 10, border: "2px solid #0a4d2e", marginLeft: "auto", marginRight: "auto", display: "block" }} />}
             </div>
             <div style={{ border: "2px solid #0a4d2e", padding: 12, borderRadius: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <h3 style={{ margin: 0, color: "#0a4d2e" }}>SSCE - 9 Subjects</h3>
                 <select value={sittingCount} onChange={e=>setSittingCount(Number(e.target.value) as 1|2)}><option value={1}>One Sitting</option><option value={2}>Two Sittings</option></select>
               </div>
               <div style={{ background: "#f1f5f9", padding: 10, marginTop: 12, borderRadius: 6 }}>
                 <strong>SITTING 1</strong>
-                <div style={{ display: "flex", gap: 8, marginTop: 8, marginBottom: 10 }}>
-                  <select value={form.ssce_exam1} onChange={e=>setForm({...form, ssce_exam1:e.target.value})}><option>WAEC</option><option>NECO</option><option>NABTEB</option></select>
-                  <input placeholder="Exam No" value={form.ssce_no1} onChange={e=>setForm({...form, ssce_no1:e.target.value})} style={{ flex: 1, padding: 6, border: "1px solid #ccc" }} />
-                  <input placeholder="Year" value={form.ssce_year1} onChange={e=>setForm({...form, ssce_year1:e.target.value})} style={{ width: 90, padding: 6, border: "1px solid #ccc" }} />
-                </div>
                 {subjects1.map((row, i)=>(
                   <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                     <span style={{ width: 18 }}>{i+1}</span>
@@ -110,11 +102,6 @@ export default function ApplicationFormModal({ open, onClose }: any) {
               {sittingCount===2 && (
                 <div style={{ background: "#fef9c3", padding: 10, marginTop: 12, borderRadius: 6, border: "2px solid #eab308" }}>
                   <strong>SITTING 2</strong>
-                  <div style={{ display: "flex", gap: 8, marginTop: 8, marginBottom: 10 }}>
-                    <select value={form.ssce_exam2} onChange={e=>setForm({...form, ssce_exam2:e.target.value})}><option>WAEC</option><option>NECO</option><option>NABTEB</option></select>
-                    <input placeholder="Exam No" value={form.ssce_no2} onChange={e=>setForm({...form, ssce_no2:e.target.value})} style={{ flex: 1, padding: 6, border: "1px solid #ccc" }} />
-                    <input placeholder="Year" value={form.ssce_year2} onChange={e=>setForm({...form, ssce_year2:e.target.value})} style={{ width: 90, padding: 6, border: "1px solid #ccc" }} />
-                  </div>
                   {subjects2.map((row, i)=>(
                     <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                       <span style={{ width: 18 }}>{i+1}</span>
@@ -132,3 +119,5 @@ export default function ApplicationFormModal({ open, onClose }: any) {
     </div>
   );
 }
+
+export default ApplicationFormModal;
