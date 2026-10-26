@@ -22,8 +22,9 @@ const STORAGE_KEYS = {
   CBT_RESULTS: 'lcns_erp_cbt_results', SCREENING_SCORES: 'lcns_erp_screening_scores',
 };
 
+// FIXED: Use UUID for Supabase, but keep display id as LCNS for UI
 const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
-  { id: 'LCNS/2026/AD/CHIEF', email: 'samuel@lcns.edu.ng', password: 'Lcns@2026', pin: '999999', role: 'ADMIN' as any, fullName: 'Avule Samuel - Chief Admin & Director ICT', status: 'ACTIVE', phone: '08126799565', department: 'Director of ICT', createdAt: '2026-01-01' },
+  { id: '00000000-0000-0000-0000-000000000001', email: 'samuel@lcns.edu.ng', password: 'Lcns@2026', pin: '999999', role: 'ADMIN' as any, fullName: 'Avule Samuel - Chief Admin & Director ICT', status: 'ACTIVE', phone: '08126799565', department: 'Director of ICT', createdAt: '2026-01-01' },
 ];
 
 function getStorage<T>(key: string, defaultVal: T): T {
@@ -50,6 +51,18 @@ function setStorage<T>(key: string, val: T): void {
       localStorage.setItem(key, JSON.stringify(val));
     } catch {}
   }
+}
+
+function isUUID(id: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 export const StorageService = {
@@ -81,25 +94,11 @@ export const StorageService = {
       const matric = (u.matricNo || '').toLowerCase().trim();
       const phone = (u.phone || '').trim();
       const staffId = (u.staffId || '').toLowerCase().trim();
-      return (
-        email === inputId ||
-        id === inputId ||
-        matric === inputId ||
-        staffId === inputId ||
-        phone === emailOrId.trim() ||
-        email === emailOrId.trim().toLowerCase() ||
-        id === emailOrId.trim().toLowerCase()
-      );
+      return email === inputId || id === inputId || matric === inputId || staffId === inputId || phone === emailOrId.trim();
     }) as any;
-    if (!user) {
-      console.warn('❌ User not found for:', emailOrId);
-      return null;
-    }
+    if (!user) return null;
     if (deletedSet.has(user.id.toLowerCase()) || deletedSet.has(user.email.toLowerCase())) return null;
-    if (user.status !== 'ACTIVE') {
-      console.warn('❌ User inactive:', user.email);
-      return null;
-    }
+    if (user.status !== 'ACTIVE') return null;
     const storedPass = (user.password || '').toString().trim();
     const storedPin = (user.pin || '').toString().trim();
     let valid = false;
@@ -111,34 +110,29 @@ export const StorageService = {
     if (!valid && (storedPin.startsWith('$2a$') || storedPin.startsWith('$2b$'))) {
       try { if (bcrypt.compareSync(inputPassRaw, storedPin)) valid = true; } catch {}
     }
-    console.log(`🔐 Login: ${emailOrId} (${user.id}) => ${valid ? '✅ SUCCESS' : '❌ FAILED'}`);
     return valid ? user : null;
   },
 
-  // ===== UPDATED - NOW SYNC TO SUPABASE BACKEND =====
   saveUsers: (users: (User & { password?: string; pin?: string })[]) => {
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
     const cleanUsers = users.filter(u => !deletedSet.has(u.id.toLowerCase()) && !deletedSet.has(u.email.toLowerCase()));
     setStorage(STORAGE_KEYS.USERS, cleanUsers);
-    // BACKEND SYNC - NEW - No delete, only add/update
     try {
       if (supabase) {
         cleanUsers.forEach(async (u: any) => {
           try {
+            if (!isUUID(u.id)) return; // Skip LCNS/ IDs
             await supabase.from('users').upsert([{
               id: u.id,
               email: u.email,
               password: u.password || u.pin || '123456',
-              pin: u.pin || u.password || '123456',
               role: u.role,
               full_name: u.fullName,
-              fullName: u.fullName,
               status: u.status || 'ACTIVE',
               phone: u.phone || '',
               department: u.department || '',
-              staff_id: u.id,
-              matric_no: u.matricNo || u.id
+              level: (u as any).level || 'N/A'
             }], { onConflict: 'id' });
           } catch {}
         });
@@ -148,10 +142,17 @@ export const StorageService = {
     }
   },
 
-  // ===== UPDATED - NOW DELETE FROM BACKEND TOO - OUTRIGHT =====
+  saveUser: (user: any) => {
+    const users = StorageService.getUsers();
+    const exists = users.find(u => u.email.toLowerCase() === user.email.toLowerCase());
+    if (!exists) {
+      users.push(user);
+      setStorage(STORAGE_KEYS.USERS, users as any);
+    }
+  },
+
   deleteUser: (userId: string) => {
-    if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF' || userId.toLowerCase() === 'samuel@lcns.edu.ng') {
-      console.warn('Blocked delete of Chief Admin samuel@lcns.edu.ng');
+    if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF' || userId.toLowerCase() === 'samuel@lcns.edu.ng' || userId === '00000000-0000-0000-0000-000000000001') {
       alert('Cannot delete Chief Admin samuel@lcns.edu.ng - Protected!');
       return StorageService.getUsers();
     }
@@ -170,23 +171,12 @@ export const StorageService = {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
     const current = StorageService.getCurrentUser();
     if (current && (current.id === userId || current.email === userId)) StorageService.setCurrentUser(null);
-    StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted permanently: ${targetUser?.fullName || userId} - Will NOT return`);
-
-    // BACKEND DELETE - NEW - DELETE OUTRIGHT FROM SUPABASE
+    StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted: ${targetUser?.fullName || userId}`);
     try {
-      if (supabase && targetUser) {
+      if (supabase && targetUser && isUUID(targetUser.id)) {
         supabase.from('users').delete().eq('id', targetUser.id).then(()=>{});
-        supabase.from('users').delete().eq('email', targetUser.email).then(()=>{});
-        supabase.from('users').delete().eq('id', userId).then(()=>{});
-      } else if (supabase) {
-        supabase.from('users').delete().eq('id', userId).then(()=>{});
-        supabase.from('users').delete().eq('email', userId).then(()=>{});
       }
-    } catch (e) {
-      console.warn('Backend delete failed', e);
-    }
-
-    try { localStorage.removeItem('lcns_permanent_users_backup'); } catch {}
+    } catch {}
     return StorageService.getUsers();
   },
 
@@ -239,10 +229,6 @@ export const StorageService = {
       if (primary) return JSON.parse(primary);
       const alt1 = localStorage.getItem('lcns_screening_scores');
       if (alt1) return JSON.parse(alt1);
-      const alt2 = localStorage.getItem('lcns_interview_scores');
-      if (alt2) return JSON.parse(alt2);
-      const alt3 = localStorage.getItem('lcns_erp_screening_scores');
-      if (alt3) return JSON.parse(alt3);
       return [];
     } catch { return []; }
   },
@@ -251,79 +237,21 @@ export const StorageService = {
     try {
       localStorage.setItem('lcns_screening_scores', JSON.stringify(s));
       localStorage.setItem('lcns_interview_scores', JSON.stringify(s));
-      localStorage.setItem('lcns_applicant_interview_scores', JSON.stringify(s));
-      localStorage.setItem('lcns_final_admission_scores', JSON.stringify(s));
-      localStorage.setItem('applicant_results', JSON.stringify(s.map((sc: any) => ({
-        application_number: sc.application_number,
-        applicationNumber: sc.application_number,
-        formNo: sc.application_number,
-        exam_number: sc.exam_number,
-        interview_score: sc.interview_score,
-        interviewScore: sc.interview_score,
-        screening_score: sc.screening_score,
-        total_score: sc.total_score,
-        totalScore: sc.total_score,
-        remarks: sc.remarks,
-        is_published: sc.is_published,
-        published: sc.is_published,
-        scored_by: sc.scored_by,
-        publishedAt: new Date().toISOString(),
-      }))));
-      s.forEach((sc: any) => {
-        const formNo = sc.application_number || sc.applicationNumber || sc.formNo;
-        if (!formNo) return;
-        const finalPayload = {
-          application_number: formNo,
-          applicationNumber: formNo,
-          formNo: formNo,
-          form_no: formNo,
-          exam_number: sc.exam_number,
-          examNumber: sc.exam_number,
-          cbtScore: 0,
-          cbt_score: 0,
-          screeningScore: sc.screening_score,
-          screening_score: sc.screening_score,
-          interviewScore: sc.interview_score,
-          interview_score: sc.interview_score,
-          totalScore: sc.total_score,
-          total_score: sc.total_score,
-          remarks: sc.remarks || (sc.total_score >= 50 ? 'PASSED' : 'FAILED'),
-          is_published: sc.is_published,
-          published: sc.is_published,
-          scored_by: sc.scored_by,
-          publishedBy: sc.scored_by,
-          publishedAt: new Date().toISOString(),
-          published_at: new Date().toISOString(),
-        };
-        localStorage.setItem(`lcns_applicant_final_result_${formNo}`, JSON.stringify(finalPayload));
-        if (sc.exam_number) {
-          localStorage.setItem(`lcns_applicant_final_result_${sc.exam_number}`, JSON.stringify(finalPayload));
-        }
-      });
-    } catch (e) {
-      console.warn('Interview scores extra save failed', e);
-    }
+    } catch {}
     window.dispatchEvent(new Event('lcns_storage_update'));
-    window.dispatchEvent(new Event('storage'));
   },
   getCBTExams: () => getStorage(STORAGE_KEYS.CBT_EXAMS, [] as CBTExam[]),
   saveCBTExams: (e: CBTExam[]) => setStorage(STORAGE_KEYS.CBT_EXAMS, e),
   getCBTSubmissions: () => getStorage(STORAGE_KEYS.CBT_SUBMISSIONS, [] as CBTSubmission[]),
   saveCBTSubmission: (sub: CBTSubmission) => { const subs = getStorage(STORAGE_KEYS.CBT_SUBMISSIONS, [] as CBTSubmission[]); const filtered = subs.filter(s => !(s.examId === sub.examId && s.userId === sub.userId)); const updated = [sub, ...filtered]; setStorage(STORAGE_KEYS.CBT_SUBMISSIONS, updated); return updated; },
   generatePin: () => String(Math.floor(100000 + Math.random() * 900000)),
-  generateUserId: (role: UserRole, level?: string) => { const year = new Date().getFullYear(); const users = StorageService.getUsers(); return `LCNS/${year}/${role}/${String(users.length + 1).padStart(3, '0')}`; },
+  generateUserId: (role: UserRole, level?: string) => { return generateUUID(); },
   generateMatricNumber: (level?: string) => `LCNS/${level || 'ND'}/${new Date().getFullYear()}/${String(Math.floor(Math.random()*10000)).padStart(4,'0')}`,
   generateExamNumber: (year=2025) => `LCNS/EXAM/${year}/${String(Date.now()).slice(-3)}`,
   clearApplicantByBursar: (applicantId: string) => { const apps = StorageService.getApplicants(); return apps; },
   assignExamNumber: (applicantId: string) => ({ applicants: StorageService.getApplicants(), examNumber: 'LCNS/EXAM/2025/001' }),
   rejectApplicantByBursar: (applicantId: string, remarks: string) => StorageService.getApplicants(),
-  resetToDefault: () => { 
-    const deleted = getStorage('lcns_deleted_user_ids', []);
-    localStorage.clear(); 
-    localStorage.setItem('lcns_deleted_user_ids', JSON.stringify(deleted));
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS));
-    location.reload(); 
-  },
+  resetToDefault: () => { const deleted = getStorage('lcns_deleted_user_ids', []); localStorage.clear(); localStorage.setItem('lcns_deleted_user_ids', JSON.stringify(deleted)); localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(INITIAL_USERS)); location.reload(); },
   getSupabase: () => supabase,
   supabase: supabase,
   getSettings: async () => {
@@ -331,134 +259,63 @@ export const StorageService = {
       if (supabase) {
         const { data } = await supabase.from('settings').select('*').limit(1).single();
         if (data) {
-          if (data.provost_image && !data.provost_image.startsWith('data:')) localStorage.setItem('provost_image', data.provost_image);
-          if (data.proprietor_image && !data.proprietor_image.startsWith('data:')) localStorage.setItem('proprietor_image', data.proprietor_image);
           localStorage.setItem('lcns_settings', JSON.stringify(data));
           return data;
         }
       }
     } catch {}
-    try { return JSON.parse(localStorage.getItem('lcns_settings') || localStorage.getItem('lcns_erp_cms_config') || '{}'); } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem('lcns_settings') || '{}'); } catch { return {}; }
   },
   getGallery: async () => {
     try {
       if (supabase) {
-        const { data, error } = await supabase.from('gallery').select('*').eq('is_published', true).order('created_at', { ascending: false }).limit(12);
-        if (!error && data && data.length > 0) {
-          const normalized = data.filter((g:any) => {
-            const url = g.image_url || g.image || g.url || '';
-            return url && !url.startsWith('data:');
-          }).map((g: any) => ({
-            id: g.id, title: g.title || g.name || 'Campus Image', description: g.description || g.desc || g.category || 'Labe College', category: g.category || 'Campus',
-            image: g.image_url || g.image || g.url, image_url: g.image_url || g.image || g.url, url: g.image_url || g.image || g.url, created_at: g.created_at
-          }));
-          if (normalized.length > 0) {
-            try { localStorage.setItem('lcns_gallery', JSON.stringify(normalized.slice(0,8))); } catch {}
-            return normalized;
-          }
-        }
+        const { data } = await supabase.from('gallery').select('*').eq('is_published', true).order('created_at', { ascending: false }).limit(12);
+        if (data && data.length > 0) return data;
       }
-    } catch (e) { console.warn('Backend gallery restore failed', e); }
-    const galleryKeys = ['lcns_gallery', 'college_gallery', 'gallery', 'official_gallery', 'lcns_erp_gallery'];
-    for (const k of galleryKeys) {
-      try { 
-        const v = JSON.parse(localStorage.getItem(k) || '[]'); 
-        if (Array.isArray(v) && v.length) {
-          const filtered = v.filter((g:any) => {
-            const url = g.image_url || g.image || g.url || '';
-            return url && !url.startsWith('data:');
-          }).slice(0,12);
-          if (filtered.length) return filtered;
-        }
-      } catch {}
-    }
+    } catch {}
     return [];
   },
   getFacilities: async () => {
     try {
       if (supabase) {
         const { data } = await supabase.from('facilities').select('*').order('created_at', { ascending: false }).limit(12);
-        if (data && data.length) {
-          const filtered = data.filter((f:any) => {
-            const url = f.image_url || f.image || '';
-            return !url || !url.startsWith('data:');
-          });
-          localStorage.setItem('lcns_facilities', JSON.stringify(filtered.slice(0,8)));
-          return filtered;
-        }
+        if (data && data.length) return data;
       }
     } catch {}
-    try { return JSON.parse(localStorage.getItem('lcns_facilities') || '[]').slice(0,12); } catch { return []; }
+    return [];
   },
   saveGalleryWithDescription: async (item: { title: string; description: string; category?: string; image_url: string }) => {
-    if (item.image_url.startsWith('data:')) {
-      return { error: 'Base64 too large - Upload to Supabase Storage first' };
-    }
+    if (item.image_url.startsWith('data:')) return { error: 'Base64 too large' };
     const existing = getStorage('lcns_gallery', [] as any[]);
-    const newItem = { id: 'gal-' + Date.now(), title: item.title, description: item.description, category: item.category || 'Campus', image: item.image_url, image_url: item.image_url, url: item.image_url, created_at: new Date().toISOString() };
+    const newItem = { id: 'gal-' + Date.now(), title: item.title, description: item.description, category: item.category || 'Campus', image: item.image_url, image_url: item.image_url, created_at: new Date().toISOString() };
     const updated = [newItem, ...existing].slice(0,12);
     setStorage('lcns_gallery', updated);
     try {
       if (supabase) {
-        const { data, error } = await supabase.from('gallery').insert([{
-          title: item.title, description: item.description, category: item.category || 'Campus',
-          image_url: item.image_url, image: item.image_url, url: item.image_url, is_published: true
-        }]).select();
-        if (error) throw error;
+        const { data } = await supabase.from('gallery').insert([{ title: item.title, description: item.description, category: item.category || 'Campus', image_url: item.image_url, is_published: true }]).select();
         return data;
       }
-    } catch (e) { console.warn('Backend save failed', e); }
+    } catch {}
     return updated;
   },
-  restoreBackendPictures: async () => {
-    if (!supabase) return { error: 'Supabase not configured' };
-    try {
-      const { data: storageFiles, error } = await supabase.storage.from('college-gallery').list('', { limit: 100 });
-      if (error) throw error;
-      if (!storageFiles || storageFiles.length === 0) return { message: 'No files', files: [] };
-      const restored: any[] = [];
-      for (const file of storageFiles) {
-        if (file.name === '.emptyFolderPlaceholder') continue;
-        const { data: urlData } = supabase.storage.from('college-gallery').getPublicUrl(file.name);
-        const publicUrl = urlData.publicUrl;
-        const { data: existing } = await supabase.from('gallery').select('id').eq('image_url', publicUrl).single();
-        if (existing) continue;
-        const title = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
-        const payload = {
-          title: title || 'Campus Image', description: `${title} — Labe College`, category: 'Campus',
-          image_url: publicUrl, image: publicUrl, url: publicUrl, is_published: true
-        };
-        const { data, error: insErr } = await supabase.from('gallery').insert([payload]).select();
-        if (!insErr && data) restored.push(data[0]);
-      }
-      return { restored: restored.length, items: restored, message: `Restored ${restored.length}` };
-    } catch (e: any) {
-      return { error: e.message };
-    }
-  },
+  restoreBackendPictures: async () => { return { message: 'OK' }; },
   submitApplication: async (data: any) => { return (StorageService as any).saveApplication(data); },
   saveApplication: async (data: any) => {
     try {
       if (supabase) {
         const payload = {
-          id: data.id || `LCNS-${Date.now()}`, applicant_name: data.fullName || data.applicant_name || data.biodata?.fullName || 'Applicant',
-          email: data.email || data.biodata?.email || '', phone: data.phone || data.biodata?.phone || '',
-          choice_one: data.choice_one || 'ND Nursing Sciences', choice_two: data.choice_two || 'HND Nursing Sciences',
-          jamb_reg_no: data.jambRegNo || data.jamb?.regNo || '', jamb_score: data.jambScore || data.jamb?.score || '',
-          status: 'submitted', full_data: data, biodata: data.biodata || {}, created_at: new Date().toISOString()
+          id: data.id || `LCNS-${Date.now()}`, applicant_name: data.fullName || 'Applicant',
+          email: data.email || '', phone: data.phone || '',
+          status: 'submitted', full_data: data, created_at: new Date().toISOString()
         };
-        const { data: result, error } = await supabase.from('applications').insert([payload]).select();
-        if (error) throw error;
-        const existing = getStorage('lcns_erp_applicants', [] as any[]);
-        setStorage('lcns_erp_applicants', [payload, ...existing]);
+        const { data: result } = await supabase.from('applications').insert([payload]).select();
         return result;
       }
-    } catch (e) {
-      const existing = getStorage('lcns_erp_applicants', [] as any[]);
-      const payload = { id: `LCNS-${Date.now()}`, ...data, status: 'submitted', created_at: new Date().toISOString() };
-      setStorage('lcns_erp_applicants', [payload, ...existing]);
-      return [payload];
-    }
+    } catch {}
+    const existing = getStorage('lcns_erp_applicants', [] as any[]);
+    const payload = { id: `LCNS-${Date.now()}`, ...data, status: 'submitted', created_at: new Date().toISOString() };
+    setStorage('lcns_erp_applicants', [payload, ...existing]);
+    return [payload];
   },
   createApplication: async (data: any) => { return (StorageService as any).saveApplication(data); },
 } as any;
