@@ -21,6 +21,7 @@ import {
   Key,
   Eye,
   EyeOff,
+  Rocket,
 } from 'lucide-react';
 import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
@@ -44,14 +45,25 @@ export const ExamOfficerDashboard: React.FC = () => {
   const [supabaseCourses, setSupabaseCourses] = useState<any[]>([]);
   const [returnedResults, setReturnedResults] = useState<any[]>([]);
   const [supabaseResults, setSupabaseResults] = useState<any[]>([]);
-  // NEW - ADDED FOR BACKEND USERS - DO NOT DELETE - SHOWS ALL 5 USERS FROM SUPABASE
   const [users, setUsers] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } });
   const [showPasswords, setShowPasswords] = useState<{[k:string]:boolean}>({});
   const [userSearch, setUserSearch] = useState('');
+  
+  // ===== NEW - PROMOTION + SESSION + COURSE REG BACKEND =====
+  const [currentPortalSession, setCurrentPortalSession] = useState<string>(COLLEGE_CONFIG.CURRENT_SESSION || '2026/2027');
+  const [courseRegs, setCourseRegs] = useState<any[]>([]);
+  const [regSearch, setRegSearch] = useState('');
+  const [regStatusFilter, setRegStatusFilter] = useState('ALL');
 
   useEffect(() => {
     async function loadAll() {
       try {
+        // 1. Current session - Whole portal controlled by Registrar - Old data kept!
+        const { data: setting } = await supabase.from('college_settings').select('*').eq('setting_key','CURRENT_SESSION').single();
+        if(setting?.setting_value){
+          setCurrentPortalSession(setting.setting_value);
+          setSelectedSession(setting.setting_value);
+        }
         const { data: studs } = await supabase.from('students').select('*').order('created_at', { ascending: false });
         if(studs) setSupabaseStudents(studs);
         const { data: courses } = await supabase.from('courses').select('*');
@@ -60,31 +72,36 @@ export const ExamOfficerDashboard: React.FC = () => {
         if(ret) setReturnedResults(ret);
         const { data: res } = await supabase.from('student_results_workflow').select('*').order('created_at',{ascending:false});
         if(res) setSupabaseResults(res);
-        // NEW - LOAD ALL 5 USERS FROM SUPABASE BACKEND - ADMIN CREATES, EXAM OFFICER SEES
         const { data: allUsers, error: userError } = await supabase.from('users').select('*').order('created_at', { ascending: false });
         if(!userError && allUsers && allUsers.length>0){
           const formatted = allUsers.map((u:any)=>({
-            id: u.id,
-            email: u.email,
-            fullName: u.full_name||u.fullName,
-            role: u.role,
-            department: u.department,
-            status: u.status||'ACTIVE',
-            phone: u.phone,
-            matricNumber: u.matric_no||'',
-            staffId: u.staff_id||'',
-            level: u.level||'',
-            createdAt: u.created_at,
-            password: u.password||'',
-            loginId: u.matric_no||u.staff_id||u.email
+            id: u.id, email: u.email, fullName: u.full_name||u.fullName, role: u.role, department: u.department,
+            status: u.status||'ACTIVE', phone: u.phone, matricNumber: u.matric_no||'', staffId: u.staff_id||'',
+            level: u.level||'', current_semester: u.current_semester||'First', createdAt: u.created_at, password: u.password||'', loginId: u.matric_no||u.staff_id||u.email
           }));
           setUsers(formatted);
           localStorage.setItem('lcns_users', JSON.stringify(formatted));
-          localStorage.setItem('users', JSON.stringify(formatted));
         }
+        // 2. Course registrations backend - For approval with Exam Officer name + HOD name on print!
+        const { data: regs } = await supabase.from('course_registrations').select('*').order('registered_at',{ascending:false});
+        if(regs) setCourseRegs(regs);
       } catch {}
     }
     loadAll();
+
+    // Real-time: When Registrar runs new session, adds course, promotes student, student registers -> Exam Officer sees live!
+    const channel = supabase.channel('exam-officer-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'college_settings' }, (payload:any) => {
+        if(payload.new?.setting_key==='CURRENT_SESSION'){
+          setCurrentPortalSession(payload.new.setting_value);
+          setSelectedSession(payload.new.setting_value);
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'course_registrations' }, () => loadAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => loadAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => loadAll())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); }
   }, []);
 
   const safeCurrentUser = (() => {
@@ -102,16 +119,52 @@ export const ExamOfficerDashboard: React.FC = () => {
   })();
 
   const currentUser = safeCurrentUser || {
-    id: 'LCNS/2026/EX/001',
-    email: 'exam@lcns.edu.ng',
-    role: 'EXAM_OFFICER',
-    fullName: 'Dr. Emmanuel O. Agada',
-    status: 'ACTIVE',
+    id: 'LCNS/2026/EX/001', email: 'exam@lcns.edu.ng', role: 'EXAM_OFFICER', fullName: 'Dr. Emmanuel O. Agada', status: 'ACTIVE',
   };
 
-  const displayName = (currentUser?.fullName || currentUser?.full_name || 'Dr. Emmanuel O. Agada').toString().toUpperCase();
+  const displayName = (currentUser?.fullName || (currentUser as any)?.full_name || 'Dr. Emmanuel O. Agada').toString().toUpperCase();
   const displayEmail = currentUser?.email || 'exam@lcns.edu.ng';
   const displayRole = currentUser?.role || 'EXAM_OFFICER';
+
+  // ===== COURSE REG APPROVAL - EXAM OFFICER APPROVES -> NAME REFLECTS ON PRINTED FORM =====
+  const approveCourseReg = async (regId: string) => {
+    if(!confirm('Approve this course registration? Your name will reflect on printed approved form!')) return;
+    const { error } = await supabase.from('course_registrations').update({
+      status: 'APPROVED_BY_EXAM_OFFICER',
+      exam_officer_name: displayName,
+      exam_officer_email: displayEmail,
+      exam_officer_approved_at: new Date().toISOString()
+    }).eq('id', regId);
+    if(error){ alert('Error: '+error.message); return; }
+    setCourseRegs(courseRegs.map((r:any)=> r.id===regId ? {...r, status:'APPROVED_BY_EXAM_OFFICER', exam_officer_name: displayName} : r));
+    alert(`✅ Approved! ${displayName} name saved! Now HOD will approve -> Student prints form with your name + HOD name! Session: ${currentPortalSession}`);
+  };
+
+  const rejectCourseReg = async (regId: string) => {
+    const reason = prompt('Reason for rejection?');
+    if(!reason) return;
+    await supabase.from('course_registrations').update({ status: 'REJECTED_BY_EXAM_OFFICER', rejection_reason: reason, exam_officer_name: displayName }).eq('id', regId);
+    setCourseRegs(courseRegs.map((r:any)=> r.id===regId ? {...r, status:'REJECTED_BY_EXAM_OFFICER'} : r));
+  };
+
+  const printApprovedRegForm = (matricNo: string) => {
+    const regs = courseRegs.filter((r:any)=> r.matric_no===matricNo && r.session===currentPortalSession);
+    const approved = regs.filter((r:any)=> r.status.includes('APPROVED'));
+    const html = `<html><head><style>body{font-family:Arial; font-size:11px;} table{width:100%; border-collapse:collapse;} th,td{border:1px solid #000; padding:5px;} th{background:#0f4c2e; color:#fff;}</style></head><body>
+      <h2 style="text-align:center;">LABE COLLEGE - COURSE REG FORM - APPROVED - Session ${currentPortalSession}</h2>
+      <p>Matric: ${matricNo} | Session: ${currentPortalSession} | Portal: ${currentPortalSession} - Whole portal controlled by Registrar - Old data kept!</p>
+      <table><tr><th>Course</th><th>Title</th><th>CU</th><th>Level/Sem - Promotion</th><th>Status</th><th>Exam Officer Name</th><th>HOD Name</th></tr>
+      ${regs.map((r:any)=>`<tr><td>${r.course_code}</td><td>${r.course_title}</td><td>${r.credit_unit}</td><td>${r.level} ${r.semester} - Promoted</td><td>${r.status}</td><td><b>${r.exam_officer_name||'Pending'}</b><br/>${r.exam_officer_email||''}<br/>${r.exam_officer_approved_at||''}</td><td><b>${r.hod_name||'Pending HOD'}</b></td></tr>`).join('')}
+      </table>
+      <div style="display:flex; justify-content:space-between; margin-top:40px;">
+        <div style="text-align:center;"><p>__________________</p><p><b>${regs[0]?.exam_officer_name||displayName}</b><br/>Exam Officer<br/>Approved: ${regs[0]?.exam_officer_approved_at||''}</p></div>
+        <div style="text-align:center;"><p>__________________</p><p><b>${regs[0]?.hod_name||'HOD Pending'}</b><br/>HOD Nursing Sciences</p></div>
+        <div style="text-align:center;"><p>__________________</p><p><b>Student ${matricNo}</b><br/>Signature</p></div>
+      </div>
+      <p style="font-size:9px; text-align:center; margin-top:20px; border:1px dashed #000; padding:5px;">This approved form shows Exam Officer: <b>${regs[0]?.exam_officer_name||displayName}</b> + HOD: <b>${regs[0]?.hod_name||'Pending'}</b> names reflected - Session ${currentPortalSession} - Promotion: Student level auto updates when Registrar promotes ND1 First→Second</p>
+      </body></html>`;
+    const win=window.open('','_blank'); if(win){win.document.write(html); win.document.close(); win.focus(); setTimeout(()=>win.print(),500);}
+  };
 
   const getGradeAndPoint = (total: number) => {
     if(total >= 70) return { grade: 'A', point: 4, remark: 'Excellent' };
@@ -143,6 +196,13 @@ export const ExamOfficerDashboard: React.FC = () => {
     return `${c.course_code} ${c.course_title} ${c.lecturer_name} ${c.lecturer_email} ${c.level} ${c.semester}`.toLowerCase().includes(searchLecturerCourse.toLowerCase());
   });
 
+  const filteredCourseRegs = courseRegs.filter((r:any)=>{
+    const matchesSearch = !regSearch || r.matric_no?.toLowerCase().includes(regSearch.toLowerCase()) || r.full_name?.toLowerCase().includes(regSearch.toLowerCase()) || r.course_code?.toLowerCase().includes(regSearch.toLowerCase());
+    const matchesStatus = regStatusFilter==='ALL' || r.status===regStatusFilter;
+    const matchesSession = r.session===currentPortalSession || !r.session;
+    return matchesSearch && matchesStatus && matchesSession;
+  });
+
   const handleComputeGPA = (matricNo: string) => {
     const computed = ApiService.calculateGPA(matricNo, selectedSemester, selectedSession);
     setGpaResult({ matric: matricNo, gpa: computed.gpa, totalUnits: computed.totalUnits });
@@ -171,7 +231,7 @@ export const ExamOfficerDashboard: React.FC = () => {
     });
     const gpa = totalCU ? totalGP/totalCU : 0;
     await supabase.from('student_results_workflow').update({ status: 'PENDING_HOD', gpa_calculated: gpa, calculated_by: displayName, calculated_at: new Date().toISOString() }).eq('matric_no', matricNo).eq('status', 'PENDING_EXAM_OFFICER');
-    alert(`✅ Calculated! GPA: ${gpa.toFixed(2)} | Total CU: ${totalCU} | Forwarded to HOD`);
+    alert(`✅ Calculated! GPA: ${gpa.toFixed(2)} | Total CU: ${totalCU} | Forwarded to HOD | Session: ${currentPortalSession}`);
   };
 
   const downloadMasterSheetPDF_Landscape = () => {
@@ -190,23 +250,18 @@ export const ExamOfficerDashboard: React.FC = () => {
       const carryText = carryOvers.length>0 ? `<br/><span style="color:red; font-weight:bold; font-size:8px;">REPEAT: ${carryOvers.map(co=>`${co} (CO)`).join(', ')}</span>` : '';
       rowsHTML += `<tr><td>${matric}</td><td style="text-align:left; font-size:8px;">${studentName}${carryText}</td><td style="text-align:left; font-size:7px;">${courseDetails}</td><td><b>${totalCU}</b></td><td><b>${totalGP}</b></td><td><b>${gpa.toFixed(2)}</b></td><td style="font-size:7px;">${courses.map((c:any)=>{ const total=c.total_score||c.totalScore||0; const gd=getGradeAndPoint(total); return gd.grade==='F' ? `<span style="color:red">${c.course_code||c.courseCode}:F(CO)-REPEAT ${c.course_code||c.courseCode}</span>` : `${c.course_code||c.courseCode}:${gd.grade}`; }).join('<br/>')}</td><td style="color:${carryOvers.length>0?'red':'green'}; font-weight:bold; font-size:7px;">${carryOvers.length>0 ? `${carryOvers.length} CO<br/>REPEAT:<br/>${carryOvers.join('<br/>')}` : 'No CO<br/>Pass All'}</td><td>${courses[0].level||''}</td></tr>`;
     });
-    const html = `<html><head><title>MASTER SHEET - LABE COLLEGE - WITH CU, GRADING, POINT, CO</title><style>@page{size:landscape; margin:8mm;}body{font-family:Arial; font-size:8px;}table{width:100%; border-collapse:collapse;}th,td{border:1px solid #000; padding:3px; text-align:center; vertical-align:top;}th{background:#0a4d2e; color:#fff; font-size:8px; padding:5px 2px;}.header{text-align:center; margin-bottom:8px;}h2{margin:0; font-size:14px;}h3{margin:2px; font-size:10px;}.grading{background:#f0f0f0; border:1px solid #000; padding:4px; margin:5px 0; font-size:8px; text-align:left;}</style></head><body><div class="header"><h2>LABE COLLEGE OF NURSING SCIENCES, GBOKO</h2><h3>Catholic Diocese of Gboko - MASTER SHEET - ${selectedSemester} Semester - ${selectedSession}</h3><p>Exam Officer: ${displayName} | Shows: Total Credit Units, Course Code, Grading, Point, CO (Carry Over) as REPEAT</p></div><div class="grading"><b>Grading:</b> 70-100=A(4pts:Excellent), 60-69=B(3pts:Very Good), 50-59=C(2pts:Good), 40-49=D(1pt:Pass), 0-39=F(0pt:CO-Carry Over-REPEAT Course) | <b>GP = CU × Point</b> | <b>GPA = Total GP / Total CU</b> | <b>CO = Carry Over - Must Repeat Course Code e.g. REPEAT NUR123</b></div><table><tr><th>Matric No</th><th>Full Name (Biodata by Admin) + Carry Over</th><th>Course Code (Score) [CU:Grade:Point:GP] - If F=CO</th><th>Total CU</th><th>Total GP</th><th>GPA</th><th>Grade + CO Status<br/>If F=Show REPEAT Course Code</th><th>CO Summary<br/>Repeat List</th><th>Level</th></tr>${rowsHTML}</table><div style="margin-top:15px; display:flex; justify-content:space-between; font-size:9px;"><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>Exam Officer</b><br/>${displayName}<br/>Calculated<br/>Total CU, Grading, Point</div><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>HOD</b><br/>Moderated<br/>CO Verified<br/>Signature</div><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>Registrar</b><br/>Verified<br/>Carry Over List<br/>Signature</div><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>Provost</b><br/>Senate Approved<br/>Official Seal</div></div><p style="font-size:7px; margin-top:8px;">Generated: ${new Date().toLocaleString()} | Total Students: ${Object.keys(grouped).length} | Grading: A=4, B=3, C=2, D=1, F=0(CO) | If CO, student must REPEAT course code e.g. REPEAT NUR123 | GP=CU×Point | GPA=Total GP/Total CU</p></body></html>`;
+    const html = `<html><head><title>MASTER SHEET - LABE COLLEGE - ${currentPortalSession}</title><style>@page{size:landscape; margin:8mm;}body{font-family:Arial; font-size:8px;}table{width:100%; border-collapse:collapse;}th,td{border:1px solid #000; padding:3px; text-align:center; vertical-align:top;}th{background:#0a4d2e; color:#fff; font-size:8px; padding:5px 2px;}.header{text-align:center; margin-bottom:8px;}h2{margin:0; font-size:14px;}h3{margin:2px; font-size:10px;}.grading{background:#f0f0f0; border:1px solid #000; padding:4px; margin:5px 0; font-size:8px; text-align:left;}</style></head><body><div class="header"><h2>LABE COLLEGE OF NURSING SCIENCES, GBOKO</h2><h3>Catholic Diocese of Gboko - MASTER SHEET - ${selectedSemester} Semester - ${currentPortalSession} - Promotion: ND1 First→Second→ND2 First | Whole Portal Session: ${currentPortalSession}</h3><p>Exam Officer: ${displayName} | Session: ${currentPortalSession} | Shows: Total Credit Units, Course Code, Grading, Point, CO as REPEAT</p></div><div class="grading"><b>Grading:</b> 70-100=A(4pts), 60-69=B(3pts), 50-59=C(2pts), 40-49=D(1pt), 0-39=F(0pt:CO) | GP=CU×Point | GPA=Total GP/Total CU | CO=Carry Over - REPEAT Course Code</div><table><tr><th>Matric No</th><th>Full Name + CO</th><th>Course Code (Score) [CU:Grade:Point:GP]</th><th>Total CU</th><th>Total GP</th><th>GPA</th><th>Grade + CO Status</th><th>CO Summary</th><th>Level - Promotion</th></tr>${rowsHTML}</table><div style="margin-top:15px; display:flex; justify-content:space-between; font-size:9px;"><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>Exam Officer</b><br/>${displayName}<br/>Session ${currentPortalSession}<br/>Calculated</div><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>HOD</b><br/>Moderated<br/>CO Verified</div><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>Registrar</b><br/>Verified<br/>Session ${currentPortalSession}</div><div style="text-align:center; border-top:2px solid #000; width:130px; padding-top:4px;"><b>Provost</b><br/>Senate Approved<br/>Seal</div></div></body></html>`;
     const win = window.open('', '_blank'); if(win) { win.document.write(html); win.document.close(); win.focus(); setTimeout(()=>win.print(), 600); }
   };
 
   const downloadMasterSheetExcel = () => {
     const filtered = supabaseResults.length > 0 ? supabaseResults : filteredResults as any;
     if(filtered.length===0) { alert('No results'); return; }
-    let csv = 'Matric No,Full Name (Biodata by Admin),Course Code,Course Title,Lecturer Name,Credit Unit (CU),CA Score,Exam Score,Total Score,Grade,Grade Point (0-4),GP (CU×Point),Remark,CO Status,Repeat Course Code If CO,Level,Semester,Session,Status,Calculated By\n';
-    filtered.forEach((r:any) => { const total=r.total_score||r.totalScore||0; const gd=getGradeAndPoint(total); const cu=r.credit_unit||r.units||3; const gp=cu*gd.point; const matric=r.matric_no||r.matricNo; const name=r.full_name||r.studentName||r.student_name||''; const courseCode=r.course_code||r.courseCode; const courseTitle=r.course_title||r.courseTitle||''; const lecturer=r.lecturer_name||supabaseCourses.find((c:any)=>c.course_code===courseCode)?.lecturer_name||'N/A'; const coStatus=gd.grade==='F' ? 'CO - CARRY OVER - MUST REPEAT' : 'PASS - No CO'; const repeatCode=gd.grade==='F' ? `REPEAT ${courseCode}` : ''; csv+=`"${matric}","${name.replace(/"/g,'""')}","${courseCode}","${courseTitle.replace(/"/g,'""')}","${lecturer}","${cu}","${r.ca_score||r.caScore||''}","${r.exam_score||r.examScore||''}","${total}","${gd.grade}","${gd.point}","${gp}","${gd.remark}","${coStatus}","${repeatCode}","${r.level||''}","${r.semester||selectedSemester}","${r.session||selectedSession}","${r.status||''}","${displayName}"\n`; });
-    csv+='\n\nSUMMARY - PER STUDENT - TOTAL CU, GPA, CARRY OVER LIST\nMatric No,Full Name,Total Courses,Total Credit Units (CU),Total GP,GPA,CGPA,Carry Over Count,Carry Over Courses (CO),Repeat List (e.g. REPEAT NUR123),Class,Status\n';
-    const grouped: any = {}; filtered.forEach((r:any) => { const matric=r.matric_no||r.matricNo; if(!grouped[matric]) grouped[matric]=[]; grouped[matric].push(r); });
-    Object.keys(grouped).forEach(matric => { const courses=grouped[matric]; let totalCU=0, totalGP=0, carryCodes: string[]=[]; courses.forEach((c:any)=>{ const total=c.total_score||c.totalScore||0; const gd=getGradeAndPoint(total); const cu=c.credit_unit||c.units||3; totalCU+=cu; totalGP+=cu*gd.point; if(gd.grade==='F') carryCodes.push(c.course_code||c.courseCode); }); const gpa=totalCU?totalGP/totalCU:0; const carryList=carryCodes.length>0?carryCodes.join('; '):'No CO'; const repeatList=carryCodes.length>0?carryCodes.map(co=>`REPEAT ${co}`).join('; '):'No Repeat'; csv+=`"${matric}","${courses[0].full_name||courses[0].studentName||''}","${courses.length}","${totalCU}","${totalGP}","${gpa.toFixed(2)}","${gpa.toFixed(2)}","${carryCodes.length}","${carryList}","${repeatList}","N/A","Calculated & Forwarded to HOD - Shows CU, Grade, Point, CO"\n`; });
-    csv+='\n\nGRADING SYSTEM\nScore Range,Grade,Point,Remark,GP Formula,CO Status\n70-100,A,4,Excellent,CU×4,PASS\n60-69,B,3,Very Good,CU×3,PASS\n50-59,C,2,Good,CU×2,PASS\n40-49,D,1,Pass,CU×1,PASS\n0-39,F,0,Fail - Carry Over (CO),CU×0,CO - REPEAT Course Code e.g. REPEAT NUR123\n';
-    const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`LABE_Master_Sheet_CU_Grading_Point_CO_${selectedSession}_${selectedSemester}_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    let csv = `Matric No,Full Name,Course Code,Course Title,Lecturer Name,Credit Unit,CA,Exam,Total,Grade,Point,GP,Remark,CO Status,Repeat If CO,Level,Semester,Session ${currentPortalSession},Status,Calculated By\n`;
+    filtered.forEach((r:any) => { const total=r.total_score||r.totalScore||0; const gd=getGradeAndPoint(total); const cu=r.credit_unit||r.units||3; const gp=cu*gd.point; const matric=r.matric_no||r.matricNo; const name=r.full_name||r.studentName||''; const courseCode=r.course_code||r.courseCode; const courseTitle=r.course_title||r.courseTitle||''; const lecturer=r.lecturer_name||supabaseCourses.find((c:any)=>c.course_code===courseCode)?.lecturer_name||'N/A'; const coStatus=gd.grade==='F' ? 'CO - REPEAT' : 'PASS'; const repeatCode=gd.grade==='F' ? `REPEAT ${courseCode}` : ''; csv+=`"${matric}","${name}","${courseCode}","${courseTitle}","${lecturer}","${cu}","${r.ca_score||''}","${r.exam_score||''}","${total}","${gd.grade}","${gd.point}","${gp}","${gd.remark}","${coStatus}","${repeatCode}","${r.level||''}","${r.semester||selectedSemester}","${currentPortalSession}","${r.status||''}","${displayName}"\n`; });
+    const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`LABE_Master_Sheet_${currentPortalSession}_${selectedSemester}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  // Filter users for display
   const filteredUsers = users.filter((u:any)=>{
     if(!userSearch) return true;
     const t=userSearch.toLowerCase();
@@ -215,127 +270,144 @@ export const ExamOfficerDashboard: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
+      <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-amber-400">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Examination & Records Unit • {displayRole} • Course Registration + Score Sheets + Master Sheet + CO • Users: {users.length} from Supabase Backend</span>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase font-serif-crest mt-2">{displayName}</h1>
-            <p className="text-xs text-emerald-200">{displayEmail} - Receives scores from lecturer - Calculates GPA/CGPA with CU, Grade, Point - Shows CO as REPEAT - Forwards to HOD - Download Master Sheet Landscape PDF + Excel - Backend Users: {users.length}</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Exam & Records • {displayRole} • Session {currentPortalSession} • Course Reg {courseRegs.length} • Users {users.length} • Promotion ND1 First→Second • Run New Session {currentPortalSession}</span>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName} - Session {currentPortalSession} - Promotion Live!</h1>
+            <p className="text-xs text-emerald-200">Portal Session: {currentPortalSession} — Whole portal controlled by Registrar — Old data kept by session filter! Promotion: When Registrar promotes ND1 First→Second, student sees new level, lecturer sees new semester, you see here! Course Reg: PENDING → APPROVED_BY_EXAM_OFFICER ({displayName}) → APPROVED_BY_HOD → Print with names!</p>
           </div>
-          <button onClick={() => window.print()} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border border-emerald-600 shadow-md self-start sm:self-auto"><Printer className="w-4 h-4"/><span>Print</span></button>
+          <div className="flex gap-2">
+            <div className="bg-white text-emerald-900 px-3 py-2 rounded-xl font-black text-xs">{currentPortalSession}<br/><span className="text-[9px]">Portal Session</span></div>
+            <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-800 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl border border-emerald-600"><Printer className="w-4 h-4 inline"/> Print</button>
+          </div>
         </div>
-        <div className="mt-6 pt-5 border-t border-emerald-800/80 flex flex-wrap items-center justify-between gap-4 text-xs"><div className="flex items-center gap-2"><Calculator className="w-4 h-4 text-amber-400"/><span className="text-emerald-200">Grading: A=4 B=3 C=2 D=1 F=0(CO) | GP=CU×Point | If CO → REPEAT Course Code e.g. REPEAT NUR123</span></div><div className="flex gap-2"><span className="bg-slate-900 px-3 py-1 rounded-full font-bold">👤 All Users from Backend: {users.length} - Admin Creates, You See</span><span className="bg-red-600 px-3 py-1 rounded-full font-bold">↩️ Returned: {returnedResults.length}</span><span className="bg-blue-600 px-3 py-1 rounded-full font-bold">Biodata: {allBiodataStudents.length}</span><span className="bg-purple-600 px-3 py-1 rounded-full font-bold">Courses: {supabaseCourses.length}</span></div></div>
+        <div className="mt-4 grid grid-cols-4 gap-2 text-[10px]">
+          <div className="bg-emerald-800 p-2 rounded-xl"><p className="font-bold">Portal Session</p><p className="font-black text-amber-300 text-sm">{currentPortalSession}</p><p>Registrar controls whole portal - Old kept</p></div>
+          <div className="bg-blue-800 p-2 rounded-xl"><p className="font-bold">Course Reg Pending</p><p className="font-black text-amber-300 text-sm">{courseRegs.filter((r:any)=>r.status==='PENDING').length} PENDING</p><p>Approve → Your name on print</p></div>
+          <div className="bg-purple-800 p-2 rounded-xl"><p className="font-bold">Promotion Live</p><p className="font-black text-amber-300 text-sm">{users.filter((u:any)=>u.role==='STUDENT').length} Students</p><p>ND1 First→Second→ND2 First</p></div>
+          <div className="bg-slate-800 p-2 rounded-xl"><p className="font-bold">All Users Backend</p><p className="font-black text-amber-300 text-sm">{users.length} Users</p><p>Admin creates, you see</p></div>
+        </div>
       </div>
 
       {returnedResults.length > 0 && (
         <div className="bg-red-50 border-4 border-red-400 p-5 rounded-2xl">
-          <h3 className="font-black text-red-800 flex items-center gap-2"><RotateCcw className="w-5 h-5"/> ⚠️ RETURNED FOR CORRECTION FROM HOD/REGISTRAR/PROVOST - {returnedResults.length} Results - Return to Exam Officer</h3>
+          <h3 className="font-black text-red-800 flex items-center gap-2"><RotateCcw className="w-5 h-5"/> ⚠️ RETURNED FOR CORRECTION - {returnedResults.length} - Session {currentPortalSession}</h3>
           <div className="grid md:grid-cols-2 gap-3 mt-3">
             {returnedResults.map((r:any) => (
               <div key={r.id} className="bg-white border-2 border-red-300 p-3 rounded-xl">
-                <p className="text-xs"><b>Matric:</b> {r.matric_no} | <b>Course:</b> {r.course_code} | <b>Total:</b> {r.total_score} | <b>CU:</b> {r.credit_unit} | <b>Grade:</b> {getGradeAndPoint(r.total_score||0).grade} | <b>Point:</b> {getGradeAndPoint(r.total_score||0).point}</p>
-                <p className="text-xs text-red-600 font-bold">Returned by {r.returned_from} ({r.returned_by}): {r.return_reason}</p>
-                <button onClick={()=>correctAndResubmit(r.id)} className="bg-green-600 text-white px-4 py-1.5 rounded-lg mt-2 text-xs font-black">✅ Correct & Re-submit to HOD</button>
+                <p className="text-xs"><b>Matric:</b> {r.matric_no} | <b>Course:</b> {r.course_code} | <b>Total:</b> {r.total_score} | <b>Session:</b> {r.session||currentPortalSession}</p>
+                <p className="text-xs text-red-600 font-bold">Returned by {r.returned_from}: {r.return_reason}</p>
+                <button onClick={()=>correctAndResubmit(r.id)} className="bg-green-600 text-white px-4 py-1.5 rounded-lg mt-2 text-xs font-black">✅ Correct & Re-submit</button>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
-        <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='users'?'bg-slate-900 text-white shadow ring-2 ring-amber-300':'bg-slate-50 border-2 border-amber-400 text-slate-800'}`}><Users className="w-4 h-4"/><span>👤 All Users - {users.length} - Backend - NEW</span></button>
-        <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Reg Approval</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">CREDIT</span></button>
-        <button onClick={() => setActiveTab('lecturer_courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='lecturer_courses'?'bg-purple-700 text-white shadow':'bg-purple-50 border-2 border-purple-400 text-purple-800'}`}><School className="w-4 h-4"/><span>👨‍🏫 Lecturer + Courses in Semester</span></button>
-        <button onClick={() => setActiveTab('biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='biodata'?'bg-[#0a4d2e] text-white':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Biodata Created by Admin</span></button>
-        <button onClick={() => setActiveTab('returned')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='returned'?'bg-red-700 text-white':'bg-red-50 border-2 border-red-400 text-red-800'}`}><RotateCcw className="w-4 h-4"/><span>↩️ Returned ({returnedResults.length})</span></button>
-        <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-emerald-700 text-white':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets - Download PDF</span></button>
-        <button onClick={() => setActiveTab('broadsheet')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='broadsheet'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><FileSpreadsheet className="w-4 h-4"/><span>Broadsheet + Master Sheet + CO</span></button>
-        <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white':'bg-purple-50 border border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 All Applicants</span></button>
+      <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border-2 border-slate-200 shadow">
+        <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Reg Approval - {courseRegs.length} - {currentPortalSession} - NEW FEATURE</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-black">{courseRegs.filter((r:any)=>r.status==='PENDING').length} PENDING</span></button>
+        <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='users'?'bg-slate-900 text-white shadow ring-2 ring-amber-300':'bg-slate-50 border-2 border-amber-400 text-slate-800'}`}><Users className="w-4 h-4"/><span>👤 All Users - {users.length} - {currentPortalSession}</span></button>
+        <button onClick={() => setActiveTab('lecturer_courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='lecturer_courses'?'bg-purple-700 text-white shadow':'bg-purple-50 border-2 border-purple-400 text-purple-800'}`}><School className="w-4 h-4"/><span>👨‍🏫 Lecturer + Courses - {currentPortalSession} - Promotion</span></button>
+        <button onClick={() => setActiveTab('biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='biodata'?'bg-[#0a4d2e] text-white':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Biodata - {currentPortalSession}</span></button>
+        <button onClick={() => setActiveTab('broadsheet')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='broadsheet'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><FileSpreadsheet className="w-4 h-4"/><span>Broadsheet + Master Sheet - {currentPortalSession}</span></button>
+        <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-emerald-700 text-white':'bg-emerald-50 border-2 border-emerald-300 text-emerald-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets - {currentPortalSession}</span></button>
       </div>
 
-      {/* NEW TAB - USERS FROM BACKEND - ADMIN CREATES, EXAM OFFICER SEES - DO NOT DELETE OTHER TABS */}
+      {/* ===== NEW FEATURE - COURSE REG APPROVAL WITH EXAM OFFICER NAME + HOD NAME ON PRINT - PROMOTION + SESSION ===== */}
+      {activeTab==='course_reg' && (
+        <div className="bg-white rounded-3xl border-4 border-blue-400 p-6 space-y-4">
+          <div className="flex flex-col md:flex-row justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-black flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-700"/>📚 Course Registration Approval - Exam Officer {displayName} - Session {currentPortalSession} - NEW FEATURE</h2>
+              <p className="text-xs font-bold bg-blue-50 border-2 border-blue-200 p-2 rounded mt-1">Student registers course added by Registrar for {currentPortalSession} → Status PENDING → You approve → Status APPROVED_BY_EXAM_OFFICER + exam_officer_name = {displayName} → HOD approves → Student prints approved form with your name + HOD name reflected! Promotion: Student level {users.filter((u:any)=>u.role==='STUDENT').length>0 ? 'auto updates' : 'ND1 First→Second'} | Whole portal session: {currentPortalSession} - Old data kept!</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4"/><input value={regSearch} onChange={e=>setRegSearch(e.target.value)} placeholder="Matric, Name, Course" className="py-2 text-xs font-bold outline-none w-32"/></div>
+              <select value={regStatusFilter} onChange={e=>setRegStatusFilter(e.target.value)} className="px-3 py-2 border-2 rounded-xl text-xs font-black"><option value="ALL">All Status ({courseRegs.length})</option><option value="PENDING">PENDING ({courseRegs.filter((r:any)=>r.status==='PENDING').length})</option><option value="APPROVED_BY_EXAM_OFFICER">APPROVED BY YOU ({courseRegs.filter((r:any)=>r.status==='APPROVED_BY_EXAM_OFFICER').length})</option><option value="APPROVED">FULLY APPROVED ({courseRegs.filter((r:any)=>r.status==='APPROVED').length})</option></select>
+              <select value={selectedSession} onChange={e=>setSelectedSession(e.target.value)} className="px-3 py-2 border-2 rounded-xl text-xs font-black"><option>{currentPortalSession}</option><option>2026/2027</option><option>2027/2028</option><option>2025/2026</option></select>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-amber-50 to-blue-50 border-2 border-amber-400 rounded-xl p-3 text-xs grid md:grid-cols-3 gap-2">
+            <div className="bg-white p-2 rounded border"><p className="font-black">FLOW: Registrar → Student → Exam Officer → HOD → Print</p><p>1. Registrar adds NUR111 {currentPortalSession} → Student registers → PENDING</p><p>2. You approve → APPROVED_BY_EXAM_OFFICER + exam_officer_name = {displayName}</p><p>3. HOD approves → APPROVED + hod_name → Student prints with both names!</p></div>
+            <div className="bg-white p-2 rounded border"><p className="font-black">Promotion: ND1 First → Second → ND2 First</p><p>Registrar promotes → Student level auto changes → You see new level here → Lecturer sees new semester!</p><p>Example: test.nd1@lcns.edu.ng promoted ND1 First→Second → Shows ND1 Second here!</p></div>
+            <div className="bg-white p-2 rounded border"><p className="font-black">Run New Session: {currentPortalSession} → Next Session</p><p>Registrar runs 2027/2028 → Whole portal {currentPortalSession}→2027/2028 → You, Student, Lecturer, HOD all see 2027/2028!</p><p>Old data kept by session filter! Select session above to view old!</p></div>
+          </div>
+
+          <div className="overflow-x-auto border-2 rounded-xl">
+            <table className="w-full text-xs">
+              <thead className="bg-blue-900 text-white"><tr><th className="p-2 text-left">Matric + Full Name + Session {currentPortalSession}</th><th className="p-2">Course Code + Title + CU</th><th className="p-2">Level/Sem - Promotion - Lecturer Sees New Sem</th><th className="p-2">Status + Exam Officer + HOD Name</th><th className="p-2 text-center">Action - Approve + Your Name on Print</th></tr></thead>
+              <tbody>
+                {filteredCourseRegs.length>0 ? filteredCourseRegs.map((r:any)=>(
+                  <tr key={r.id} className="border-b hover:bg-blue-50">
+                    <td className="p-2"><p className="font-mono font-black">{r.matric_no}</p><p className="font-bold">{r.full_name||r.email}</p><p className="text-[10px] bg-yellow-100 px-1 rounded">Session: {r.session||currentPortalSession} - Portal: {currentPortalSession}</p></td>
+                    <td className="p-2"><p className="font-mono font-black text-blue-800">{r.course_code} - {r.credit_unit}U</p><p className="font-bold">{r.course_title}</p><p className="text-[10px]">Lecturer: {r.lecturer_name}</p></td>
+                    <td className="p-2 text-center"><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">{r.level}</span><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 ml-1">{r.semester}</span><p className="text-[9px] mt-1">Promotion: {r.level} {r.semester} - Lecturer sees {r.semester} sem!</p></td>
+                    <td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${r.status==='PENDING'?'bg-yellow-100 text-yellow-800':r.status==='APPROVED_BY_EXAM_OFFICER'?'bg-blue-100 text-blue-800':r.status==='APPROVED'?'bg-green-100 text-green-800':'bg-red-100 text-red-800'}`}>{r.status}</span><p className="text-[10px] mt-1">Exam Officer: <b>{r.exam_officer_name||'Pending - You approve!'}</b></p><p className="text-[10px]">HOD: <b>{r.hod_name||'Pending after you'}</b></p><p className="text-[9px]">{r.exam_officer_approved_at ? new Date(r.exam_officer_approved_at).toLocaleString() : ''}</p></td>
+                    <td className="p-2 text-center flex flex-col gap-1">
+                      {r.status==='PENDING' ? (
+                        <>
+                          <button onClick={()=>approveCourseReg(r.id)} className="px-3 py-1.5 bg-green-600 text-white rounded-full font-black text-[11px]">✅ Approve - Your Name {displayName} on Print</button>
+                          <button onClick={()=>rejectCourseReg(r.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded-full font-bold text-[10px]">Reject</button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] font-bold text-green-700">✅ Approved by {r.exam_officer_name||displayName}</span>
+                          <button onClick={()=>printApprovedRegForm(r.matric_no)} className="px-2 py-1 bg-slate-900 text-white rounded-full text-[10px] font-bold">🖨️ Print Approved Form with {r.exam_officer_name||displayName} + {r.hod_name||'HOD'} Names</button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr><td colSpan={5} className="p-8 text-center"><p className="font-bold">No course registrations yet for session {currentPortalSession}</p><p className="text-xs">Student registers course added by Registrar for {currentPortalSession} → Appears here PENDING → You approve → Your name {displayName} will reflect on printed approved form + HOD name after HOD approval!</p><p className="text-[11px] mt-2 bg-amber-50 p-2 rounded border">Promotion: When Registrar promotes ND1 First→Second, student level changes → Lecturer sees new semester → You see new level here! Run New Session: When Registrar runs 2027/2028, whole portal {currentPortalSession}→2027/2028, old data kept by session!</p></td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] font-bold text-center bg-emerald-50 p-2 rounded border">✅ Exam Officer Approval Feature: You approve → exam_officer_name = {displayName} + exam_officer_email = {displayEmail} + date saved → Student prints approved form with your name + HOD name reflected! Session {currentPortalSession} - Promotion live - Lecturer sees new semester after promotion!</p>
+        </div>
+      )}
+
       {activeTab==='users' && (
         <div className="bg-white rounded-3xl border-4 border-amber-400 p-6 space-y-4">
           <div className="flex flex-col md:flex-row justify-between gap-3">
             <div>
-              <h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-amber-700"/>All Users from Backend - {users.length} Users - Admin Creates, Exam Officer Sees - FIXED</h2>
-              <p className="text-xs font-bold bg-amber-50 border p-2 rounded mt-1">Exam Officer sees all users created by Admin from Supabase backend — User ID + Email + Password with Eye icon — Same 5 users you have: steve@gmail.com, jude@gmail.com, avulesamuel@gmail.com, terver@gmail.com, samuel@lcns.edu.ng</p>
+              <h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-amber-700"/>All Users - {users.length} - Session {currentPortalSession} - Promotion: Level + Semester Visible</h2>
+              <p className="text-xs font-bold bg-amber-50 border p-2 rounded mt-1">Exam Officer sees all users from Supabase — Level + current_semester shows promotion status — Portal session {currentPortalSession} — When Registrar promotes ND1 First→Second, level changes here! When Registrar runs new session {currentPortalSession}→2027/2028, whole portal changes!</p>
             </div>
             <div className="flex gap-2">
-              <div className="flex items-center gap-1 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4"/><input value={userSearch} onChange={e=>setUserSearch(e.target.value)} placeholder="Search by Name, Email, ID" className="py-2 text-xs font-bold outline-none"/></div>
+              <div className="flex items-center gap-1 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4"/><input value={userSearch} onChange={e=>setUserSearch(e.target.value)} placeholder="Search Name, Email, ID, Level" className="py-2 text-xs font-bold outline-none"/></div>
+              <select value={selectedSession} onChange={e=>setSelectedSession(e.target.value)} className="px-3 py-2 border-2 rounded-xl text-xs font-black"><option>{currentPortalSession}</option><option>2026/2027</option><option>2027/2028</option></select>
             </div>
           </div>
-          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name + Role</th><th className="p-2">Email + User ID</th><th className="p-2">Password - Click Eye</th><th className="p-2">Status</th><th className="p-2">Created At</th></tr></thead><tbody>{filteredUsers.map((u:any)=>(<tr key={u.email} className="border-b hover:bg-amber-50"><td className="p-2"><p className="font-black">{u.fullName}</p><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-white">{u.role}</span> - {u.department}</td><td className="p-2"><p className="font-bold">{u.email}</p><p className="font-mono font-black text-amber-800 text-[11px]">{u.loginId||u.staffId||u.matricNumber}</p></td><td className="p-2"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-mono font-black text-[11px]">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-[11px]">{new Date(u.createdAt).toLocaleDateString()}</td></tr>))}</tbody></table></div>
-          <p className="text-[11px] font-bold text-center bg-emerald-50 p-2 rounded border">✅ Backend Fixed: Admin creates user in Supabase users table → Exam Officer, Provost, Registrar, HOD all see it here! Password = last 4 phone + 123 or 123456 — Click Eye to show</p>
-        </div>
-      )}
-
-      {selectedStudentForView && (
-        <div id="individual-student-view" className="bg-white border-4 border-blue-500 p-6 rounded-2xl space-y-4">
-          {(() => {
-            const matricNo = selectedStudentForView;
-            const studentCourses = supabaseResults.filter((r:any) => (r.matric_no||r.matricNo)===matricNo);
-            const localCourses = filteredResults.filter((r:any) => r.matricNo===matricNo);
-            const allCourses = studentCourses.length>0 ? studentCourses : localCourses as any;
-            if(allCourses.length===0) return <p>No courses for {matricNo}</p>;
-            const studentName = allCourses[0].full_name || allCourses[0].studentName || matricNo;
-            let totalCU=0, totalGP=0; let carryOvers: string[] = [];
-            allCourses.forEach((c:any) => { const total=c.total_score||c.totalScore||0; const gd=getGradeAndPoint(total); const cu=c.credit_unit||c.units||3; totalCU+=cu; totalGP+=cu*gd.point; if(gd.grade==='F') carryOvers.push(c.course_code||c.courseCode); });
-            const gpa = totalCU ? totalGP/totalCU : 0;
-            return (
-              <>
-                <div className="flex justify-between items-center bg-blue-900 text-white p-3 rounded-xl"><h3 className="font-black">Individual View - {matricNo} - {studentName} - Total CU: {totalCU} - GPA: {gpa.toFixed(2)} - {carryOvers.length>0 ? `CO: ${carryOvers.length}` : 'No CO'}</h3><button onClick={()=>setSelectedStudentForView(null)} className="bg-white text-blue-900 px-3 py-1 rounded-full font-black">X Close</button></div>
-                <div className="grid md:grid-cols-3 gap-3 text-xs"><div className="bg-slate-900 text-white p-3 rounded-xl text-center"><p className="text-[10px]">Total Credit Units</p><p className="text-2xl font-black">{totalCU}</p></div><div className="bg-emerald-900 text-white p-3 rounded-xl text-center"><p className="text-[10px]">Total GP (CU×Point)</p><p className="text-2xl font-black">{totalGP}</p><p className="text-[10px]">GPA: {gpa.toFixed(2)}</p></div><div className={`p-3 rounded-xl text-center border-2 ${carryOvers.length>0?'bg-red-100 border-red-400 text-red-800':'bg-green-100 border-green-400 text-green-800'}`}><p className="text-[10px] font-bold">Carry Over (CO)</p><p className="font-black">{carryOvers.length>0 ? `${carryOvers.length} CO - REPEAT: ${carryOvers.join(', ')}` : 'No CO - Pass All'}</p></div></div>
-                <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2">Course Code</th><th className="p-2">Title + Lecturer</th><th className="p-2">CU</th><th className="p-2">CA</th><th className="p-2">Exam</th><th className="p-2">Total</th><th className="p-2">Grade</th><th className="p-2">Point</th><th className="p-2">GP</th><th className="p-2">Remark + CO</th></tr></thead><tbody>{allCourses.map((c:any, i:number) => { const total=c.total_score||c.totalScore||0; const gd=getGradeAndPoint(total); const cu=c.credit_unit||c.units||3; const lecturer=c.lecturer_name||supabaseCourses.find((s:any)=>s.course_code===(c.course_code||c.courseCode))?.lecturer_name||'N/A'; return (<tr key={i} className={gd.grade==='F' ? 'bg-red-50' : 'hover:bg-slate-50'}><td className="p-2 font-mono font-bold border">{c.course_code||c.courseCode}</td><td className="p-2 border"><p className="font-bold">{c.course_title||c.courseTitle||''}</p><p className="text-[10px]">Lecturer: {lecturer}</p></td><td className="p-2 text-center font-bold border">{cu}</td><td className="p-2 text-center border">{c.ca_score||c.caScore||''}</td><td className="p-2 text-center border">{c.exam_score||c.examScore||''}</td><td className="p-2 text-center font-bold border">{total}</td><td className={`p-2 text-center font-black border ${gd.grade==='F'?'bg-red-600 text-white':'bg-emerald-100'}`}>{gd.grade}{gd.grade==='F'?' (CO)':''}</td><td className="p-2 text-center font-bold border">{gd.point}</td><td className="p-2 text-center font-bold border">{cu*gd.point}</td><td className={`p-2 border text-[11px] ${gd.grade==='F'?'text-red-700 font-bold':''}`}>{gd.remark}{gd.grade==='F' ? ` - REPEAT ${c.course_code||c.courseCode}` : ''}</td></tr>); })}</tbody><tfoot className="bg-blue-100 font-black"><tr><td colSpan={2} className="p-2 text-right">TOTAL:</td><td className="p-2 text-center">{totalCU}</td><td colSpan={3} className="p-2 text-center"></td><td colSpan={2} className="p-2 text-center">GP: {totalGP}</td><td className="p-2 text-center">GPA: {gpa.toFixed(2)}</td><td className="p-2">{carryOvers.length>0 ? `CO: ${carryOvers.length} - ${carryOvers.map(co=>`REPEAT ${co}`).join(', ')}` : 'No CO'}</td></tr></tfoot></table></div>
-                {carryOvers.length>0 && (<div className="bg-red-50 border-2 border-red-400 p-3 rounded-xl"><p className="font-black text-red-800 text-xs">⚠️ CARRY OVER (CO) - Student Must Repeat:</p><p className="text-xs font-bold mt-1">{carryOvers.map(co=>`REPEAT ${co} (CO)`).join(', ')} - Total {carryOvers.length} course(s)</p></div>)}
-                <div className="flex flex-wrap gap-2"><button onClick={()=>window.print()} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">🖨️ Print This Student - CU, Grade, Point, CO</button><button onClick={()=>calculateAndForwardToHOD(matricNo)} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-black">➡️ Calculate & Forward to HOD - GPA: {gpa.toFixed(2)}</button><button onClick={()=>setSelectedStudentForView(null)} className="px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-black">✅ Done</button></div>
-              </>
-            );
-          })()}
+          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name + Role + Promotion Level</th><th className="p-2">Email + User ID + Session {currentPortalSession}</th><th className="p-2">Password - Eye</th><th className="p-2">Status + Promotion</th><th className="p-2">Created At</th></tr></thead><tbody>{filteredUsers.map((u:any)=>(<tr key={u.email} className="border-b hover:bg-amber-50"><td className="p-2"><p className="font-black">{u.fullName}</p><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-800 text-white">{u.role}</span> - {u.department} - <span className="bg-yellow-200 px-1 rounded font-bold">{u.level||'STAFF'} {u.current_semester||''}</span> {u.role==='STUDENT' && <span className="text-[9px] bg-green-100 px-1 rounded">Promotion: {u.level} {u.current_semester}</span>}</td><td className="p-2"><p className="font-bold">{u.email}</p><p className="font-mono font-black text-amber-800 text-[11px]">{u.loginId||u.staffId||u.matricNumber}</p><p className="text-[9px]">Session: {currentPortalSession}</p></td><td className="p-2"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-mono font-black text-[11px]">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span><p className="text-[10px] mt-1">{u.role==='STUDENT' ? `Promotion: ${u.level} ${u.current_semester} - Session ${currentPortalSession}` : `STAFF - Session ${currentPortalSession}`}</p></td><td className="p-2 text-[11px]">{new Date(u.createdAt).toLocaleDateString()}<br/><span className="text-[9px]">{currentPortalSession}</span></td></tr>))}</tbody></table></div>
         </div>
       )}
 
       {activeTab==='lecturer_courses' ? (
         <div className="bg-white rounded-3xl border-2 border-purple-300 p-6 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between gap-3"><div><h2 className="text-lg font-black flex items-center gap-2"><School className="w-5 h-5 text-purple-700"/>Lecturer + Course Taken in Semester - {selectedSemester} {selectedSession}</h2><p className="text-xs bg-purple-50 border p-2 rounded mt-1">Exam Officer sees which lecturer handling which course this semester - Biodata created by Admin</p></div><div className="flex gap-2"><div className="flex items-center gap-1 bg-white border rounded-xl px-3"><Search className="w-4 h-4"/><input value={searchLecturerCourse} onChange={e=>setSearchLecturerCourse(e.target.value)} placeholder="Search lecturer, course" className="py-2 text-xs font-bold outline-none"/></div><button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Print</button></div></div>
-          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-purple-900 text-white"><tr><th className="p-2 text-left">Course Code + Title + CU + Grading</th><th className="p-2 text-left">Lecturer Name + Email</th><th className="p-2">Level</th><th className="p-2">Semester</th><th className="p-2">Session</th><th className="p-2">Students Reg</th><th className="p-2">Action</th></tr></thead><tbody>{filteredLecturerCourses.length>0 ? filteredLecturerCourses.map((c:any)=>(<tr key={c.id} className="border-b hover:bg-purple-50"><td className="p-2"><p className="font-mono font-black text-purple-800">{c.course_code || c.code} - {c.credit_unit||c.units||3}U</p><p className="font-bold">{c.course_title || c.title}</p><p className="text-[10px]">Grading: A=4 B=3 C=2 D=1 F=0(CO)</p></td><td className="p-2"><p className="font-bold flex items-center gap-1"><UserCheck className="w-3 h-3"/> {c.lecturer_name || c.lecturerName || 'Not Assigned'}</p><p className="text-[11px] text-slate-600">{c.lecturer_email || ''}</p></td><td className="p-2 text-center font-bold">{c.level}</td><td className="p-2 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${c.semester==='First'?'bg-blue-100 text-blue-800':'bg-green-100 text-green-800'}`}>{c.semester || selectedSemester}</span></td><td className="p-2 text-center text-[11px]">{c.session || selectedSession}</td><td className="p-2 text-center font-bold">{supabaseResults.filter((r:any)=>r.course_code===c.course_code).length} students</td><td className="p-2 text-center"><button onClick={()=>alert('View scores for '+c.course_code)} className="px-2 py-1 bg-blue-600 text-white rounded text-[10px] font-bold">View Scores - CU, Grade, Point</button></td></tr>)) : (<tr><td colSpan={7} className="p-8 text-center"><p className="font-bold">No courses in Supabase yet - Showing local courses with CU, Grading, Point</p><div className="mt-3 grid md:grid-cols-2 gap-2">{StorageService.getCourses().map((c:any)=>(<div key={c.id} className="border p-2 rounded text-left"><p className="font-bold">{c.code} - {c.title} - {c.units||3}U - Grade: A=4 B=3 C=2 D=1 F=0(CO)</p><p className="text-[11px]">Lecturer: {c.lecturerName} | Level: {c.level}</p></div>))}</div></td></tr>)}</tbody></table></div>
+          <div className="flex flex-col md:flex-row justify-between gap-3"><div><h2 className="text-lg font-black flex items-center gap-2"><School className="w-5 h-5 text-purple-700"/>Lecturer + Course - Semester {selectedSemester} - Session {currentPortalSession} - Promotion: Lecturer Sees New Semester!</h2><p className="text-xs bg-purple-50 border p-2 rounded mt-1">When Registrar promotes student ND1 First→Second, lecturer handling ND1 Second courses sees new students! Session {currentPortalSession} — Whole portal controlled by Registrar!</p></div><div className="flex gap-2"><div className="flex items-center gap-1 bg-white border rounded-xl px-3"><Search className="w-4 h-4"/><input value={searchLecturerCourse} onChange={e=>setSearchLecturerCourse(e.target.value)} placeholder="Search lecturer, course" className="py-2 text-xs font-bold outline-none"/></div><button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Print - {currentPortalSession}</button></div></div>
+          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-purple-900 text-white"><tr><th className="p-2 text-left">Course + CU - Session {currentPortalSession}</th><th className="p-2 text-left">Lecturer - Promotion: Sees New Sem</th><th className="p-2">Level - Promotion</th><th className="p-2">Semester - Lecturer Sees New After Promotion</th><th className="p-2">Session - Whole Portal</th><th className="p-2">Students Reg - {currentPortalSession}</th></tr></thead><tbody>{filteredLecturerCourses.length>0 ? filteredLecturerCourses.map((c:any)=>(<tr key={c.id} className="border-b hover:bg-purple-50"><td className="p-2"><p className="font-mono font-black text-purple-800">{c.course_code} - {c.credit_unit||3}U - Session {c.session||currentPortalSession}</p><p className="font-bold">{c.course_title}</p></td><td className="p-2"><p className="font-bold flex items-center gap-1"><UserCheck className="w-3 h-3"/> {c.lecturer_name||'Not Assigned'}</p><p className="text-[11px]">{c.lecturer_email||''} - Promotion: After student promoted, lecturer sees new semester {c.semester} students!</p></td><td className="p-2 text-center font-bold">{c.level} - Promotion: {c.level}</td><td className="p-2 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${c.semester==='First'?'bg-blue-100 text-blue-800':'bg-green-100 text-green-800'}`}>{c.semester} - Lecturer sees after promotion!</span></td><td className="p-2 text-center text-[11px]">{c.session||currentPortalSession} - Whole portal</td><td className="p-2 text-center font-bold">{courseRegs.filter((r:any)=>r.course_code===c.course_code && r.session===currentPortalSession).length} regs - {currentPortalSession}</td></tr>)) : (<tr><td colSpan={6} className="p-8 text-center"><p className="font-bold">No courses for session {currentPortalSession} yet - Registrar adds courses for {currentPortalSession} with session field - Lecturer sees new semester after promotion!</p></td></tr>)}</tbody></table></div>
         </div>
-      ) : activeTab==='returned' ? (
-        <div className="bg-white rounded-3xl border-4 border-red-300 p-6 space-y-4">
-          <h2 className="text-lg font-black flex items-center gap-2"><RotateCcw className="w-5 h-5 text-red-700"/>Returned for Correction - From HOD / Registrar / Provost → Exam Officer - Shows CU, Grade, Point, CO</h2>
-          {returnedResults.length===0 ? (<div className="border-2 border-dashed p-12 text-center rounded-2xl"><p className="font-bold">No returned results — All good! ✅</p><p className="text-xs text-slate-500">When HOD/Registrar/Provost finds error, they return → Appears here</p></div>) : (<div className="space-y-3">{returnedResults.map((r:any)=>{ const gd=getGradeAndPoint(r.total_score||0); return (<div key={r.id} className="border-2 border-red-300 p-4 rounded-xl bg-red-50"><div className="flex justify-between"><div className="text-xs space-y-1"><p><b>Matric:</b> {r.matric_no} | <b>Course:</b> {r.course_code} | <b>CU:</b> {r.credit_unit} | <b>Score:</b> {r.total_score} | <b>Grade:</b> {gd.grade} | <b>Point:</b> {gd.point} | <b>GP:</b> {(r.credit_unit||3)*gd.point} {gd.grade==='F'? ' - CO - REPEAT '+r.course_code : ''}</p><p className="text-red-700"><b>Returned by {r.returned_from}:</b> {r.return_reason}</p></div><div className="flex flex-col gap-2"><button onClick={()=>correctAndResubmit(r.id)} className="px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-black">✅ Correct & Re-submit to HOD</button><button onClick={async()=>{const newCA=prompt('Enter new CA', r.ca_score); const newExam=prompt('Enter new Exam', r.exam_score); if(newCA&&newExam){const total=parseInt(newCA)+parseInt(newExam); await supabase.from('student_results_workflow').update({ca_score:newCA, exam_score:newExam, total_score:total}).eq('id', r.id); alert('Updated - Shows new Grade, Point, CO if F - Now re-submit')}}} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold">✏️ Edit Scores - Recalc Grade, Point, CO</button></div></div></div>); })}</div>)}
-        </div>
-      ) : activeTab==='course_reg' ? (
-        <CourseRegistrationApproval currentUser={currentUser} />
-      ) : activeTab==='scoresheets' ? (
-        <ScoreSheetViewer currentUser={currentUser} />
       ) : activeTab==='biodata' ? (
         <div className="bg-white rounded-3xl border-2 border-emerald-300 p-4 space-y-4">
-          <div className="flex flex-col md:flex-row justify-between gap-3"><div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>All Students Biodata Created by Admin - Current Level Visible - {displayName} View</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">Exam Officer sees all biodata created by Admin — Shows Matric, Level, CU, Lecturer Courses</p></div><button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-1 self-start"><Download className="w-4 h-4"/>Print Biodata</button></div>
-          <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border"><div className="flex items-center gap-2 flex-1 bg-white border rounded-xl px-3"><Search className="w-4 h-4 text-slate-400"/><input value={searchBiodata} onChange={e=>setSearchBiodata(e.target.value)} placeholder="Search Name, Matric No, Program, Level" className="flex-1 py-2 text-xs font-bold outline-none"/></div><select value={levelFilter} onChange={e=>setLevelFilter(e.target.value)} className="px-4 py-2 border-2 border-emerald-300 rounded-xl text-xs font-black"><option value="ALL">All Levels ({allBiodataStudents.length})</option><option value="ND 1">ND 1</option><option value="ND 2">ND 2</option><option value="HND 1">HND 1</option><option value="HND 2">HND 2</option><option value="ND1">ND1</option><option value="ND2">ND2</option></select><div className="px-3 py-2 bg-emerald-900 text-white rounded-xl text-xs font-black">{filteredStudents.length} Students (Admin Created)</div></div>
-          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Matric No + Level (Biodata by Admin)</th><th className="p-2 text-left">Full Name</th><th className="p-2 text-left">Program + Current Level</th><th className="p-2 text-left">State + Contact</th><th className="p-2 text-left">Lecturer Course This Sem + CU</th><th className="p-2">Action</th></tr></thead><tbody>{filteredStudents.map((s:any)=>(<tr key={s.matricNo} className="border-b hover:bg-slate-50"><td className="p-2"><p className="font-mono font-black text-emerald-800">{s.matricNo}</p><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${s.level?.includes('ND 1')||s.level==='ND1'?'bg-blue-100 text-blue-800':s.level?.includes('ND 2')||s.level==='ND2'?'bg-green-100 text-green-800':s.level?.includes('HND 1')||s.level==='HND1'?'bg-purple-100 text-purple-800':'bg-amber-100 text-amber-900'}`}>{s.level}</span><p className="text-[9px] text-slate-500">Created by Admin</p></td><td className="p-2"><p className="font-black uppercase">{s.fullName}</p><p className="text-[11px]">{s.bloodGroup || ''} / {s.genotype || ''}</p></td><td className="p-2"><p className="font-bold">{s.program}</p><p className="text-[11px]">Current Level: <b className="bg-yellow-200 px-1 rounded">{s.level}</b> | {s.session || selectedSession}</p></td><td className="p-2"><p className="text-[11px]">{s.stateOfOrigin || (s as any).state || ''} - {s.lga || ''}</p><p className="text-[11px]">{s.phone || 'N/A'} | {s.email || ''}</p></td><td className="p-2"><p className="text-[11px] font-bold">{supabaseCourses.filter((c:any)=>c.level===s.level).map((c:any)=>`${c.course_code}(${c.credit_unit||3}U)`).join(', ') || 'All courses for ' + s.level}</p><p className="text-[9px]">Lecturers: {supabaseCourses.filter((c:any)=>c.level===s.level).map((c:any)=>c.lecturer_name).join(', ').slice(0,30) || 'Assigned'}</p></td><td className="p-2 text-center"><button onClick={()=>setSelectedBiodata(s)} className="px-3 py-1.5 bg-blue-700 text-white rounded-lg font-black text-[11px]">View Full Biodata</button><button onClick={()=>viewIndividualStudent(s.matricNo)} className="mt-1 px-3 py-1 bg-green-600 text-white rounded-lg font-black text-[10px]">View Result - CU, Grade, Point, CO</button></td></tr>))}</tbody></table></div>
-          {selectedBiodata && (<div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"><div className="bg-white rounded-2xl max-w-xl w-full p-6 space-y-3"><div className="flex justify-between border-b pb-2"><h3 className="font-black">Biodata - {selectedBiodata.fullName} - Level: {selectedBiodata.level} - Created by Admin</h3><button onClick={()=>setSelectedBiodata(null)} className="px-3 py-1 bg-slate-100 rounded-full font-black">X</button></div><div className="text-xs space-y-1"><p>Matric: {selectedBiodata.matricNo}</p><p>Full Name: {selectedBiodata.fullName}</p><p>Program: {selectedBiodata.program}</p><p>Current Level: <b className="bg-yellow-300 px-2 rounded">{selectedBiodata.level}</b></p><p>State: {selectedBiodata.stateOfOrigin || (selectedBiodata as any).state}</p><p>Phone: {selectedBiodata.phone}</p><p>Email: {selectedBiodata.email}</p><p className="mt-2 font-bold">Lecturer Courses This Semester ({selectedSemester}) - With CU, Grade, Point:</p><p className="text-[11px]">{supabaseCourses.filter((c:any)=>c.level===selectedBiodata.level).map((c:any)=>`${c.course_code}(${c.credit_unit||3}U) - ${c.lecturer_name}`).join(', ') || 'All level courses'}</p></div><button onClick={()=>window.print()} className="w-full py-3 bg-slate-900 text-white rounded-xl font-black">Print</button></div></div>)}
+          <div className="flex flex-col md:flex-row justify-between gap-3"><div><h2 className="text-lg font-black flex items-center gap-2"><Users className="w-5 h-5 text-emerald-700"/>Biodata - Session {currentPortalSession} - Promotion: {users.filter((u:any)=>u.role==='STUDENT').length} Students - Level Visible</h2><p className="text-xs font-bold bg-emerald-50 border p-2 rounded mt-1">Promotion: ND1 First→Second→ND2 First - Student sees new level, lecturer sees new semester - Session {currentPortalSession} - Whole portal</p></div><button onClick={()=>window.print()} className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">Print - {currentPortalSession}</button></div>
+          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Matric + Level - Promotion + Session {currentPortalSession}</th><th className="p-2 text-left">Full Name</th><th className="p-2 text-left">Program + Level + Promotion</th><th className="p-2 text-left">State + Contact</th><th className="p-2 text-left">Lecturer Course + Session {currentPortalSession}</th><th className="p-2">Action</th></tr></thead><tbody>{filteredStudents.map((s:any)=>(<tr key={s.matricNo} className="border-b hover:bg-slate-50"><td className="p-2"><p className="font-mono font-black text-emerald-800">{s.matricNo}</p><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">{s.level}</span><p className="text-[9px]">Session {currentPortalSession} - Promotion: {s.level}</p></td><td className="p-2"><p className="font-black uppercase">{s.fullName}</p></td><td className="p-2"><p className="font-bold">{s.program}</p><p className="text-[11px]">Level: <b className="bg-yellow-200 px-1 rounded">{s.level}</b> - Promotion live - Session {currentPortalSession}</p></td><td className="p-2"><p className="text-[11px]">{s.stateOfOrigin||''}</p><p className="text-[11px]">{s.phone||'N/A'}</p></td><td className="p-2"><p className="text-[11px] font-bold">{supabaseCourses.filter((c:any)=>c.level===s.level && (c.session===currentPortalSession || !c.session)).map((c:any)=>`${c.course_code}(${c.credit_unit||3}U)`).join(', ') || 'Courses for '+s.level+' Session '+currentPortalSession}</p></td><td className="p-2 text-center"><button onClick={()=>setSelectedBiodata(s)} className="px-3 py-1.5 bg-blue-700 text-white rounded-lg font-black text-[11px]">View - {currentPortalSession}</button></td></tr>))}</tbody></table></div>
         </div>
       ) : activeTab==='admissions_all' ? (
-        <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">Exam Officer {displayName} - All Applicants Records Link - CBT + Interview Scores</div><AdminAdmissionManager currentUser={currentUser} /></div>
-      ) : activeTab!=='users' && (
+        <div className="space-y-3"><div className="bg-purple-50 border-2 border-purple-300 p-3 rounded-xl text-xs font-bold">All Applicants - Session {currentPortalSession} - Promotion + Run New Session - Whole Portal {currentPortalSession}</div><AdminAdmissionManager currentUser={currentUser} /></div>
+      ) : activeTab!=='users' && activeTab!=='course_reg' && activeTab!=='lecturer_courses' && activeTab!=='biodata' && activeTab!=='admissions_all' && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:w-80"><Search className="w-4 h-4 text-slate-400 absolute left-3 top-3"/><input type="text" value={searchMatric} onChange={(e) => setSearchMatric(e.target.value)} placeholder="Search by Matric No or Course Code - Shows CU, Grade, Point, CO" className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-600"/></div>
-            <div className="flex items-center gap-3"><select value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value as any)} className="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-emerald-950"><option value="First">First Semester</option><option value="Second">Second Semester</option></select><select value={selectedSession} onChange={(e) => setSelectedSession(e.target.value)} className="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"><option value="2026/2027">2026/2027</option><option value="2025/2026">2025/2026</option></select></div>
+            <div className="relative w-full sm:w-80"><Search className="w-4 h-4 text-slate-400 absolute left-3 top-3"/><input type="text" value={searchMatric} onChange={(e) => setSearchMatric(e.target.value)} placeholder={`Search Matric - Session ${currentPortalSession}`} className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-600"/></div>
+            <div className="flex items-center gap-3"><select value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value as any)} className="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-emerald-950"><option value="First">First Semester - {currentPortalSession}</option><option value="Second">Second Semester - {currentPortalSession}</option></select><select value={selectedSession} onChange={(e) => setSelectedSession(e.target.value)} className="p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"><option>{currentPortalSession}</option><option>2026/2027</option><option>2027/2028</option></select></div>
           </div>
-
           <div className="flex flex-wrap gap-2 bg-blue-50 border-2 border-blue-300 p-3 rounded-xl">
-            <button onClick={downloadMasterSheetPDF_Landscape} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> 📄 Master Sheet PDF LANDSCAPE - CU, Grade, Point, CO=REPEAT Course</button>
-            <button onClick={downloadMasterSheetExcel} className="px-5 py-2.5 bg-green-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> 📊 Master Sheet EXCEL - CU, Grade, Point, CO, REPEAT List</button>
-            <button onClick={()=>{ if(confirm(`Forward all ${supabaseResults.filter((r:any)=>r.status==='PENDING_EXAM_OFFICER').length} results to HOD?`)) { supabase.from('student_results_workflow').update({ status: 'PENDING_HOD' }).eq('status', 'PENDING_EXAM_OFFICER').then(()=>alert('✅ All forwarded to HOD - With CU, Grade, Point, CO')); } }} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black">➡️ Forward All Calculated to HOD - Shows Total CU, GPA, CO</button>
+            <button onClick={downloadMasterSheetPDF_Landscape} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> 📄 Master Sheet PDF - {currentPortalSession} - Promotion Live</button>
+            <button onClick={downloadMasterSheetExcel} className="px-5 py-2.5 bg-green-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> 📊 Excel - {currentPortalSession}</button>
           </div>
-
-          <div className="bg-yellow-50 border-2 border-yellow-400 p-3 rounded-xl text-xs"><p className="font-black">Grading: 70-100=A(4pts), 60-69=B(3pts), 50-59=C(2pts), 40-49=D(1pt), 0-39=F(0pt=CO) | GP=CU×Point | If F → CO → REPEAT Course Code e.g. REPEAT NUR123 | Exam Officer Views Individual → Sees CU, Grade, Point, CO</p></div>
-
-          {gpaResult && (<div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-300 flex items-center justify-between"><div><span className="text-xs text-slate-600">GPA for:</span><strong className="ml-2 font-mono-code">{gpaResult.matric}</strong><span className="text-xs text-slate-500 ml-3">({gpaResult.totalUnits} Units - Total CU)</span></div><div className="text-right"><span className="text-xs text-slate-500 block">Semester GPA</span><span className="text-2xl font-black text-emerald-900 font-mono-code">{gpaResult.gpa.toFixed(2)}</span></div></div>)}
-          
-          <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-emerald-900 text-white font-bold uppercase"><tr><th className="p-3">Matric No & Student (Biodata by Admin)</th><th className="p-3">Course + Lecturer + CU</th><th className="p-3 text-center">Total CU</th><th className="p-3 text-center">CA (30)</th><th className="p-3 text-center">Exam (70)</th><th className="p-3 text-center">Total (100)</th><th className="p-3 text-center">Grade</th><th className="p-3 text-center">Point</th><th className="p-3 text-center">GP (CU×Pt)</th><th className="p-3">CO Status</th><th className="p-3 text-right no-print">Actions - View Individual</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredResults.map((r) => { const gd=getGradeAndPoint(r.totalScore); const gp=(r.units||3)*gd.point; const coStatus=gd.grade==='F' ? `CO - REPEAT ${r.courseCode}` : 'PASS'; return (<tr key={r.id} className={`hover:bg-slate-50 ${gd.grade==='F'?'bg-red-50':''}`}><td className="p-3"><span className="font-mono-code font-bold text-emerald-900 block">{r.matricNo}</span><span className="text-slate-600 font-semibold text-[11px]">{r.studentName} - Biodata by Admin</span></td><td className="p-3"><span className="font-bold text-slate-800">{r.courseCode} - {r.units}U</span><span className="block text-[10px] text-slate-500">{r.courseTitle}</span><span className="block text-[9px] bg-yellow-100 px-1 rounded">Lecturer: {StorageService.getCourses().find((c:any)=>c.code===r.courseCode)?.lecturerName || supabaseCourses.find((c:any)=>c.course_code===r.courseCode)?.lecturer_name || 'N/A'}</span></td><td className="p-3 text-center font-bold bg-blue-50">{r.units}U</td><td className="p-3 text-center font-mono-code">{r.caScore}</td><td className="p-3 text-center font-mono-code">{r.examScore}</td><td className="p-3 text-center font-mono-code font-bold text-sm">{r.totalScore}</td><td className="p-3 text-center"><span className={`inline-block font-black text-xs px-2 py-0.5 rounded ${gd.grade==='A'?'bg-emerald-100 text-emerald-800':gd.grade==='B'?'bg-teal-100 text-teal-900':gd.grade==='C'?'bg-amber-100 text-amber-800':gd.grade==='D'?'bg-orange-100 text-orange-800':'bg-red-600 text-white'}`}>{gd.grade}{gd.grade==='F'?' (CO)':''}</span></td><td className="p-3 text-center font-mono-code font-bold">{gd.point}</td><td className="p-3 text-center font-mono-code font-bold bg-green-50">{gp}</td><td className="p-3"><span className={`text-[11px] font-bold ${gd.grade==='F'?'text-red-700':''}`}>{coStatus}</span></td><td className="p-3 text-right no-print flex gap-1"><button onClick={() => handleComputeGPA(r.matricNo)} className="px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 text-emerald-900 border rounded text-[11px] font-bold">Calc GPA</button><button onClick={()=>viewIndividualStudent(r.matricNo)} className="px-2.5 py-1 bg-blue-600 text-white rounded text-[11px] font-bold">👁️ View</button></td></tr>); })}</tbody></table></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-emerald-900 text-white font-bold uppercase"><tr><th className="p-3">Matric + Session {currentPortalSession}</th><th className="p-3">Course + CU - Promotion</th><th className="p-3 text-center">Total</th><th className="p-3 text-center">Grade</th><th className="p-3 text-center">GP - Session {currentPortalSession}</th><th className="p-3">CO Status</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredResults.map((r) => { const gd=getGradeAndPoint(r.totalScore); return (<tr key={r.id} className="hover:bg-slate-50"><td className="p-3"><span className="font-mono-code font-bold text-emerald-900 block">{r.matricNo} - {currentPortalSession}</span><span className="text-[11px]">{r.studentName}</span></td><td className="p-3"><span className="font-bold">{r.courseCode} - {r.units}U - Session {currentPortalSession}</span></td><td className="p-3 text-center font-bold">{r.totalScore}</td><td className="p-3 text-center"><span className="font-black">{gd.grade}</span></td><td className="p-3 text-center">{(r.units||3)*gd.point}</td><td className="p-3">{gd.grade==='F' ? `CO - REPEAT ${r.courseCode}` : 'PASS'}</td></tr>); })}</tbody></table></div>
         </div>
       )}
     </div>
