@@ -9,8 +9,6 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
-// ===== OFFICIAL TRANSCRIPT COMPONENT - LOGO BEFORE NAME - LABE COLLEGE =====
-// ADDED: GPA + CGPA from new views
 const OfficialTranscriptPrint = ({ matricNo, fullName, cgpaData, studentLevel }: any) => {
   const [supabaseCGPA, setSupabaseCGPA] = useState<any[]>([])
   const [supabaseCourses, setSupabaseCourses] = useState<any[]>([])
@@ -111,7 +109,6 @@ export const getClassOfDiploma = (cgpa: number) => {
   return { class: 'FAIL - SPILL OVER', color: 'bg-red-600 text-white', desc: 'Fail Below 2.00 - Spill Over' };
 };
 
-// ===== CBT COMPONENT - LINKED WITH LECTURER - ANTI-CHEAT 5 WARNINGS =====
 const ApplicantDashboardCBT = ({ applicant }: { applicant: any }) => {
   const [showExam, setShowExam] = useState(false);
   const [selectedExam, setSelectedExam] = useState<any>(null);
@@ -247,12 +244,19 @@ export const StudentPortal: React.FC = () => {
   const allCourses = StorageService.getCourses() || [];
   const allResults = StorageService.getResults() || [];
   const allPayments = StorageService.getPayments() || [];
-  const [activeTab, setActiveTab] = useState<'courses' | 'results' | 'fees' | 'idcard' | 'cbt' | 'transcript'>('results');
+  const [activeTab, setActiveTab] = useState<'courses' | 'results' | 'fees' | 'idcard' | 'cbt' | 'transcript'>('courses');
   const [selectedSemester, setSelectedSemester] = useState<'First' | 'Second'>('First');
   const [selectedSession, setSelectedSession] = useState(COLLEGE_CONFIG.CURRENT_SESSION || '2026/2027');
 
   const [resultComputation, setResultComputation] = useState<any[]>(() => {
     try { return JSON.parse(localStorage.getItem('lcns_results') || '[]'); } catch { return []; }
+  });
+
+  // ===== NEW - COURSES ADDED BY REGISTRAR - BACKEND - STUDENT SEES BY LEVEL + SEMESTER =====
+  const [supabaseCourses, setSupabaseCourses] = useState<any[]>([]);
+  const [availableCourses, setAvailableCourses] = useState<any[]>([]);
+  const [registeredCourses, setRegisteredCourses] = useState<any[]>(() => {
+    try { return JSON.parse(localStorage.getItem(`lcns_course_reg_${currentStudentMatric}`) || '[]'); } catch { return []; }
   });
 
   useEffect(() => {
@@ -262,6 +266,76 @@ export const StudentPortal: React.FC = () => {
     loadResults(); window.addEventListener('lcns_storage_update', loadResults); window.addEventListener('storage', loadResults);
     return () => { window.removeEventListener('lcns_storage_update', loadResults); window.removeEventListener('storage', loadResults); };
   }, []);
+
+  // LOAD COURSES FROM SUPABASE BACKEND - FILTERED BY STUDENT LEVEL + SEMESTER
+  useEffect(() => {
+    async function loadCoursesForStudent() {
+      try {
+        const myLevel = (student as any)?.level || 'ND1';
+        const { data, error } = await supabase.from('courses').select('*').order('course_code');
+        if(!error && data && data.length>0){
+          setSupabaseCourses(data);
+          const filtered = data.filter((c:any) => {
+            const cLevel = (c.level || '').toUpperCase().replace(/\s/g,'');
+            const mLevel = myLevel.toUpperCase().replace(/\s/g,'');
+            const levelMatch = cLevel === mLevel || cLevel.includes(mLevel.slice(0,3));
+            const semMatch = (c.semester || '').toLowerCase().startsWith(selectedSemester.toLowerCase().slice(0,3));
+            return levelMatch && semMatch;
+          });
+          if(filtered.length>0) setAvailableCourses(filtered);
+          else {
+            const fallback = data.filter((c:any)=> (c.level||'').toUpperCase().replace(/\s/g,'').includes(myLevel.toUpperCase().replace(/\s/g,'').slice(0,2)));
+            setAvailableCourses(fallback.length>0 ? fallback : data);
+          }
+        } else {
+          const local = StorageService.getCourses().filter((c:any) => {
+            const cLevel = (c.level || '').toUpperCase().replace(/\s/g,'');
+            const mLevel = myLevel.toUpperCase().replace(/\s/g,'');
+            return cLevel === mLevel;
+          });
+          setSupabaseCourses(local);
+          setAvailableCourses(local.filter((c:any)=>c.semester===selectedSemester).length>0 ? local.filter((c:any)=>c.semester===selectedSemester) : local);
+        }
+      } catch(e){ console.log(e); }
+    }
+    loadCoursesForStudent();
+  }, [selectedSemester, (student as any)?.level]);
+
+  const handleRegisterCourse = (course: any) => {
+    const code = course.course_code || course.code;
+    if(registeredCourses.find((rc:any)=> (rc.course_code||rc.code) === code)){
+      alert('Already registered!');
+      return;
+    }
+    const reg = {
+      id: 'reg-' + Date.now(),
+      course_code: code,
+      course_title: course.course_title || course.title,
+      credit_unit: course.credit_unit || course.units || 3,
+      units: course.credit_unit || course.units || 3,
+      lecturer_name: course.lecturer_name || course.lecturerName,
+      level: course.level,
+      semester: course.semester,
+      session: course.session || selectedSession,
+      registered_at: new Date().toISOString(),
+      status: 'REGISTERED',
+      matric_no: currentStudentMatric,
+      matricNo: currentStudentMatric
+    };
+    const updated = [...registeredCourses, reg];
+    setRegisteredCourses(updated);
+    localStorage.setItem(`lcns_course_reg_${currentStudentMatric}`, JSON.stringify(updated));
+    const allRegs = JSON.parse(localStorage.getItem('lcns_course_registrations')||'[]');
+    localStorage.setItem('lcns_course_registrations', JSON.stringify([...allRegs, reg]));
+    alert(`✅ Registered! ${reg.course_code} - ${reg.course_title} - ${reg.credit_unit}U - Lecturer: ${reg.lecturer_name} - ${reg.level} ${reg.semester} Semester`);
+  };
+
+  const handleUnregisterCourse = (courseCode: string) => {
+    if(!confirm(`Unregister ${courseCode}?`)) return;
+    const updated = registeredCourses.filter((c:any)=> (c.course_code||c.code)!==courseCode);
+    setRegisteredCourses(updated);
+    localStorage.setItem(`lcns_course_reg_${currentStudentMatric}`, JSON.stringify(updated));
+  };
 
   const studentMatricSafe = (student as any)?.matricNo || currentStudentMatric;
   const studentResults = allResults.filter((r) => r.matricNo === studentMatricSafe && r.semester === selectedSemester && r.session === selectedSession);
@@ -363,9 +437,9 @@ export const StudentPortal: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-emerald-800 border-2 border-amber-400 flex items-center justify-center"><User className="w-8 h-8" /></div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Student • {student.level} • {studentMatricSafe} • {isResultPublished ? '✅ Published' : '🔒 Awaiting Senate'} • CGPA {myCGPAData.cgpa.toFixed(2)}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Student • {student.level} • {studentMatricSafe} • {isResultPublished ? '✅ Published' : '🔒 Awaiting Senate'} • CGPA {myCGPAData.cgpa.toFixed(2)} • Courses: {supabaseCourses.length} Backend • Registered: {registeredCourses.length}</span>
               <h1 className="text-xl sm:text-2xl font-black uppercase mt-1.5">{displayName}</h1>
-              <p className="text-xs text-emerald-200">Matric: <strong className="text-white">{displayMatric}</strong> • {student.program} • CGPA: {myCGPAData.cgpa.toFixed(2)} • {myCGPAData.classification.class}</p>
+              <p className="text-xs text-emerald-200">Matric: <strong className="text-white">{displayMatric}</strong> • {student.program} • CGPA: {myCGPAData.cgpa.toFixed(2)} • {myCGPAData.classification.class} • Available: {availableCourses.length} for {student.level} {selectedSemester}</p>
             </div>
           </div>
           <div className="bg-emerald-950/80 p-3.5 rounded-2xl border text-center">
@@ -375,9 +449,9 @@ export const StudentPortal: React.FC = () => {
           </div>
         </div>
         <div className="mt-8 pt-4 border-t border-emerald-800/80 flex flex-wrap gap-2 text-xs font-bold no-print">
+          <button onClick={() => setActiveTab('courses')} className={`px-4 py-2 rounded-xl flex items-center gap-1.5 ${activeTab === 'courses' ? 'bg-amber-500 text-slate-950 ring-2 ring-white' : 'bg-emerald-900/80 text-emerald-100'}`}><BookOpen className="w-3.5 h-3.5" /><span>📚 Courses - Register - {availableCourses.length} for {student.level} {selectedSemester} - NEW</span></button>
           <button onClick={() => setActiveTab('results')} className={`px-4 py-2 rounded-xl flex items-center gap-1.5 ${activeTab === 'results' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-900/80 text-emerald-100'}`}><Award className="w-3.5 h-3.5" /><span>Results</span></button>
-          <button onClick={() => setActiveTab('transcript')} className={`px-4 py-2 rounded-xl flex items-center gap-1.5 ${activeTab === 'transcript' ? 'bg-blue-600 text-white' : 'bg-blue-900/80 text-blue-100 border border-blue-400'}`}><FileText className="w-3.5 h-3.5" /><span>🎓 OFFICIAL TRANSCRIPT (LABE)</span></button>
-          <button onClick={() => setActiveTab('courses')} className={`px-4 py-2 rounded-xl ${activeTab === 'courses' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-900/80 text-emerald-100'}`}>Courses</button>
+          <button onClick={() => setActiveTab('transcript')} className={`px-4 py-2 rounded-xl flex items-center gap-1.5 ${activeTab === 'transcript' ? 'bg-blue-600 text-white' : 'bg-blue-900/80 text-blue-100 border border-blue-400'}`}><FileText className="w-3.5 h-3.5" /><span>🎓 TRANSCRIPT</span></button>
           <button onClick={() => setActiveTab('fees')} className={`px-4 py-2 rounded-xl ${activeTab === 'fees' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-900/80 text-emerald-100'}`}>Fees</button>
           <button onClick={() => setActiveTab('idcard')} className={`px-4 py-2 rounded-xl ${activeTab === 'idcard' ? 'bg-amber-500 text-slate-950' : 'bg-emerald-900/80 text-emerald-100'}`}>ID Card</button>
           <button onClick={() => setActiveTab('cbt')} className={`px-4 py-2 rounded-xl ${activeTab === 'cbt' ? 'bg-yellow-400 text-[#0f2e1f]' : 'bg-red-900/80 text-yellow-100'}`}>CBT</button>
@@ -445,7 +519,71 @@ export const StudentPortal: React.FC = () => {
       )}
 
       {activeTab === 'courses' && (
-        <div className="bg-white rounded-3xl border p-6 sm:p-8 space-y-6"><h3 className="font-bold text-base uppercase">Course Registration - {displayName}</h3><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 font-bold uppercase border-b"><tr><th className="p-3">Code</th><th className="p-3">Title</th><th className="p-3 text-center">Units</th><th className="p-3">Lecturer</th><th className="p-3 text-center">Status</th></tr></thead><tbody className="divide-y">{allCourses.map((c) => (<tr key={c.id}><td className="p-3 font-mono font-bold text-emerald-900">{c.code}</td><td className="p-3 font-bold">{c.title}</td><td className="p-3 text-center">{c.units}</td><td className="p-3">{c.lecturerName}</td><td className="p-3 text-center"><span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3" /> Registered</span></td></tr>))}</tbody></table></div></div>
+        <div className="bg-white rounded-3xl border p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col md:flex-row justify-between gap-3">
+            <div>
+              <h3 className="font-bold text-base uppercase flex items-center gap-2"><BookOpen className="w-5 h-5 text-blue-700"/> 📚 Course Registration - {displayName} - {student.level} - {selectedSemester} Semester - NEW BACKEND</h3>
+              <p className="text-xs bg-blue-50 border-2 border-blue-200 p-2 rounded mt-2 font-bold">Registrar adds courses + assigns lecturer → You see here by Level ({student.level}) + Semester ({selectedSemester}) → Click Register! Backend: Supabase courses table — {availableCourses.length} courses found for you! Session: {selectedSession}</p>
+            </div>
+            <div className="flex gap-2">
+              <select value={selectedSemester} onChange={e=>setSelectedSemester(e.target.value as any)} className="px-3 py-2 border-2 rounded-xl text-xs font-black"><option value="First">First Semester</option><option value="Second">Second Semester</option></select>
+              <div className="px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black">{availableCourses.length} Available - {registeredCourses.length} Registered - {registeredCourses.reduce((sum:any,c:any)=>sum+(c.credit_unit||3),0)} CU</div>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-black text-sm flex items-center gap-2"><BookOpen className="w-4 h-4 text-blue-700"/> 📚 Courses Added by Registrar for {student.level} - {selectedSemester} Semester - Register Now - {availableCourses.length} Courses from Backend</h4>
+            <div className="grid md:grid-cols-2 gap-3 mt-3">
+              {availableCourses.map((c:any)=> {
+                const isRegistered = registeredCourses.find((rc:any)=> (rc.course_code||rc.code) === (c.course_code||c.code));
+                return (
+                <div key={c.id} className={`border-2 p-4 rounded-2xl ${isRegistered ? 'bg-emerald-50 border-emerald-300' : 'bg-blue-50 border-blue-200'}`}>
+                  <div className="flex justify-between">
+                    <div>
+                      <p className="font-mono font-black text-blue-800">{c.course_code||c.code} — {c.credit_unit||c.units||3}U</p>
+                      <p className="font-bold text-sm">{c.course_title||c.title}</p>
+                      <p className="text-[11px] mt-1">👨‍🏫 Lecturer: <b>{c.lecturer_name||c.lecturerName||'Not Assigned'}</b> | Level: {c.level} | Semester: {c.semester} | Session: {c.session||selectedSession}</p>
+                    </div>
+                    <div className="text-right">
+                      {isRegistered ? (
+                        <div>
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full"><CheckCircle2 className="w-3 h-3"/> Registered</span>
+                          <button onClick={()=>handleUnregisterCourse(c.course_code||c.code)} className="block mt-2 text-[10px] text-red-600 underline">Unregister</button>
+                        </div>
+                      ) : (
+                        <button onClick={()=>handleRegisterCourse(c)} className="px-4 py-2 bg-blue-700 text-white rounded-full font-black text-[11px]">✅ Register {c.course_code||c.code}</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )})}
+              {availableCourses.length===0 && <div className="col-span-2 p-8 text-center border-2 border-dashed rounded-2xl"><p className="font-bold">No courses added yet for {student.level} {selectedSemester} Semester</p><p className="text-xs text-slate-500">Registrar will add: e.g., NUR111 - Foundations - 3U - ND1 - First Semester - Assigned to Nurse Emmanuel Gbaorun → You will see it here for registration!</p></div>}
+            </div>
+          </div>
+
+          <div>
+            <h4 className="font-black text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-700"/> ✅ My Registered Courses - {registeredCourses.length} Courses - {registeredCourses.reduce((sum:any,c:any)=>sum+(c.credit_unit||3),0)} Total CU - Session: {selectedSession}</h4>
+            <div className="overflow-x-auto mt-3 border-2 rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-emerald-900 text-white font-bold uppercase"><tr><th className="p-3">Code</th><th className="p-3">Title</th><th className="p-3 text-center">Units</th><th className="p-3">Lecturer Assigned by Registrar</th><th className="p-3">Level/Sem</th><th className="p-3 text-center">Status</th><th className="p-3 text-center">Action</th></tr></thead>
+                <tbody className="divide-y">
+                  {registeredCourses.map((c:any)=> (
+                    <tr key={c.id} className="hover:bg-slate-50"><td className="p-3 font-mono font-bold text-emerald-900">{c.course_code}</td><td className="p-3 font-bold">{c.course_title}</td><td className="p-3 text-center">{c.credit_unit||c.units||3}</td><td className="p-3">{c.lecturer_name}</td><td className="p-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">{c.level}</span> <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">{c.semester}</span></td><td className="p-3 text-center"><span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3"/> {c.status}</span></td><td className="p-3 text-center"><button onClick={()=>handleUnregisterCourse(c.course_code)} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">Unregister</button></td></tr>
+                  ))}
+                  {registeredCourses.length===0 && <tr><td colSpan={7} className="p-6 text-center text-slate-500">No courses registered yet — Register courses added by Registrar above! Registrar adds NUR111 ND1 First → You see here!</td></tr>}
+                </tbody>
+                {registeredCourses.length>0 && <tfoot className="bg-slate-100 font-black"><tr><td colSpan={2} className="p-3 text-right">TOTAL:</td><td className="p-3 text-center">{registeredCourses.reduce((sum:any,c:any)=>sum+(c.credit_unit||3),0)} CU</td><td colSpan={4} className="p-3">Courses: {registeredCourses.length} - Session: {selectedSession} - Level: {student.level} - Semester: {selectedSemester}</td></tr></tfoot>}
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border-2 border-blue-200 p-3 rounded-xl text-xs">
+            <p className="font-black">FLOW — Registrar → Student:</p>
+            <p>1. Registrar adds NUR111 - Foundations - 3U - ND1 - First Semester - Lecturer: Emmanuel Gbaorun → Saves to Supabase courses table</p>
+            <p>2. ND1 Student ({displayMatric}) logs in → First Semester tab → Sees NUR111 → Clicks Register! → Shows in My Registered Courses above!</p>
+            <p>3. Registrar adds NUR121 - Second Semester → Student switches to Second Semester tab → Sees NUR121 for registration!</p>
+          </div>
+        </div>
       )}
 
       {activeTab === 'fees' && (
@@ -453,7 +591,7 @@ export const StudentPortal: React.FC = () => {
       )}
 
       {activeTab === 'idcard' && (
-        <div className="bg-white rounded-3xl border p-6 sm:p-8"><h3 className="font-bold uppercase">ID Card - {displayName}</h3><div className="flex justify-center mt-6"><div className="w-full max-w-sm bg-gradient-to-br from-emerald-900 to-emerald-950 text-white rounded-2xl p-6 border-2 border-amber-400"><div className="flex items-center gap-2 border-b border-emerald-700 pb-3"><CollegeLogo size="sm" /><div><h4 className="text-[11px] font-black uppercase">Labe College of Nursing Sciences</h4><span className="text-[9px] text-amber-300 uppercase">Gboko • {student.level}</span></div></div><div className="flex items-center gap-4 my-4"><div className="w-24 h-28 bg-emerald-950 border-2 border-white rounded-xl flex flex-col items-center justify-center"><User className="w-12 h-12 text-emerald-400" /></div><div className="space-y-1 text-[11px]"><div><span className="text-[9px] text-emerald-300 block">Full Name:</span><strong className="text-xs uppercase">{displayName}</strong></div><div><span className="text-[9px] text-emerald-300 block">Matric:</span><strong className="text-amber-300">{displayMatric}</strong></div><div><span className="text-[9px] text-emerald-300 block">CGPA:</span><strong>{myCGPAData.cgpa.toFixed(2)} - {myCGPAData.classification.class}</strong></div></div></div></div></div></div>
+        <div className="bg-white rounded-3xl border p-6 sm:p-8"><h3 className="font-bold uppercase">ID Card - {displayName}</h3><div className="flex justify-center mt-6"><div className="w-full max-w-sm bg-gradient-to-br from-emerald-900 to-emerald-950 text-white rounded-2xl p-6 border-2 border-amber-400"><div className="flex items-center gap-2 border-b border-emerald-700 pb-3"><CollegeLogo size="sm" /><div><h4 className="text-[11px] font-black uppercase">Labe College of Nursing Sciences</h4><span className="text-[9px] text-amber-300 uppercase">Gboko • {student.level}</span></div></div><div className="flex items-center gap-4 my-4"><div className="w-24 h-28 bg-emerald-950 border-2 border-white rounded-xl flex flex-col items-center justify-center"><User className="w-12 h-12 text-emerald-400" /></div><div className="space-y-1 text-[11px]"><div><span className="text-[9px] text-emerald-300 block">Full Name:</span><strong className="text-xs uppercase">{displayName}</strong></div><div><span className="text-[9px] text-emerald-300 block">Matric:</span><strong className="text-amber-300">{displayMatric}</strong></div><div><span className="text-[9px] text-emerald-300 block">CGPA:</span><strong>{myCGPAData.cgpa.toFixed(2)} - {myCGPAData.classification.class}</strong></div><div><span className="text-[9px] text-emerald-300 block">Registered:</span><strong>{registeredCourses.length} Courses - {registeredCourses.reduce((sum:any,c:any)=>sum+(c.credit_unit||3),0)} CU</strong></div></div></div></div></div></div>
       )}
 
       {activeTab === 'cbt' && (
@@ -465,5 +603,4 @@ export const StudentPortal: React.FC = () => {
   );
 };
 
-// ===== THIS FIXES THE VERCEL BUILD ERROR - PortalShell.tsx expects named export =====
 export default StudentPortal;
