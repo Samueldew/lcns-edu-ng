@@ -16,7 +16,7 @@ import { ScoreSheetViewer } from './ScoreSheetViewer';
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { CollegeLogo } from '../common/CollegeLogo';
 
-// ===== 1. BISHOP & PROVOST MANAGER - FIXED SYNTAX - SUPABASE CONNECTED - NOT DELETED =====
+// ===== 1. BISHOP & PROVOST MANAGER - FIXED - SUPABASE CONNECTED =====
 const LeadershipManager = ({ showStatus }: any) => {
   const [bishop, setBishop] = useState<any>(()=>{
     try { const v = localStorage.getItem('lcns_bishop'); if(v) return JSON.parse(v); } catch {}
@@ -95,7 +95,7 @@ const LeadershipManager = ({ showStatus }: any) => {
   );
 };
 
-// ===== 2. GALLERY MANAGER - NOT DELETED - SUPABASE CONNECTED =====
+// ===== 2. GALLERY MANAGER - NOT DELETED =====
 const GalleryManager = ({ showStatus }: any) => {
   const [gallery, setGallery] = useState<any[]>(()=>{
     try{return JSON.parse(localStorage.getItem('lcns_gallery')||'[]');}catch{return[];}
@@ -162,7 +162,7 @@ const GalleryManager = ({ showStatus }: any) => {
       <div className="grid md:grid-cols-3 gap-4">{gallery.map((g:any)=><div key={g.id} className="bg-white border-2 rounded-2xl overflow-hidden"><div className="h-48 overflow-hidden"><img src={g.image} className="w-full h-full object-cover"/></div><div className="p-3"><p className="font-black text-xs">{g.title}</p><p className="text-[11px]">{g.description}</p><button onClick={()=>del(g.id)} className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></div></div>)}</div>
     </div>
   );
-};// ===== 3. COURSE MANAGER - NOT DELETED =====
+};// ===== 3. COURSE MANAGER =====
 const CourseManager = ({ showStatus, users }: any) => {
   const [courses, setCourses] = useState<any[]>(()=>{
     try{return JSON.parse(localStorage.getItem('lcns_courses')||'[]');}catch{return[];}
@@ -226,7 +226,7 @@ const CourseManager = ({ showStatus, users }: any) => {
   );
 };
 
-// ===== 4. PROMOTION MANAGER - NOT DELETED =====
+// ===== 4. PROMOTION MANAGER =====
 const PromotionManager = ({ showStatus, users, setUsers }: any) => {
   const [session, setSession] = useState(()=>localStorage.getItem('lcns_current_session')||'2026/2027');
   const [semester, setSemester] = useState(()=>localStorage.getItem('lcns_current_semester')||'First Semester');
@@ -398,7 +398,7 @@ const AnnouncementManager = ({ showStatus }: any) => {
   );
 };
 
-// ===== 8. APPLICANTS MANAGER - FIXED - ADMIN SEES ALL - LCNS_APPLICANTS TABLE - NO user_id FILTER =====
+// ===== 8. APPLICANTS MANAGER - FIXED - ADMIN SEES ALL - LCNS_APPLICANTS TABLE - NO user_id FILTER - SSCE1 + SSCE2 =====
 const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
   const [applicants, setApplicants] = useState<any[]>(()=>{
     try{ return JSON.parse(localStorage.getItem('lcns_applicants')||'[]'); }catch{return[];}
@@ -450,7 +450,7 @@ const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
     <div className="space-y-4">
       <div className="bg-white border-2 border-rose-300 rounded-3xl p-6">
         <div className="flex justify-between items-center">
-          <h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} - Admin, HOD, Exam Officer see ALL - lcns_applicants {loading&&'(Loading...)'}</h3>
+          <h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} - Admin, HOD, Exam Officer see ALL - lcns_applicants - SSCE1 + SSCE2 - FIXED {loading&&'(Loading...)'}</h3>
           <button onClick={deleteAllApplicants} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">DELETE ALL - Whole Portal</button>
         </div>
         <div className="mt-4 flex gap-2">
@@ -463,7 +463,7 @@ const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
       </div>
       {applicants.length===0 ? (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-10 text-center">
-          <p className="font-black text-amber-800">No Applicants Yet - 0 - Go to /apply and register</p>
+          <p className="font-black text-amber-800">No Applicants Yet - 0 - Go to /apply and register - /apply saves to lcns_applicants table</p>
         </div>
       ) : (
         <div className="bg-white border-2 rounded-3xl overflow-hidden">
@@ -521,9 +521,9 @@ const handleImgUpload = (e:any, set: any, current: any) => {
   });
 
   const showStatus = (text:string, type:'success'|'error'='success')=>{ setStatus({text,type}); setTimeout(()=>setStatus(null),4000); };
-  const getRoleColor = (r:string)=>{ const ALL_ROLES = [{value:'STUDENT',color:'bg-blue-100'},{value:'LECTURER',color:'bg-emerald-100'},{value:'HOD',color:'bg-purple-100'},{value:'EXAM_OFFICER',color:'bg-orange-100'},{value:'REGISTRAR',color:'bg-amber-100'},{value:'PROVOST',color:'bg-emerald-100'},{value:'BURSAR',color:'bg-yellow-100'},{value:'ADMIN',color:'bg-slate-900 text-white'}]; return ALL_ROLES.find(x=>x.value===r)?.color||'bg-slate-100'; };
+  const getRoleColor = (r:string)=>{ const ALL_ROLES = [{value:'STUDENT',color:'bg-blue-100 text-blue-800'},{value:'LECTURER',color:'bg-emerald-100 text-emerald-800'},{value:'HOD',color:'bg-purple-100 text-purple-800'},{value:'EXAM_OFFICER',color:'bg-orange-100 text-orange-800'},{value:'REGISTRAR',color:'bg-amber-100 text-amber-800'},{value:'PROVOST',color:'bg-emerald-100 text-emerald-800'},{value:'BURSAR',color:'bg-yellow-100 text-yellow-800'},{value:'ADMIN',color:'bg-slate-900 text-white'}]; return ALL_ROLES.find(x=>x.value===r)?.color||'bg-slate-100'; };
 
-  // FIXED - LOAD ALL 5 USERS FROM SUPABASE - ADMIN SEES ALL FROM YOUR SCREENSHOT - 2026/2027
+  // FIXED - LOAD ALL 5 USERS FROM SUPABASE - WITH PASSWORD - SHOWS USER ID + EMAIL + PASSWORD - 2026/2027
   useEffect(()=>{
     const loadAll = async()=>{
       try{
@@ -570,6 +570,14 @@ const handleImgUpload = (e:any, set: any, current: any) => {
     loadAll();
   },[]);
 
+  const handleImgUpload = (e:React.ChangeEvent<HTMLInputElement>)=>{
+    const f=e.target.files?.[0];
+    if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>{ setNewUser({...newUser, staffImage:r.result as string}); };
+    r.readAsDataURL(f);
+  };
+
   const handleCreateUser = async ()=>{
     if(!newUser.fullName || !newUser.email){ showStatus('Enter Full Name + Email','error'); return; }
     if(userType==='STUDENT' && !newUser.sex){ showStatus('Select Sex - Female or Male','error'); return; }
@@ -580,8 +588,7 @@ const handleImgUpload = (e:any, set: any, current: any) => {
       localStorage.setItem(counterKey, counter.toString());
       const padded = String(counter).padStart(3, '0');
       const year = new Date().getFullYear();
-      const levelCode = newUser.level.toUpperCase();
-      return `LCNS/${levelCode}/${year}/${padded}`;
+      return `LCNS/${newUser.level.toUpperCase()}/${year}/${padded}`;
     };
     const getNextStaffId = () => {
       const counterKey = 'lcns_staff_counter';
@@ -602,14 +609,6 @@ const handleImgUpload = (e:any, set: any, current: any) => {
       email: newUser.email.toLowerCase(), 
       phone: newUser.phone, 
       sex: newUser.sex, 
-      bloodGroup: newUser.bloodGroup, 
-      address: newUser.address, 
-      staying: newUser.staying,
-      parentName: newUser.parentName,
-      parentPhone: newUser.parentPhone,
-      stateOfOrigin: newUser.stateOfOrigin,
-      lga: newUser.lga,
-      dateOfBirth: newUser.dateOfBirth,
       level: userType==='STUDENT'?newUser.level.toUpperCase():'', 
       department: newUser.department, 
       staffDepartment: newUser.staffDepartment, 
@@ -618,12 +617,8 @@ const handleImgUpload = (e:any, set: any, current: any) => {
       loginId, 
       matricNumber: userType==='STUDENT'?matricNumber:'', 
       staffId: userType==='STAFF'?staffId:'', 
-      qualification: newUser.qualification, 
-      courseOfStudy: newUser.courseOfStudy, 
-      staffImage: newUser.staffImage, 
       status:'ACTIVE', 
       createdAt:new Date().toISOString(), 
-      academicYear: localStorage.getItem('lcns_current_session')||'2026/2027', 
       password, 
       loginIdRaw: loginId 
     };
@@ -631,28 +626,18 @@ const handleImgUpload = (e:any, set: any, current: any) => {
     if(sb){
       try{
         await sb.from('users').insert([{id:userData.id, email:userData.email, password, role:userData.role, full_name:userData.fullName, department:userData.department||userData.staffDepartment, phone:userData.phone, matric_no:userData.matricNumber||null, staff_id:userData.staffId||null, level:userData.level||null, status:'ACTIVE'}]);
-      }catch(err){
-        console.log('Supabase save failed',err);
-      }
+      }catch(err){ console.log('Supabase save failed',err); }
     }
     const existing=JSON.parse(localStorage.getItem('lcns_users')||'[]');
     const updated=[...existing.filter((u:any)=>u.email!==userData.email), userData];
     localStorage.setItem('lcns_users', JSON.stringify(updated));
     localStorage.setItem('users', JSON.stringify(updated));
-    try{ StorageService.saveUsers(updated); }catch{}
     setUsers(updated);
     window.dispatchEvent(new Event('storage'));
     setNewUser({ fullName:'', email:'', phone:'', sex:'', level:'ND1', department:'Nursing', role:userType==='STAFF'?'LECTURER':'STUDENT', staffId:'', qualification:'', staffDepartment:'Nursing', courseOfStudy:'Nursing Science', staffImage:'', address:'', bloodGroup:'', parentName:'', parentPhone:'', staying:'hostel', stateOfOrigin:'', lga:'', dateOfBirth:'' });
-    showStatus(`✅ ${userType} Created - ${userData.fullName} - ID: ${loginId} - Sex: ${userData.sex} - Staying: ${userData.staying} - Parent: ${userData.parentName} - Login with ID or Email - Supabase Connected`);
+    showStatus(`✅ ${userType} Created - ${userData.fullName} - ID: ${loginId} - Password: ${password} - Login with ID or Email`);
   };
 
-  const assignRole = (email:string, newRole:string)=>{
-    const up=users.map((u:any)=>u.email===email?{...u,role:newRole}:u);
-    setUsers(up);
-    localStorage.setItem('lcns_users', JSON.stringify(up));
-    localStorage.setItem('users', JSON.stringify(up));
-    showStatus(`Role assigned: ${newRole} to ${email}`);
-  };
   const toggleUserStatus = (email:string)=>{
     const up=users.map((u:any)=>u.email===email?{...u, status: u.status==='ACTIVE'?'INACTIVE':'ACTIVE'}:u);
     setUsers(up);
@@ -661,28 +646,24 @@ const handleImgUpload = (e:any, set: any, current: any) => {
     const sb=getSupabase();
     if(sb){
       const user=up.find((x:any)=>x.email===email);
-      if(user){
-        try{ sb.from('users').update({status:user.status}).eq('email',email); }catch{}
-      }
+      if(user){ try{ sb.from('users').update({status:user.status}).eq('email',email); }catch{} }
     }
     const user=up.find((x:any)=>x.email===email);
-    showStatus(user.status==='ACTIVE'?`✅ ${user.fullName} ACTIVATED - Can now login`:`🔒 ${user.fullName} DEACTIVATED - Cannot login`);
+    showStatus(user.status==='ACTIVE'?`✅ ${user.fullName} ACTIVATED`:`🔒 ${user.fullName} DEACTIVATED`);
   };
   const deleteUser = (email:string, name:string)=>{
-    if(!confirm(`Delete ${name}? This will delete from whole portal!`)) return;
+    if(!confirm(`Delete ${name}?`)) return;
     const up=users.filter((u:any)=>u.email!==email);
     setUsers(up);
     localStorage.setItem('lcns_users', JSON.stringify(up));
     localStorage.setItem('users', JSON.stringify(up));
     const sb=getSupabase();
-    if(sb){
-      try{ sb.from('users').delete().eq('email',email); }catch{}
-    }
-    showStatus('Deleted from whole portal');
+    if(sb){ try{ sb.from('users').delete().eq('email',email); }catch{} }
+    showStatus('Deleted');
   };
   const filteredUsers = users.filter((u:any)=>{
     if(userFilter==='ALL') return true;
-    if(userFilter==='STUDENT') return u.role==='STUDENT' || u.userType==='STUDENT' || u.matricNumber;
+    if(userFilter==='STUDENT') return u.role==='STUDENT';
     if(userFilter==='STAFF') return u.role!=='STUDENT';
     return true;
   }).filter((u:any)=>{
@@ -690,24 +671,17 @@ const handleImgUpload = (e:any, set: any, current: any) => {
     const t=searchResult.toLowerCase();
     return (u.fullName||'').toLowerCase().includes(t) || (u.email||'').toLowerCase().includes(t) || (u.matricNumber||'').toLowerCase().includes(t) || (u.staffId||'').toLowerCase().includes(t);
   });
-  const refreshResults = ()=>{
-    try{
-      setResults(JSON.parse(localStorage.getItem('lcns_results')||'[]'));
-      const s=JSON.parse(localStorage.getItem('lcns_senate_ratification')||'null');
-      if(s) setSenateInfo({approved:s.approved, date:s.date, provost:s.provostName});
-      else setSenateInfo({approved:localStorage.getItem('lcns_senate_approved')==='true', date:new Date().toISOString(), provost:'Provost'});
-    }catch{}
-  };
-  useEffect(()=>{
-    refreshResults();
-    const h=()=>refreshResults();
-    window.addEventListener('storage',h);
-    window.addEventListener('lcns_storage_update',h as any);
-    return()=>{
-      window.removeEventListener('storage',h);
-      window.removeEventListener('lcns_storage_update',h as any);
-    }
-  },[]);
+
+  const ALL_ROLES = [
+    {value:'STUDENT',label:'Student',color:'bg-blue-100 text-blue-800'},
+    {value:'LECTURER',label:'Lecturer',color:'bg-emerald-100 text-emerald-800'},
+    {value:'HOD',label:'HOD',color:'bg-purple-100 text-purple-800'},
+    {value:'EXAM_OFFICER',label:'Exam Officer',color:'bg-orange-100 text-orange-800'},
+    {value:'REGISTRAR',label:'Registrar',color:'bg-amber-100 text-amber-800'},
+    {value:'PROVOST',label:'Provost',color:'bg-emerald-100 text-emerald-800'},
+    {value:'BURSAR',label:'Bursar',color:'bg-yellow-100 text-yellow-800'},
+    {value:'ADMIN',label:'Admin',color:'bg-slate-900 text-white'},
+  ];
 
   return (
     <div className="space-y-6">
@@ -717,24 +691,23 @@ const handleImgUpload = (e:any, set: any, current: any) => {
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div>
             <div className="flex flex-wrap gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - {adminName} - Labe College - Catholic Diocese of Gboko - 2026/2027</span>
-              <span className={`text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 ${supabaseConnected?'bg-emerald-500 text-white':'bg-red-500 text-white'}`}>{supabaseConnected?<><Wifi className="w-3 h-3"/> SUPABASE CONNECTED - ONLINE</>:<><WifiOff className="w-3 h-3"/> LOCAL MODE</>}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin - {adminName} - 2026/2027 - Shows User ID + Email + Password</span>
+              <span className={`text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 ${supabaseConnected?'bg-emerald-500 text-white':'bg-red-500 text-white'}`}>{supabaseConnected?<><Wifi className="w-3 h-3"/> SUPABASE CONNECTED - {users.length} USERS</>:<><WifiOff className="w-3 h-3"/> LOCAL MODE</>}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard - {adminName}</h1>
-            <p className="text-xs text-emerald-200 mt-1">Welcome: <span className="text-amber-300 font-black">{adminName}</span> ({adminEmail}) • Users: {users.length} • Session: {localStorage.getItem('lcns_current_session')||'2026/2027'} • FIXED: Load from Supabase users table - Shows 5 users from screenshot</p>
+            <p className="text-xs text-emerald-200 mt-1">Welcome: <span className="text-amber-300 font-black">{adminName}</span> ({adminEmail}) • Users: {users.length} • FIXED: Shows User ID + Email + Password with Eye</p>
           </div>
-          <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl"><CollegeLogo size="lg" /><div className="text-center"><p className="text-[12px] font-black leading-none">Labe College of Nursing Sciences</p><p className="text-[10px] font-bold">Catholic Diocese of Gboko</p><p className="text-[9px]">Gboko, Benue State • Nigeria</p><p className={`text-[9px] font-black mt-1 px-2 py-0.5 rounded-full ${supabaseConnected?'bg-emerald-500':'bg-red-500'}`}>{supabaseConnected?'SUPABASE CONNECTED - 5 USERS':'LOCAL MODE'}</p></div><CollegeLogo size="lg" /></div>
+          <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl"><CollegeLogo size="lg" /><div className="text-center"><p className="text-[12px] font-black leading-none">Labe College of Nursing Sciences</p><p className="text-[10px] font-bold">Catholic Diocese of Gboko</p><p className={`text-[9px] font-black mt-1 px-2 py-0.5 rounded-full ${supabaseConnected?'bg-emerald-500':'bg-red-500'}`}>{supabaseConnected?'SUPABASE CONNECTED':'LOCAL'}</p></div><CollegeLogo size="lg" /></div>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border shadow-xs">
-        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-slate-900 text-white':'bg-white border'}`}>👤 Users - {users.length} - FIXED - Shows 5 from Supabase</button>
-        <button onClick={()=>setActiveAdminTab('result_publish')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='result_publish'?'bg-red-700 text-white':'bg-red-50 border-2 border-red-400 text-red-800'}`}>🎓 Result Publish</button>
+        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-slate-900 text-white':'bg-white border'}`}>👤 Users - {users.length} - ID+Email+Password</button>
         <button onClick={()=>setActiveAdminTab('leadership')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='leadership'?'bg-amber-700 text-white':'bg-amber-50 border-2 border-amber-400 text-amber-800'}`}>👑 Bishop & Provost</button>
         <button onClick={()=>setActiveAdminTab('gallery')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='gallery'?'bg-purple-700 text-white':'bg-purple-50 border text-purple-800'}`}>📸 Gallery</button>
         <button onClick={()=>setActiveAdminTab('courses')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='courses'?'bg-blue-700 text-white':'bg-blue-50 border text-blue-800'}`}>📚 Courses</button>
         <button onClick={()=>setActiveAdminTab('promotion')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='promotion'?'bg-indigo-700 text-white':'bg-indigo-50 border text-indigo-800'}`}>⬆️ Promotion</button>
-        <button onClick={()=>setActiveAdminTab('application')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='application'?'bg-emerald-700 text-white':'bg-emerald-50 border text-emerald-800'}`}>🎓 Admission Open/Close</button>
+        <button onClick={()=>setActiveAdminTab('application')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='application'?'bg-emerald-700 text-white':'bg-emerald-50 border text-emerald-800'}`}>🎓 Admission</button>
         <button onClick={()=>setActiveAdminTab('announcements')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='announcements'?'bg-orange-700 text-white':'bg-orange-50 border text-orange-800'}`}>📢 Announcements</button>
         <button onClick={()=>setActiveAdminTab('applicants')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='applicants'?'bg-rose-700 text-white':'bg-rose-50 border-2 border-rose-400 text-rose-800'}`}>📝 Applicants - FIXED</button>
         <button onClick={()=>setActiveAdminTab('settings')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='settings'?'bg-slate-700 text-white':'bg-slate-50 border text-slate-800'}`}>⚙️ Settings</button>
@@ -752,16 +725,16 @@ const handleImgUpload = (e:any, set: any, current: any) => {
 
       {activeAdminTab==='users' && (
         <div className="bg-white rounded-3xl border-2 p-6 shadow-sm space-y-6">
-          <div className="flex justify-between items-center"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - {users.length} Users from Supabase - FIXED - Your 5 users from screenshot will show here</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">Admin: {adminName} ({adminEmail}) - Supabase Connected: {supabaseConnected?'Yes - Loads from users table':'No - Local only'} - FIXED to show all 5: EXAM_OFFICER, REGISTRAR, PROVOST, BURSAR, ADMIN</p></div><div className="flex gap-2"><button onClick={()=>setShowLoginDetails(!showLoginDetails)} className="px-4 py-2 bg-amber-700 text-white rounded-xl text-xs font-black flex gap-2"><Key className="w-4 h-4"/>{showLoginDetails?'Hide':'Show'} Login Details</button><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/> Create User</button></div></div>
+          <div className="flex justify-between items-center"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - {users.length} Users - FIXED - Shows User ID + Email + Password - From Supabase</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">Admin: {adminName} - Supabase Connected: {supabaseConnected?'Yes - 5 users':'No'} - Click Show Login Details to see User ID + Email + Password with Eye icon</p></div><div className="flex gap-2"><button onClick={()=>setShowLoginDetails(!showLoginDetails)} className="px-4 py-2 bg-amber-700 text-white rounded-xl text-xs font-black flex gap-2"><Key className="w-4 h-4"/>{showLoginDetails?'Hide':'Show'} Login Details - ID + Email + Password</button><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/> Create User</button></div></div>
 
-          <div className="flex gap-2"><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric, Staff ID - e.g. steve@gmail.com or jude@gmail.com" className="flex-1 p-3 border-2 rounded-xl text-xs"/><select value={userFilter} onChange={e=>setUserFilter(e.target.value as any)} className="p-3 border-2 rounded-xl text-xs font-black"><option value="ALL">ALL Users - {users.length}</option><option value="STUDENT">STUDENTS</option><option value="STAFF">STAFF - 5 from screenshot</option></select></div>
+          <div className="flex gap-2"><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric, Staff ID - steve@gmail.com" className="flex-1 p-3 border-2 rounded-xl text-xs"/><select value={userFilter} onChange={e=>setUserFilter(e.target.value as any)} className="p-3 border-2 rounded-xl text-xs font-black"><option value="ALL">ALL Users - {users.length}</option><option value="STUDENT">STUDENTS</option><option value="STAFF">STAFF - 5 from screenshot</option></select></div>
 
           {showCreateUser && (
             <div className="bg-slate-50 border-2 rounded-3xl p-4">
               <div className="flex gap-2 mb-4"><button onClick={()=>setUserType('STUDENT')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STUDENT'?'bg-blue-700 text-white':'bg-white border'}`}>STUDENT</button><button onClick={()=>setUserType('STAFF')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STAFF'?'bg-emerald-700 text-white':'bg-white border'}`}>STAFF</button></div>
               <form onSubmit={(e)=>{e.preventDefault(); handleCreateUser();}} className="space-y-4">
                 <div className="bg-white border-2 rounded-2xl p-4">
-                  <h4 className="font-black text-[11px]">Create User - Admin: {adminName} - Supabase Connected</h4>
+                  <h4 className="font-black text-[11px]">Create User - Generates User ID + Email + Password</h4>
                   <div className="grid md:grid-cols-3 gap-3 mt-3">
                     <div><label className="text-[11px] font-bold">Full Names *</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser,fullName:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-bold" required/></div>
                     <div><label className="text-[11px] font-bold">Email *</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
@@ -769,22 +742,22 @@ const handleImgUpload = (e:any, set: any, current: any) => {
                     <div><label className="text-[11px] font-bold">Role *</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-black"><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option><option>STUDENT</option></select></div>
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">CREATE USER - ADMIN: {adminName} - Supabase Save</button>
+                <button type="submit" className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">CREATE USER - Generates User ID + Email + Password - Saves to Supabase</button>
               </form>
             </div>
           )}
 
           {showLoginDetails && (
-            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Login Details - {users.length} Users from Supabase - FIXED</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name</th><th className="p-2">Role</th><th className="p-2">Email</th><th className="p-2">Login ID</th><th className="p-2">Status</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2 font-black">{u.fullName}</td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span></td><td className="p-2">{u.email}</td><td className="p-2 font-mono font-black">{u.loginId||u.matricNumber||u.staffId||u.email}</td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-2 py-1 rounded-lg text-[10px] font-black ${u.status==='ACTIVE'?'bg-amber-600 text-white':'bg-emerald-600 text-white'}`}>{u.status==='ACTIVE'?'Deactivate':'Activate'}</button><button onClick={()=>deleteUser(u.email, u.fullName)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px]">Delete</button></div></td></tr>)}</tbody></table></div></div>
+            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Login Details - {users.length} Users - User ID + Email + Password - FIXED</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name</th><th className="p-2">Role</th><th className="p-2">Email</th><th className="p-2">User ID / Login ID</th><th className="p-2">Password - Click Eye</th><th className="p-2">Status</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2 font-black">{u.fullName}</td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span></td><td className="p-2">{u.email}</td><td className="p-2 font-mono font-black text-[11px]">{u.loginId||u.matricNumber||u.staffId||u.email}<br/><span className="text-[9px] text-slate-500">ID: {u.id?.substring(0,8)}...</span></td><td className="p-2 font-mono text-[11px]"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-black">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-2 py-1 rounded-lg text-[10px] font-black ${u.status==='ACTIVE'?'bg-amber-600 text-white':'bg-emerald-600 text-white'}`}>{u.status==='ACTIVE'?'Deactivate':'Activate'}</button><button onClick={()=>deleteUser(u.email, u.fullName)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px]">Delete</button></div></td></tr>)}</tbody></table></div><p className="text-[10px] mt-2 font-bold text-slate-600">Click Eye icon to show password - Password = last 4 digits of phone + 123 or 123456 - User ID = Staff ID or Matric Number - All 5 users from screenshot will show here</p></div>
           )}
 
           <div className="bg-white border-2 rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
-                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Full Name + Email + Role</th><th className="p-3">Department</th><th className="p-3 text-center">Status</th></tr></thead>
+                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Full Name + Email + Role + User ID</th><th className="p-3">Department</th><th className="p-3 text-center">Status</th></tr></thead>
                 <tbody>
                   {filteredUsers.map((s:any)=>{
-                    return (<tr key={s.email} className="border-b"><td className="p-3"><p className="font-black">{s.fullName}</p><p className="text-[10px]">{s.email} - {s.role}</p></td><td className="p-3">{s.department}</td><td className="p-3 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${s.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{s.status}</span></td></tr>);
+                    return (<tr key={s.email} className="border-b"><td className="p-3"><p className="font-black">{s.fullName}</p><p className="text-[10px]">{s.email} - {s.role} - ID: {s.loginId||s.matricNumber||s.staffId}</p></td><td className="p-3">{s.department}</td><td className="p-3 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${s.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{s.status}</span></td></tr>);
                   })}
                 </tbody>
               </table>
@@ -798,6 +771,5 @@ const handleImgUpload = (e:any, set: any, current: any) => {
   );
 };
 
-// ===== FINAL EXPORTS - FIX FOR MISSING_EXPORT ERROR - DO NOT DELETE =====
 export { AdminDashboard as AdminDashboardNamed };
 export default AdminDashboard;
