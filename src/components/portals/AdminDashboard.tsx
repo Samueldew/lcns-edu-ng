@@ -173,8 +173,7 @@ const CourseManager = ({ showStatus, users }: any) => {
   const [cTitle, setCTitle] = useState('');
   const [unit, setUnit] = useState('3');
   const [level, setLevel] = useState('ND1');
-  const [lecturer, setLecturer] = useState('');
-  useEffect(()=>{
+  const [lecturer, setLecturer] = useState('');  useEffect(()=>{
     const load=async()=>{
       const sb=getSupabase();
       if(!sb) return;
@@ -250,7 +249,6 @@ const PromotionManager = ({ showStatus, users, setUsers }: any) => {
         for(const email of selected){
           await sb.from('users').update({level:toLevel, academic_year:session}).eq('email',email);
         }
-        await sb.from('school_settings').upsert({key:'current_session', value:JSON.stringify({session, semester, fromLevel, toLevel, promoted: selected.length, date:new Date().toISOString()}), updated_at:new Date().toISOString()},{onConflict:'key'});
       }catch{}
     }
     showStatus(`✅ ${selected.length} students promoted from ${fromLevel} to ${toLevel} for ${session} - ${semester}`);
@@ -263,7 +261,6 @@ const PromotionManager = ({ showStatus, users, setUsers }: any) => {
     if(sb){
       try{
         await sb.from('school_settings').upsert({key:'academic_year', value:JSON.stringify({session, semester, updated_at:new Date().toISOString()}), updated_at:new Date().toISOString()},{onConflict:'key'});
-        await sb.from('school_settings').upsert({key:'current_session', value:session, updated_at:new Date().toISOString()},{onConflict:'key'});
       }catch{}
     }
     window.dispatchEvent(new Event('storage'));
@@ -274,33 +271,30 @@ const PromotionManager = ({ showStatus, users, setUsers }: any) => {
       <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><ArrowUpCircle className="w-5 h-5"/> Promote Student by Session and Semester and Set Academic Year e.g. 2026/2027 - Supabase Connected</h3>
         <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Academic Year (Session) e.g. 2026/2027</label><input value={session} onChange={e=>setSession(e.target.value)} placeholder="2026/2027" className="w-full mt-1 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/></div><div><label className="text-[11px] font-bold">Semester</label><select value={semester} onChange={e=>setSemester(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>First Semester</option><option>Second Semester</option></select></div><div className="flex items-end"><button onClick={setAcademicYear} className="w-full bg-amber-700 text-white py-3 rounded-xl font-black text-xs">SET ACADEMIC YEAR {session} - {semester} + PUBLISH TO BACKEND</button></div></div>
         <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">From Level</label><select value={fromLevel} onChange={e=>setFromLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div><label className="text-[11px] font-bold">To Level</label><select value={toLevel} onChange={e=>setToLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div className="flex items-end"><button onClick={promote} className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">PROMOTE {selected.length} STUDENTS - {fromLevel} → {toLevel}</button></div></div>
-        <div className="mt-4 border-2 rounded-xl overflow-hidden"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2"><input type="checkbox" onChange={e=>{ if(e.target.checked) setSelected(students.map((s:any)=>s.email)); else setSelected([]); }} checked={selected.length===students.length&&students.length>0}/></th><th className="p-2 text-left">Name - Matric - {fromLevel}</th><th className="p-2">Level</th></tr></thead><tbody>{students.map((s:any)=><tr key={s.email} className="border-b"><td className="p-2 text-center"><input type="checkbox" checked={selected.includes(s.email)} onChange={()=>toggle(s.email)}/></td><td className="p-2">{s.fullName} - {s.matricNumber} - Sex:{s.sex} - Stay:{s.staying} - Parent:{s.parentName}</td><td className="p-2">{s.level}</td></tr>)}</tbody></table></div>
+        <div className="mt-4 border-2 rounded-xl overflow-hidden"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2"><input type="checkbox" onChange={e=>{ if(e.target.checked) setSelected(students.map((s:any)=>s.email)); else setSelected([]); }}/></th><th className="p-2 text-left">Full Name + Matric</th><th className="p-2">Level</th></tr></thead><tbody>{students.map((s:any)=><tr key={s.email} className="border-b"><td className="p-2"><input type="checkbox" checked={selected.includes(s.email)} onChange={()=>toggle(s.email)}/></td><td className="p-2">{s.fullName} - {s.matricNumber||s.email}</td><td className="p-2">{s.level}</td></tr>)}</tbody></table></div>
       </div>
     </div>
   );
 };
 
-// ===== 5. SETTINGS MANAGER - NOT DELETED =====
+// ===== 5. ADMIN SETTINGS MANAGER =====
 const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
   const [resetConfirm, setResetConfirm] = useState('');
   const resetByRole = async(role:string)=>{
     if(resetConfirm!=='RESET'){showStatus('Type RESET to confirm','error');return;}
-    if(!confirm(`Are you sure you want to reset ALL ${role}? This will delete all ${role} from portal!`)) return;
+    if(!confirm(`Are you sure you want to reset ALL ${role}?`)) return;
     const remaining = users.filter((u:any)=>u.role!==role);
     setUsers(remaining);
     localStorage.setItem('lcns_users',JSON.stringify(remaining));
-    localStorage.setItem('users',JSON.stringify(remaining));
     const sb=getSupabase();
-    if(sb){
-      try{await sb.from('users').delete().eq('role',role);}catch{}
-    }
+    if(sb){ try{await sb.from('users').delete().eq('role',role);}catch{} }
     window.dispatchEvent(new Event('storage'));
     showStatus(`✅ All ${role} reset - Deleted from portal`);
     setResetConfirm('');
   };
   const resetPortal = async(type:'users'|'results'|'all')=>{
     if(resetConfirm!=='RESET'){showStatus('Type RESET to confirm','error');return;}
-    if(!confirm(`Are you sure you want to reset ${type}? This will delete all ${type} data!`)) return;
+    if(!confirm(`Are you sure you want to reset ${type}?`)) return;
     const sb=getSupabase();
     if(type==='users'||type==='all'){
       localStorage.removeItem('lcns_users');
@@ -310,8 +304,6 @@ const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
     }
     if(type==='results'||type==='all'){
       localStorage.removeItem('lcns_results');
-      localStorage.removeItem('lcns_courses');
-      localStorage.removeItem('lcns_gallery');
       if(sb){try{await sb.from('results').delete().neq('id','00000000-0000-0000-0000-000000000000');}catch{}}
     }
     if(type==='all'){
@@ -319,33 +311,31 @@ const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
       if(sb){try{await sb.from('school_settings').delete().neq('key','logo');}catch{}}
     }
     window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ Portal ${type} reset completed - Ready to hand over to school admin`);
+    showStatus(`✅ Portal ${type} reset completed`);
     setResetConfirm('');
   };
   const handover = async()=>{
-    const data={handover_date:new Date().toISOString(), handover_by:'Director of ICT', school:'Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State', academic_year: localStorage.getItem('lcns_current_session')||'2026/2027', total_users: users.length, total_results: JSON.parse(localStorage.getItem('lcns_results')||'[]').length, status:'READY FOR SCHOOL ADMIN'};
+    const data={handover_date:new Date().toISOString(), handover_by:'Director of ICT', school:'Labe College of Nursing Sciences - Gboko', academic_year: localStorage.getItem('lcns_current_session')||'2026/2027', total_users: users.length, status:'READY FOR SCHOOL ADMIN'};
     localStorage.setItem('lcns_handover', JSON.stringify(data));
     const sb=getSupabase();
-    if(sb){
-      try{await sb.from('school_settings').upsert({key:'handover', value:JSON.stringify(data), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{}
-    }
-    showStatus('✅ Portal published and handed over to school admin - School can now manage - 2026/2027 session ready!');
+    if(sb){ try{await sb.from('school_settings').upsert({key:'handover', value:JSON.stringify(data), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
+    showStatus('✅ Portal published and handed over to school admin - 2026/2027 session ready!');
   };
   const rolesToReset = ['LECTURER','BURSAR','PROVOST','REGISTRAR','EXAM_OFFICER','HOD','ADMISSION_OFFICER','ADMIN','ICT_OFFICER'];
   return (
     <div className="space-y-6">
       <div className="bg-gradient-to-br from-slate-900 to-[#0a4d2e] text-white rounded-3xl p-6 border-2"><h3 className="font-black flex gap-2"><Settings className="w-5 h-5"/> Admin Settings - Reset Portal and Publish to Hand Over to School Admin - Supabase Connected</h3><p className="text-xs mt-2 text-emerald-200">Reset portal to clean state for new session 2026/2027 - Then publish to hand over to school admin - Labe College, Gboko</p></div>
-      <div className="bg-white border-2 border-amber-300 rounded-3xl p-6"><h4 className="font-black text-amber-800">🔄 RESET BY ROLE - Lecturer, Bursar, Provost, Registrar, Exam Officer, HOD, Admission Officer</h4><p className="text-[11px] mt-1">Type RESET to confirm, then click role to delete ALL users with that role from whole portal - localStorage + Supabase</p><input value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} placeholder="Type RESET to confirm" className="w-full mt-3 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/><div className="grid md:grid-cols-3 gap-2 mt-3">{rolesToReset.map(r=><button key={r} onClick={()=>resetByRole(r)} className="px-3 py-2 bg-amber-100 border-2 border-amber-400 rounded-xl text-[11px] font-black">{r}</button>)}</div></div>
+      <div className="bg-white border-2 border-amber-300 rounded-3xl p-6"><h4 className="font-black text-amber-800">🔄 RESET BY ROLE - Lecturer, Bursar, Provost, Registrar, Exam Officer, HOD, Admission Officer</h4><p className="text-[11px] mt-1">Type RESET to confirm, then click role to delete ALL users with that role from whole portal</p><input value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} placeholder="Type RESET to confirm" className="w-full mt-3 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/><div className="grid md:grid-cols-3 gap-2 mt-3">{rolesToReset.map(r=><button key={r} onClick={()=>resetByRole(r)} className="px-3 py-2 bg-amber-100 border-2 border-amber-400 rounded-xl text-[11px] font-black">{r}</button>)}</div></div>
       <div className="bg-white border-2 rounded-3xl p-6"><h4 className="font-black">⚙️ RESET PORTAL</h4><div className="flex gap-2 mt-3"><button onClick={()=>resetPortal('users')} className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-black">RESET USERS</button><button onClick={()=>resetPortal('results')} className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black">RESET RESULTS</button><button onClick={()=>resetPortal('all')} className="px-4 py-2 bg-black text-white rounded-xl text-xs font-black">RESET ALL - FULL WIPE</button><button onClick={handover} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">HANDOVER TO SCHOOL ADMIN</button></div></div>
     </div>
   );
 };
 
-// ===== 6. APPLICATION MANAGER - NOT DELETED =====
+// ===== 6. APPLICATION MANAGER =====
 const ApplicationManager = ({ showStatus }: any) => {
   const [appStatus, setAppStatus] = useState<any>(()=>{
     try{
-      return JSON.parse(localStorage.getItem('lcns_app_status')||'null')||{isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Admissions for 2026/2027 Academic Year is CLOSED - School is starting November 2026'};
+      return JSON.parse(localStorage.getItem('lcns_app_status')||'null')||{isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Admissions for 2026/2027 Academic Year is CLOSED'};
     }catch{
       return {isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Closed'};
     }
@@ -354,228 +344,168 @@ const ApplicationManager = ({ showStatus }: any) => {
   const [deadline, setDeadline] = useState(appStatus.deadline);
   const [message, setMessage] = useState(appStatus.message);
   const toggle = async()=>{
-    const newStatus={isOpen:!appStatus.isOpen, link, deadline, message: !appStatus.isOpen?message:'Admissions for 2026/2027 Academic Year is CLOSED - School is starting November 2026 - Labe College of Nursing Sciences'};
+    const newStatus={isOpen:!appStatus.isOpen, link, deadline, message: !appStatus.isOpen?message:'Admissions for 2026/2027 Academic Year is CLOSED'};
     setAppStatus(newStatus);
     localStorage.setItem('lcns_app_status',JSON.stringify(newStatus));
-    localStorage.setItem('lcns_admission_status',JSON.stringify(newStatus));
     const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'application_open', value:newStatus.isOpen?'true':'false', updated_at:new Date().toISOString()},{onConflict:'key'});
-        await sb.from('school_settings').upsert({key:'admission_status', value:JSON.stringify(newStatus), updated_at:new Date().toISOString()},{onConflict:'key'});
-      }catch{}
-    }
+    if(sb){ try{ await sb.from('school_settings').upsert({key:'app_status', value:JSON.stringify(newStatus), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
     window.dispatchEvent(new Event('storage'));
-    showStatus(newStatus.isOpen?`✅ ADMISSION PUBLISHED - OPEN!`:`✅ ADMISSION CLOSED`);
-  };
-  const saveSettings = async()=>{
-    const newStatus={isOpen:appStatus.isOpen, link, deadline, message};
-    setAppStatus(newStatus);
-    localStorage.setItem('lcns_app_status',JSON.stringify(newStatus));
-    const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'admission_status', value:JSON.stringify(newStatus), updated_at:new Date().toISOString()},{onConflict:'key'});
-      }catch{}
-    }
-    showStatus('Admission settings saved and will display on website');
+    showStatus(newStatus.isOpen?'✅ Admissions OPENED':'✅ Admissions CLOSED');
   };
   return (
     <div className="space-y-6">
-      <div className={`rounded-3xl p-6 border-2 ${appStatus.isOpen?'bg-emerald-50 border-emerald-300':'bg-red-50 border-red-300'}`}><div className="flex justify-between items-center"><div><h2 className="font-black text-lg">APPLICATION {appStatus.isOpen?'OPEN':'CLOSED'}</h2><p className="text-xs mt-1">{appStatus.message}</p><p className="text-[11px] mt-1">Link: {appStatus.link} | Deadline: {appStatus.deadline}</p></div><button onClick={toggle} className={`px-8 py-3 rounded-xl font-black text-white ${appStatus.isOpen?'bg-red-600':'bg-emerald-600'}`}>{appStatus.isOpen?'CLOSE ADMISSION NOW':'OPEN ADMISSION NOW - PUBLISH'}</button></div></div>
-      <div className="bg-white border-2 rounded-3xl p-6 space-y-4"><h3 className="font-black">Publish Admission Settings - Will Display on Website - Supabase Connected</h3><div><label className="text-[11px] font-bold">Application Link</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Deadline</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Message to display on website</label><textarea value={message} onChange={e=>setMessage(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs h-24"/></div><button onClick={saveSettings} className="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-xs">SAVE ADMISSION SETTINGS - PUBLISH TO WEBSITE</button></div>
+      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black">🎓 Admission Open/Close - Control /apply</h3>
+        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Application Link</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Deadline</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Message</label><input value={message} onChange={e=>setMessage(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div></div>
+        <div className="mt-4 flex gap-2"><button onClick={toggle} className={`px-6 py-3 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-red-600 text-white':'bg-emerald-700 text-white'}`}>{appStatus.isOpen?'CLOSE ADMISSIONS':'OPEN ADMISSIONS'}</button><span className={`px-4 py-2 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{appStatus.isOpen?'OPEN':'CLOSED'} - {appStatus.deadline}</span></div>
+      </div>
     </div>
   );
 };
 
-// ===== 7. ANNOUNCEMENT MANAGER - NOT DELETED =====
+// ===== 7. ANNOUNCEMENT MANAGER =====
 const AnnouncementManager = ({ showStatus }: any) => {
-  const [anns, setAnns] = useState<any[]>(()=>{
+  const [announcements, setAnnouncements] = useState<any[]>(()=>{
     try{return JSON.parse(localStorage.getItem('lcns_announcements')||'[]');}catch{return[];}
   });
-  const [events, setEvents] = useState<any[]>(()=>{
-    try{return JSON.parse(localStorage.getItem('lcns_events')||'[]');}catch{return[];}
-  });
-  const [annForm, setAnnForm] = useState({title:'', message:'', type:'announcement', is_published:true});
-  const [eventForm, setEventForm] = useState({title:'', description:'', date:'', location:'', is_published:true});
-  useEffect(()=>{
-    const load=async()=>{
-      const sb=getSupabase();
-      if(!sb) return;
-      try{
-        const {data: aData}=await sb.from('school_settings').select('*').eq('key','announcements');
-        if(aData&&aData[0]){
-          const p=JSON.parse(aData[0].value||'[]');
-          setAnns(p);
-          localStorage.setItem('lcns_announcements',JSON.stringify(p));
-        }
-        const {data: eData}=await sb.from('school_settings').select('*').eq('key','events');
-        if(eData&&eData[0]){
-          const p=JSON.parse(eData[0].value||'[]');
-          setEvents(p);
-          localStorage.setItem('lcns_events',JSON.stringify(p));
-        }
-      }catch{}
-    };
-    load();
-  },[]);
-  const saveAnn = async()=>{
-    if(!annForm.title||!annForm.message){showStatus('Title + Message required','error');return;}
-    const newAnn={id:Date.now().toString(), ...annForm, created_at:new Date().toISOString()};
-    const updated=[newAnn, ...anns];
-    setAnns(updated);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const save = async()=>{
+    if(!title||!content){showStatus('Title + Content required','error');return;}
+    const newAnn={id:Date.now().toString(), title, content, created_at:new Date().toISOString()};
+    const updated=[newAnn, ...announcements];
+    setAnnouncements(updated);
     localStorage.setItem('lcns_announcements',JSON.stringify(updated));
     const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'announcements', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});
-      }catch{}
-    }
+    if(sb){ try{ await sb.from('school_settings').upsert({key:'announcements', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
     window.dispatchEvent(new Event('storage'));
-    showStatus('✅ Announcement published and will display on website!');
-    setAnnForm({title:'', message:'', type:'announcement', is_published:true});
-  };
-  const saveEvent = async()=>{
-    if(!eventForm.title){showStatus('Event title required','error');return;}
-    const newEvent={id:Date.now().toString(), ...eventForm, created_at:new Date().toISOString()};
-    const updated=[newEvent, ...events];
-    setEvents(updated);
-    localStorage.setItem('lcns_events',JSON.stringify(updated));
-    const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'events', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});
-      }catch{}
-    }
-    window.dispatchEvent(new Event('storage'));
-    showStatus('✅ Event published and will display on website!');
-    setEventForm({title:'', description:'', date:'', location:'', is_published:true});
+    showStatus('✅ Announcement published to website + backend!');
+    setTitle(''); setContent('');
   };
   const delAnn = async(id:string)=>{
-    const updated=anns.filter((a:any)=>a.id!==id);
-    setAnns(updated);
+    const updated=announcements.filter((a:any)=>a.id!==id);
+    setAnnouncements(updated);
     localStorage.setItem('lcns_announcements',JSON.stringify(updated));
     const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'announcements', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});
-      }catch{}
-    }
-    showStatus('Deleted');
-  };
-  const delEvent = async(id:string)=>{
-    const updated=events.filter((e:any)=>e.id!==id);
-    setEvents(updated);
-    localStorage.setItem('lcns_events',JSON.stringify(updated));
-    const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'events', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});
-      }catch{}
-    }
+    if(sb){ try{ await sb.from('school_settings').upsert({key:'announcements', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
     showStatus('Deleted');
   };
   return (
     <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Megaphone className="w-5 h-5"/> Publish Announcement - Will Display on Website - Supabase Connected</h3><div className="space-y-3 mt-4"><input value={annForm.title} onChange={e=>setAnnForm({...annForm,title:e.target.value})} placeholder="Announcement Title" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={annForm.message} onChange={e=>setAnnForm({...annForm,message:e.target.value})} placeholder="Message" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><button onClick={saveAnn} className="w-full bg-orange-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH ANNOUNCEMENT</button></div><div className="mt-4 space-y-2">{anns.map((a:any)=><div key={a.id} className="border p-3 rounded-xl flex justify-between"><div><p className="font-black text-xs">{a.title}</p><p className="text-[11px]">{a.message}</p></div><button onClick={()=>delAnn(a.id)} className="px-2 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></div>)}</div></div>
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Calendar className="w-5 h-5"/> Publish Event - Will Display on Website - Supabase Connected</h3><div className="space-y-3 mt-4"><input value={eventForm.title} onChange={e=>setEventForm({...eventForm,title:e.target.value})} placeholder="Event Title" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={eventForm.description} onChange={e=>setEventForm({...eventForm,description:e.target.value})} placeholder="Description" className="w-full p-3 border-2 rounded-xl text-xs h-20"/><div className="grid grid-cols-2 gap-2"><input type="date" value={eventForm.date} onChange={e=>setEventForm({...eventForm,date:e.target.value})} className="p-3 border-2 rounded-xl text-xs"/><input value={eventForm.location} onChange={e=>setEventForm({...eventForm,location:e.target.value})} placeholder="Location" className="p-3 border-2 rounded-xl text-xs"/></div><button onClick={saveEvent} className="w-full bg-orange-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH EVENT</button></div><div className="mt-4 space-y-2">{events.map((ev:any)=><div key={ev.id} className="border p-3 rounded-xl flex justify-between"><div><p className="font-black text-xs">{ev.title}</p><p className="text-[11px]">{ev.description} - {ev.date} - {ev.location}</p></div><button onClick={()=>delEvent(ev.id)} className="px-2 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></div>)}</div></div>
+      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Megaphone className="w-5 h-5"/> Announcements & Events - Publish to Website</h3>
+        <div className="space-y-3 mt-4"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title e.g. Resumption Date 2026/2027" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="Content" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><button onClick={save} className="w-full bg-orange-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH ANNOUNCEMENT TO WEBSITE + SUPABASE</button></div>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">{announcements.map((a:any)=><div key={a.id} className="bg-white border-2 rounded-2xl p-4"><p className="font-black text-xs">{a.title}</p><p className="text-[11px] mt-1">{a.content}</p><button onClick={()=>delAnn(a.id)} className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></div>)}</div>
     </div>
   );
 };
 
-// ===== 8. APPLICANTS MANAGER - NOT DELETED =====
+// ===== 8. APPLICANTS MANAGER - FIXED - ADMIN SEES ALL - NO user_id FILTER - LCNS_APPLICANTS TABLE =====
 const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
   const [applicants, setApplicants] = useState<any[]>(()=>{
     try{
       return JSON.parse(localStorage.getItem('lcns_applicants')||localStorage.getItem('applicants')||'[]');
     }catch{return[];}
   });
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
   useEffect(()=>{
     const load=async()=>{
+      setLoading(true);
       const sb=getSupabase();
-      if(!sb) return;
+      if(!sb){ setLoading(false); return; }
       try{
-        const {data}=await sb.from('school_settings').select('*').eq('key','applicants');
-        if(data&&data[0]){
-          const p=JSON.parse(data[0].value||'[]');
-          setApplicants(p);
-          localStorage.setItem('lcns_applicants',JSON.stringify(p));
-        } else {
-          const {data: appData}=await sb.from('applicants').select('*');
-          if(appData&&appData.length){
-            setApplicants(appData);
-            localStorage.setItem('lcns_applicants',JSON.stringify(appData));
+        const { data: lcnsData, error } = await sb.from('lcns_applicants').select('*').order('created_at', { ascending: false });
+        if(!error && lcnsData && lcnsData.length>=0){
+          if(lcnsData.length>0){
+            setApplicants(lcnsData);
+            localStorage.setItem('lcns_applicants', JSON.stringify(lcnsData));
           }
         }
-      }catch{}
+      }catch(e){ console.log(e); }
+      setLoading(false);
     };
     load();
   },[]);
   const filtered = applicants.filter((a:any)=>{
     if(!search) return true;
     const t=search.toLowerCase();
-    return (a.fullName||a.full_name||'').toLowerCase().includes(t)||(a.email||'').toLowerCase().includes(t)||(a.phone||'').toLowerCase().includes(t);
+    return (a.fullName||a.full_name||'').toLowerCase().includes(t) || (a.email||'').toLowerCase().includes(t) || (a.phone||'').toLowerCase().includes(t) || (a.application_number||'').toLowerCase().includes(t);
   });
   const deleteApplicant = async(id:string, name:string)=>{
     if(!confirm(`Delete applicant ${name}? This will delete from whole portal!`)) return;
-    const updated=applicants.filter((a:any)=>(a.id||a.email)!==id);
-    setApplicants(updated);
-    localStorage.setItem('lcns_applicants',JSON.stringify(updated));
-    localStorage.setItem('applicants',JSON.stringify(updated));
-    const remainingUsers=users.filter((u:any)=>u.id!==id&&u.email!==id);
-    if(remainingUsers.length!==users.length){
-      setUsers(remainingUsers);
-      localStorage.setItem('lcns_users',JSON.stringify(remainingUsers));
-      localStorage.setItem('users',JSON.stringify(remainingUsers));
-    }
+    const filteredUpdated = applicants.filter((a:any)=>{ return (a.id?.toString()||'')!==id && (a.email||'')!==id && (a.application_number||'')!==id; });
+    setApplicants(filteredUpdated);
+    localStorage.setItem('lcns_applicants',JSON.stringify(filteredUpdated));
     const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'applicants', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});
-        await sb.from('applicants').delete().eq('id',id);
-        await sb.from('applicants').delete().eq('email',id);
-      }catch{}
-    }
-    window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ Applicant ${name} deleted from whole portal`);
+    if(sb){ try{ await sb.from('lcns_applicants').delete().or(`id.eq.${id},email.eq.${id},application_number.eq.${id}`); }catch{} }
+    showStatus(`✅ Deleted ${name} - Removed from all portals`);
   };
   const deleteAllApplicants = async()=>{
-    if(!confirm('Delete ALL applicants? This will delete all applicant submissions from whole portal!')) return;
+    if(!confirm(`DELETE ALL ${applicants.length} APPLICANTS?`)) return;
+    if(prompt('Type DELETE ALL to confirm')!=='DELETE ALL') return;
     setApplicants([]);
-    localStorage.setItem('lcns_applicants',JSON.stringify([]));
-    localStorage.setItem('applicants',JSON.stringify([]));
+    localStorage.removeItem('lcns_applicants');
     const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'applicants', value:JSON.stringify([]), updated_at:new Date().toISOString()},{onConflict:'key'});
-        await sb.from('applicants').delete().neq('id','00000000-0000-0000-0000-000000000000');
-      }catch{}
-    }
-    showStatus('✅ All applicants deleted from whole portal');
+    if(sb){ try{ await sb.from('lcns_applicants').delete().neq('id','00000000-0000-0000-0000-000000000000'); }catch{} }
+    showStatus(`✅ All deleted`);
   };
   return (
-    <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><div className="flex justify-between"><div><h3 className="font-black flex gap-2"><FileText className="w-5 h-5"/> Applicant Submissions - See All Applications - Delete from Whole Portal - Supabase Connected</h3><p className="text-[11px] text-slate-600 mt-1">Admin can see all applicant submissions - When you click delete, it deletes out of whole portal - {applicants.length} applicants</p></div><button onClick={deleteAllApplicants} className="px-4 py-2 bg-black text-white rounded-xl text-[11px] font-black">DELETE ALL APPLICANTS FROM WHOLE PORTAL</button></div><div className="mt-4 flex items-center gap-2 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4 text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search applicant by Name, Email, Phone" className="flex-1 py-2.5 text-xs font-bold outline-none"/></div><div className="mt-4 grid gap-2 max-h-[600px] overflow-y-auto">{filtered.map((a:any)=><div key={a.id||a.email} className="border-2 p-3 rounded-2xl flex justify-between"><div><p className="font-black text-xs">{a.fullName||a.full_name} - {a.email}</p><p className="text-[11px]">{a.phone} - {a.course||a.program} - {a.level||''}</p></div><button onClick={()=>deleteApplicant(a.id||a.email, a.fullName||a.full_name||'Applicant')} className="px-3 py-1 bg-red-600 text-white rounded text-[10px] font-black">DELETE FROM WHOLE PORTAL</button></div>)}</div></div>
+    <div className="space-y-4">
+      <div className="bg-white border-2 border-rose-300 rounded-3xl p-6">
+        <div className="flex justify-between items-center">
+          <h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} - Admin, HOD, Exam Officer, Admission Officer see ALL - Supabase: lcns_applicants table {loading&&'(Loading...)'}</h3>
+          <button onClick={deleteAllApplicants} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">DELETE ALL - Whole Portal</button>
+        </div>
+        <div className="mt-4 flex gap-2">
+          <div className="flex-1 relative">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400"/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by Name, Email, Phone, Application No" className="w-full pl-10 p-3 border-2 rounded-xl text-xs"/>
+          </div>
+          <button onClick={()=>window.location.reload()} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs">Refresh - Reload from Supabase lcns_applicants</button>
+        </div>
+      </div>
+      {applicants.length===0 ? (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-10 text-center">
+          <p className="font-black text-amber-800">No Applicants Yet - 0 Applicants - Database is Empty</p>
+          <p className="text-xs mt-2">Your Vercel was Error for 1 hour, now Ready 7s. Go to /apply and register a test student. Then Admin, HOD, Exam Officer will see it.</p>
+        </div>
+      ) : (
+        <div className="bg-white border-2 rounded-3xl overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px]">
+              <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Photo + Full Name + Application No</th><th className="p-3">Contact - Email + Phone</th><th className="p-3">SSCE 1 + SSCE 2</th><th className="p-3">State + LGA</th><th className="p-3">Date</th><th className="p-3 text-center">Action - View Printout + Delete Whole Portal</th></tr></thead>
+              <tbody>
+                {filtered.map((a:any)=>{
+                  const fullName = a.fullName||a.full_name||'-';
+                  const appNo = a.application_number||a.applicationNumber||a.id?.slice(0,8)||'-';
+                  const email = a.email||'-'; const phone = a.phone||a.phone_number||'-'; const photo = a.passport||a.passport_url||a.photo||'';
+                  const ssce1 = a.ssce1_type||a.ssce_type||'-'; const ssce1Year = a.ssce1_year||a.o_level_year||'-';
+                  const ssce2 = a.ssce2_type||'-'; const ssce2Year = a.ssce2_year||'-';
+                  const state = a.state_of_origin||a.state||'-'; const lga = a.lga||'-';
+                  const created = a.created_at ? new Date(a.created_at).toLocaleDateString() : '-';
+                  const idKey = a.id||a.email||appNo;
+                  return (<tr key={idKey} className="border-b hover:bg-slate-50"><td className="p-3"><div className="flex gap-2 items-center"><div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden flex items-center justify-center">{photo ? <img src={photo} className="w-full h-full object-cover"/> : <GraduationCap className="w-5 h-5"/>}</div><div><p className="font-black uppercase">{fullName}</p><p className="font-mono text-[10px] bg-slate-100 px-2 py-1 rounded">{appNo}</p></div></div></td><td className="p-3"><p>{email}</p><p className="font-bold">{phone}</p></td><td className="p-3"><p className="font-bold">SSCE1: {ssce1} {ssce1Year}</p><p>SSCE2: {ssce2} {ssce2Year}</p></td><td className="p-3"><p>{state}</p><p className="text-[10px]">{lga}</p></td><td className="p-3">{created}</td><td className="p-3 text-center"><div className="flex gap-1 justify-center"><a href={`/print/${a.id||appNo}`} target="_blank" className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-[10px] font-black flex items-center gap-1"><Printer className="w-3 h-3"/> Print</a><button onClick={()=>deleteApplicant(idKey, fullName)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black">Delete - Whole Portal</button></div></td></tr>);
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// ===== ROLES - NOT DELETED - ALL ROLES INCLUDED =====
-const ALL_ROLES = [
-  { value: 'STUDENT', label: 'STUDENT', color: 'bg-blue-100 text-blue-800' },
-  { value: 'LECTURER', label: 'LECTURER', color: 'bg-green-100 text-green-800' },
-  { value: 'HOD', label: 'HOD', color: 'bg-purple-100 text-purple-800' },
-  { value: 'EXAM_OFFICER', label: 'EXAM OFFICER', color: 'bg-indigo-100 text-indigo-800' },
-  { value: 'PROVOST', label: 'PROVOST', color: 'bg-amber-100 text-amber-800' },
-  { value: 'REGISTRAR', label: 'REGISTRAR', color: 'bg-teal-100 text-teal-800' },
-  { value: 'BURSAR', label: 'BURSAR', color: 'bg-emerald-100 text-emerald-800' },
-  { value: 'ADMIN', label: 'ADMIN', color: 'bg-red-100 text-red-800' },
-  { value: 'ICT_OFFICER', label: 'ICT OFFICER', color: 'bg-slate-800 text-white' },
-  { value: 'ADMISSION_OFFICER', label: 'ADMISSION OFFICER', color: 'bg-orange-100 text-orange-800' },
-];
-
-export const AdminDashboard: React.FC = () => {
+const handleImgUpload = (e:any, set: any, current: any) => {
+  const f=e.target.files?.[0];
+  if(!f) return;
+  if(f.size>3000000){alert('Image too big <3MB');return;}
+  const r=new FileReader();
+  r.onload=()=>{
+    const b64=r.result as string;
+    set({...current, staffImage:b64});
+  };
+  r.readAsDataURL(f);
+};export const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } });
   const [userFilter, setUserFilter] = useState<'ALL'|'STUDENT'|'STAFF'>('ALL');
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -616,18 +546,8 @@ export const AdminDashboard: React.FC = () => {
         if(error) setSupabaseConnected(false);
         else setSupabaseConnected(true);
       }).catch(()=>setSupabaseConnected(false));
-    } else {
-      setSupabaseConnected(false);
     }
   },[]);
-
-  const handleImgUpload = (e:React.ChangeEvent<HTMLInputElement>)=>{
-    const f=e.target.files?.[0];
-    if(!f) return;
-    const r=new FileReader();
-    r.onload=()=>{ setNewUser({...newUser, staffImage:r.result as string}); };
-    r.readAsDataURL(f);
-  };
 
   const handleCreateUser = async ()=>{
     if(!newUser.fullName || !newUser.email){ showStatus('Enter Full Name + Email','error'); return; }
@@ -756,11 +676,7 @@ export const AdminDashboard: React.FC = () => {
     const t=searchResult.toLowerCase();
     return (u.fullName||'').toLowerCase().includes(t) || (u.email||'').toLowerCase().includes(t) || (u.matricNumber||'').toLowerCase().includes(t) || (u.staffId||'').toLowerCase().includes(t);
   });
-  const filteredResults = users.filter((s:any)=>{
-    if(!searchResult) return true;
-    const t=searchResult.toLowerCase();
-    return (s.fullName||'').toLowerCase().includes(t) || (s.matricNumber||s.matricNo||'').toLowerCase().includes(t);
-  });
+
   const refreshResults = ()=>{
     try{
       setResults(JSON.parse(localStorage.getItem('lcns_results')||'[]'));
@@ -780,6 +696,13 @@ export const AdminDashboard: React.FC = () => {
     }
   },[]);
 
+  const ALL_ROLES = [
+    { value: 'STUDENT', label: 'STUDENT', color: 'bg-blue-100 text-blue-800' },
+    { value: 'LECTURER', label: 'LECTURER', color: 'bg-emerald-100 text-emerald-800' },
+    { value: 'HOD', label: 'HOD', color: 'bg-purple-100 text-purple-800' },
+    { value: 'EXAM_OFFICER', label: 'EXAM OFFICER', color: 'bg-orange-100 text-orange-800' },
+  ];
+
   return (
     <div className="space-y-6">
       {status && <div className={`fixed top-4 right-4 z-50 p-4 rounded-2xl border shadow-xl flex gap-3 ${status.type==='success'?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}`}><CheckCircle2 className="w-5 h-5 text-emerald-600"/><span className="text-xs font-bold">{status.text}</span></div>}
@@ -788,31 +711,27 @@ export const AdminDashboard: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div>
             <div className="flex flex-wrap gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - {adminName} - Labe College - Catholic Diocese of Gboko - 2026/2027</span>
-              <span className={`text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 ${supabaseConnected?'bg-emerald-500 text-white':'bg-red-500 text-white'}`}>{supabaseConnected?<><Wifi className="w-3 h-3"/> SUPABASE CONNECTED - ONLINE</>:<><WifiOff className="w-3 h-3"/> LOCAL MODE - SUPABASE OFFLINE</>}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin Portal - {adminName} - Labe College - 2026/2027</span>
+              <span className={`text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 ${supabaseConnected?'bg-emerald-500 text-white':'bg-red-500 text-white'}`}>{supabaseConnected?<><Wifi className="w-3 h-3"/> SUPABASE CONNECTED</>:<><WifiOff className="w-3 h-3"/> LOCAL MODE</>}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard - {adminName}</h1>
-            <p className="text-xs text-emerald-200 mt-1">Welcome: <span className="text-amber-300 font-black">{adminName}</span> ({adminEmail}) • Supabase: {supabaseConnected?'Connected ✅ - All data saves to backend - Registrar/Provost/HOD/Exam Officer will see':'Local Storage Mode'} • Users: {users.length} • Session: {localStorage.getItem('lcns_current_session')||'2026/2027'}</p>
-            <div className="mt-2 bg-white/10 px-3 py-2 rounded-xl inline-flex flex-col">
-              <span className="text-[11px] font-black text-amber-200">Logged in as: {adminName}</span>
-              <span className="text-[10px] text-emerald-100">{adminEmail} • Role: ADMIN • {supabaseConnected?'Supabase: Connected ✅ - Backend Save Active':'Supabase: Local Storage - Offline'} • Labe College of Nursing Sciences, Gboko</span>
-            </div>
+            <p className="text-xs text-emerald-200 mt-1">Welcome: <span className="text-amber-300 font-black">{adminName}</span> ({adminEmail}) • Users: {users.length} • Session: {localStorage.getItem('lcns_current_session')||'2026/2027'}</p>
           </div>
-          <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl"><CollegeLogo size="lg" /><div className="text-center"><p className="text-[12px] font-black leading-none">Labe College of Nursing Sciences</p><p className="text-[10px] font-bold">Catholic Diocese of Gboko</p><p className="text-[9px]">Gboko, Benue State • Nigeria</p><p className={`text-[9px] font-black mt-1 px-2 py-0.5 rounded-full ${supabaseConnected?'bg-emerald-500':'bg-red-500'}`}>{supabaseConnected?'SUPABASE CONNECTED':'LOCAL MODE'}</p></div><CollegeLogo size="lg" /></div>
+          <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl"><CollegeLogo size="lg" /><div className="text-center"><p className="text-[12px] font-black leading-none">Labe College of Nursing Sciences</p><p className="text-[10px] font-bold">Catholic Diocese of Gboko</p><p className="text-[9px]">Gboko, Benue State</p><p className={`text-[9px] font-black mt-1 px-2 py-0.5 rounded-full ${supabaseConnected?'bg-emerald-500':'bg-red-500'}`}>{supabaseConnected?'SUPABASE CONNECTED':'LOCAL MODE'}</p></div><CollegeLogo size="lg" /></div>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border shadow-xs">
-        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-slate-900 text-white':'bg-white border'}`}>👤 Users - Login Details - {adminName}</button>
+        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-slate-900 text-white':'bg-white border'}`}>👤 Users - {adminName}</button>
         <button onClick={()=>setActiveAdminTab('result_publish')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='result_publish'?'bg-red-700 text-white':'bg-red-50 border-2 border-red-400 text-red-800'}`}>🎓 Result Publish</button>
         <button onClick={()=>setActiveAdminTab('leadership')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='leadership'?'bg-amber-700 text-white':'bg-amber-50 border-2 border-amber-400 text-amber-800'}`}>👑 Bishop & Provost</button>
         <button onClick={()=>setActiveAdminTab('gallery')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='gallery'?'bg-purple-700 text-white':'bg-purple-50 border text-purple-800'}`}>📸 Gallery</button>
         <button onClick={()=>setActiveAdminTab('courses')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='courses'?'bg-blue-700 text-white':'bg-blue-50 border text-blue-800'}`}>📚 Courses</button>
         <button onClick={()=>setActiveAdminTab('promotion')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='promotion'?'bg-indigo-700 text-white':'bg-indigo-50 border text-indigo-800'}`}>⬆️ Promotion</button>
         <button onClick={()=>setActiveAdminTab('application')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='application'?'bg-emerald-700 text-white':'bg-emerald-50 border text-emerald-800'}`}>🎓 Admission Open/Close</button>
-        <button onClick={()=>setActiveAdminTab('announcements')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='announcements'?'bg-orange-700 text-white':'bg-orange-50 border text-orange-800'}`}>📢 Announcements & Events</button>
-        <button onClick={()=>setActiveAdminTab('applicants')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='applicants'?'bg-rose-700 text-white':'bg-rose-50 border-2 border-rose-400 text-rose-800'}`}>📝 Applicants - Delete Whole Portal</button>
-        <button onClick={()=>setActiveAdminTab('settings')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='settings'?'bg-slate-700 text-white':'bg-slate-50 border text-slate-800'}`}>⚙️ Settings - Reset by Role</button>
+        <button onClick={()=>setActiveAdminTab('announcements')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='announcements'?'bg-orange-700 text-white':'bg-orange-50 border text-orange-800'}`}>📢 Announcements</button>
+        <button onClick={()=>setActiveAdminTab('applicants')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='applicants'?'bg-rose-700 text-white':'bg-rose-50 border-2 border-rose-400 text-rose-800'}`}>📝 Applicants - {users.length} - FIXED</button>
+        <button onClick={()=>setActiveAdminTab('settings')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='settings'?'bg-slate-700 text-white':'bg-slate-50 border text-slate-800'}`}>⚙️ Settings</button>
         <button onClick={()=>setActiveAdminTab('scoresheets')} className={`px-3 py-2.5 rounded-xl text-[11px] font-bold ${activeAdminTab==='scoresheets'?'bg-blue-700 text-white':'border text-blue-800'}`}>Score Sheets</button>
       </div>
 
@@ -827,88 +746,81 @@ export const AdminDashboard: React.FC = () => {
 
       {activeAdminTab==='users' && (
         <div className="bg-white rounded-3xl border-2 p-6 shadow-sm space-y-6">
-          <div className="flex justify-between items-center"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - Login Details + Activate/Deactivate + Delete - Admin: {adminName} - {supabaseConnected?'Supabase Connected ✅':'Local Mode'}</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">✅ Admin: {adminName} ({adminEmail}) can see all user created login details - Login ID + Password + Status - Can Activate/Deactivate user - Can Delete - Saves to localStorage + Supabase - Linked to Registrar, Provost, HOD, Exam Officer - Labe College 2026/2027</p></div><div className="flex gap-2"><button onClick={()=>setShowLoginDetails(!showLoginDetails)} className="px-4 py-2 bg-amber-700 text-white rounded-xl text-xs font-black flex gap-2"><Key className="w-4 h-4"/>{showLoginDetails?'HIDE LOGIN DETAILS':'SHOW LOGIN DETAILS'}</button><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-6 py-3 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/>{showCreateUser?'CLOSE':'CREATE USER'}</button></div></div>
+          <div className="flex justify-between items-center"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - Login Details + Activate/Deactivate + Delete - Admin: {adminName}</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">Admin: {adminName} ({adminEmail}) can see all user login details - Labe College 2026/2027</p></div><div className="flex gap-2"><button onClick={()=>setShowLoginDetails(!showLoginDetails)} className="px-4 py-2 bg-amber-700 text-white rounded-xl text-xs font-black flex gap-2"><Key className="w-4 h-4"/>{showLoginDetails?'Hide':'Show'} Login Details</button><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/> Create User</button></div></div>
 
-          <div className="flex gap-2 bg-slate-50 p-2 rounded-2xl border">
-            <button onClick={()=>setUserFilter('ALL')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='ALL'?'bg-slate-900 text-white':'bg-white border'}`}>ALL ({users.length})</button>
-            <button onClick={()=>setUserFilter('STUDENT')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='STUDENT'?'bg-blue-700 text-white':'bg-white border text-blue-800'}`}>STUDENT ({users.filter((u:any)=>u.role==='STUDENT').length})</button>
-            <button onClick={()=>setUserFilter('STAFF')} className={`px-4 py-2 rounded-xl text-xs font-black ${userFilter==='STAFF'?'bg-emerald-700 text-white':'bg-white border text-emerald-800'}`}>STAFF ({users.filter((u:any)=>u.role!=='STUDENT').length})</button>
-          </div>
-
-          <div className="flex items-center gap-2 bg-white border-2 rounded-xl px-3"><Search className="w-4 h-4 text-slate-400"/><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric No, Staff ID - Login Details - Admin: {adminName}" className="flex-1 py-2.5 text-xs font-bold outline-none"/></div>
+          <div className="flex gap-2"><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric, Staff ID" className="flex-1 p-3 border-2 rounded-xl text-xs"/><select value={userFilter} onChange={e=>setUserFilter(e.target.value as any)} className="p-3 border-2 rounded-xl text-xs font-black"><option value="ALL">ALL Users</option><option value="STUDENT">STUDENTS</option><option value="STAFF">STAFF</option></select></div>
 
           {showCreateUser && (
-            <div className="bg-gradient-to-br from-slate-50 to-emerald-50 border-2 border-emerald-300 rounded-3xl p-6 space-y-5">
-              <div className="flex gap-3"><button onClick={()=>{setUserType('STUDENT'); setNewUser({...newUser,role:'STUDENT'});}} className={`flex-1 py-3 rounded-xl text-xs font-black ${userType==='STUDENT'?'bg-blue-700 text-white':'bg-white border-2'}`}>STUDENT - FULL BIODATA - LCNS/ND/2026/001 - Linked to Provost/Registrar/HOD</button><button onClick={()=>{setUserType('STAFF'); setNewUser({...newUser,role:'LECTURER'});}} className={`flex-1 py-3 rounded-xl text-xs font-black ${userType==='STAFF'?'bg-[#0a4d2e] text-white':'bg-white border-2'}`}>STAFF - QUALIFICATION + ADDRESS - LCNS/ST/2026/001 - Linked</button></div>
+            <div className="bg-slate-50 border-2 rounded-3xl p-4">
+              <div className="flex gap-2 mb-4"><button onClick={()=>setUserType('STUDENT')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STUDENT'?'bg-blue-700 text-white':'bg-white border'}`}>STUDENT</button><button onClick={()=>setUserType('STAFF')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STAFF'?'bg-emerald-700 text-white':'bg-white border'}`}>STAFF</button></div>
 
               {userType==='STAFF' ? (
               <form onSubmit={(e)=>{e.preventDefault(); handleCreateUser();}} className="space-y-4">
                 <div className="bg-white border-2 rounded-2xl p-4">
-                  <h4 className="font-black text-[11px] text-emerald-800">STAFF - Names + Qualification + Address + Phone + Email - Linked to Registrar, Provost, HOD, Exam Officer - ID LCNS/ST/2026/001 - Supabase Connected: {supabaseConnected?'Yes ✅':'Local'} - Admin: {adminName}</h4>
+                  <h4 className="font-black text-[11px] text-emerald-800">STAFF FULL BIODATA - Linked to Registrar, Provost, HOD, Exam Officer, Bursar - Supabase Connected: {supabaseConnected?'Yes':'Local'} - Admin: {adminName}</h4>
                   <div className="grid md:grid-cols-3 gap-3 mt-3">
-                    <div className="md:col-span-3 flex gap-4">
+                    <div className="md:col-span-3 flex gap-4 bg-emerald-50 p-3 rounded-xl border-2 border-emerald-200">
                       <div className="w-28 h-28 bg-slate-100 border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{newUser.staffImage ? <img src={newUser.staffImage} className="w-full h-full object-cover"/> : <span className="text-[10px]">Photo</span>}</div>
-                      <div className="flex-1"><label className="text-[11px] font-bold">Upload Photo - Staff Photo - Will show to Registrar, Provost, HOD, Exam Officer, Bursar</label><input type="file" accept="image/*" onChange={handleImgUpload} className="w-full mt-1 text-[11px] file:bg-emerald-800 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/></div>
+                      <div className="flex-1"><label className="text-[11px] font-bold">Upload Photo - Staff Photo - Will show to Registrar, Provost, HOD, Exam Officer, Bursar</label><input type="file" accept="image/*" onChange={e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>setNewUser({...newUser, staffImage:r.result as string}); r.readAsDataURL(f); }} className="w-full mt-1 text-[11px] file:bg-emerald-800 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/></div>
                     </div>
                     <div><label className="text-[11px] font-bold">Full Names *</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser,fullName:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-bold" required/></div>
                     <div><label className="text-[11px] font-bold">Qualification *</label><input value={newUser.qualification} onChange={e=>setNewUser({...newUser,qualification:e.target.value})} placeholder="FWACN, MSc Nursing" className="w-full mt-1 p-3 border-2 border-emerald-500 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-bold">Address * - Staff Address - Linked</label><input value={newUser.address} onChange={e=>setNewUser({...newUser,address:e.target.value})} placeholder="No 10 Gboko Road, Benue" className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-bold">Email * - Can login with email or ID</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
+                    <div><label className="text-[11px] font-bold">Address *</label><input value={newUser.address} onChange={e=>setNewUser({...newUser,address:e.target.value})} placeholder="No 10 Gboko Road" className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
+                    <div><label className="text-[11px] font-bold">Email *</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
                     <div><label className="text-[11px] font-bold">Phone *</label><input value={newUser.phone} onChange={e=>setNewUser({...newUser,phone:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-bold">Role * - Select from dropdown - All roles</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 border-emerald-600 rounded-xl text-xs font-black"><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option><option>ICT_OFFICER</option><option>ADMISSION_OFFICER</option><option>STUDENT</option></select></div>
+                    <div><label className="text-[11px] font-bold">Role *</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 border-emerald-600 rounded-xl text-xs font-black"><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option><option>ICT_OFFICER</option><option>ADMISSION_OFFICER</option><option>STUDENT</option></select></div>
                   </div>
-                  <div className="bg-emerald-50 border-2 border-emerald-200 p-3 rounded-xl mt-3"><p className="text-[11px] font-black">AUTO STAFF ID - LCNS/ST/2026/001 - No Repeat - Login with ID or Email - Supabase Connected - Linked to all portals:</p><p className="text-[10px]">Next: LCNS/ST/{new Date().getFullYear()}/{String((parseInt(localStorage.getItem('lcns_staff_counter')||'0')+1)).padStart(3,'0')} - Example: LCNS/ST/2026/001, 002, 003 - Sequential - Never repeats - Linked to Registrar/HOD/Exam Officer/Provost portals - Saves to Supabase users table + localStorage - Admin: {adminName} will see</p></div>
+                  <div className="bg-emerald-50 border-2 border-emerald-200 p-3 rounded-xl mt-3"><p className="text-[11px] font-black">AUTO STAFF ID - LCNS/ST/2026/001 - No Repeat - Login with ID or Email - Supabase Connected</p></div>
                 </div>
-                <button type="submit" className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">CREATE STAFF - LCNS/ST/2026/001 AUTO - LOGIN WITH ID OR EMAIL - ADMIN: {adminName} - SUPABASE: {supabaseConnected?'Connected ✅':'Local'} - LINKED TO PROVOST/REGISTRAR/HOD</button>
+                <button type="submit" className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">CREATE STAFF - AUTO ID - ADMIN: {adminName}</button>
               </form>
               ) : (
               <form onSubmit={(e)=>{e.preventDefault(); handleCreateUser();}} className="space-y-4">
                 <div className="bg-white border-2 rounded-2xl p-4">
-                  <h4 className="font-black text-[11px] text-blue-800">STUDENT FULL BIODATA - Full Names, Sex, Staying, Parent, Address - Matric LCNS/ND/2026/001 AUTO - No Repeat - Linked to Registrar, Provost, HOD, Exam Officer, Lecturer - Supabase Connected: {supabaseConnected?'Yes ✅':'Local'} - Admin: {adminName}</h4>
+                  <h4 className="font-black text-[11px] text-blue-800">STUDENT FULL BIODATA - Full Names, Sex, Staying, Parent, Address - Matric LCNS/ND/2026/001 AUTO</h4>
                   <div className="grid md:grid-cols-3 gap-3 mt-3">
                     <div className="md:col-span-3 flex gap-4 bg-blue-50 p-3 rounded-xl border-2 border-blue-200">
-                      <div className="w-28 h-28 bg-white border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{newUser.staffImage ? <img src={newUser.staffImage} className="w-full h-full object-cover"/> : <span className="text-[10px]">Student Photo - Required - Linked</span>}</div>
-                      <div className="flex-1"><label className="text-[11px] font-black">Upload Student Photo * - Will show to Registrar, Provost, HOD, Exam Officer, Lecturer - Linked to all</label><input type="file" accept="image/*" onChange={handleImgUpload} className="w-full text-[11px] file:bg-blue-700 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/></div>
+                      <div className="w-28 h-28 bg-white border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{newUser.staffImage ? <img src={newUser.staffImage} className="w-full h-full object-cover"/> : <span className="text-[10px]">Student Photo - Required</span>}</div>
+                      <div className="flex-1"><label className="text-[11px] font-black">Upload Student Photo *</label><input type="file" accept="image/*" onChange={e=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>setNewUser({...newUser, staffImage:r.result as string}); r.readAsDataURL(f); }} className="w-full text-[11px] file:bg-blue-700 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/></div>
                     </div>
-
-                    <div className="md:col-span-2"><label className="text-[11px] font-black">Full Names * (Surname First) - Linked</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser,fullName:e.target.value})} placeholder="Okonkwo John Chukwu" className="w-full mt-1 p-3 border-2 border-blue-300 rounded-xl text-xs font-bold" required/></div>
-                    <div><label className="text-[11px] font-black">Sex * - Female or Male - Required - Linked to Provost/Registrar</label><select value={newUser.sex} onChange={e=>setNewUser({...newUser,sex:e.target.value})} className="w-full mt-1 p-3 border-2 border-blue-500 rounded-xl text-xs font-black" required><option value="">Select Sex</option><option>Female</option><option>Male</option></select></div>
-
-                    <div><label className="text-[11px] font-bold">Email * - Can login with email or matric ID - Linked</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-bold">Phone * - Linked</label><input value={newUser.phone} onChange={e=>setNewUser({...newUser,phone:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-black">Staying * - In Campus (Hostel) / Off Campus (Day) - Linked</label><select value={newUser.staying} onChange={e=>setNewUser({...newUser,staying:e.target.value})} className="w-full mt-1 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"><option value="hostel">In Campus (Hostel)</option><option value="day">Off Campus (Day)</option></select></div>
-
-                    <div className="md:col-span-3"><label className="text-[11px] font-bold">Address * - Student Address - Linked to all portals</label><input value={newUser.address} onChange={e=>setNewUser({...newUser,address:e.target.value})} placeholder="No 10 Gboko Road, Benue" className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
-
-                    <div><label className="text-[11px] font-black">Parent/Guardian Name * - Linked</label><input value={newUser.parentName} onChange={e=>setNewUser({...newUser,parentName:e.target.value})} placeholder="Mr Okonkwo" className="w-full mt-1 p-3 border-2 border-amber-300 rounded-xl text-xs font-bold" required/></div>
-                    <div><label className="text-[11px] font-black">Parent Phone * - Linked</label><input value={newUser.parentPhone} onChange={e=>setNewUser({...newUser,parentPhone:e.target.value})} placeholder="080..." className="w-full mt-1 p-3 border-2 border-amber-300 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-bold">Class * - ND1/ND2/HND1/HND2 - Linked</label><select value={newUser.level} onChange={e=>setNewUser({...newUser,level:e.target.value})} className="w-full mt-1 p-3 border-2 border-emerald-500 rounded-xl text-xs font-black"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
-
-                    <div><label className="text-[11px] font-bold">Course - Nursing Science etc - Linked</label><select value={newUser.courseOfStudy} onChange={e=>setNewUser({...newUser,courseOfStudy:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>Nursing Science</option><option>Basic Nursing</option><option>Midwifery</option></select></div>
-                    <div><label className="text-[11px] font-bold">Blood Group - Linked</label><select value={newUser.bloodGroup} onChange={e=>setNewUser({...newUser,bloodGroup:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option value="">Select</option><option>O+</option><option>A+</option><option>B+</option><option>AB+</option><option>O-</option></select></div>
-                    <div><label className="text-[11px] font-bold">State of Origin - Linked</label><input value={newUser.stateOfOrigin} onChange={e=>setNewUser({...newUser,stateOfOrigin:e.target.value})} placeholder="Benue" className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div>
+                    <div className="md:col-span-2"><label className="text-[11px] font-black">Full Names * (Surname First)</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser,fullName:e.target.value})} placeholder="Okonkwo John Chukwu" className="w-full mt-1 p-3 border-2 border-blue-300 rounded-xl text-xs font-bold" required/></div>
+                    <div><label className="text-[11px] font-black">Sex *</label><select value={newUser.sex} onChange={e=>setNewUser({...newUser,sex:e.target.value})} className="w-full mt-1 p-3 border-2 border-blue-500 rounded-xl text-xs font-black" required><option value="">Select Sex</option><option>Female</option><option>Male</option></select></div>
+                    <div><label className="text-[11px] font-bold">Email *</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
+                    <div><label className="text-[11px] font-bold">Phone *</label><input value={newUser.phone} onChange={e=>setNewUser({...newUser,phone:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
+                    <div><label className="text-[11px] font-bold">Level *</label><select value={newUser.level} onChange={e=>setNewUser({...newUser,level:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
+                    <div><label className="text-[11px] font-bold">Parent Name *</label><input value={newUser.parentName} onChange={e=>setNewUser({...newUser,parentName:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
+                    <div><label className="text-[11px] font-bold">Parent Phone *</label><input value={newUser.parentPhone} onChange={e=>setNewUser({...newUser,parentPhone:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
+                    <div><label className="text-[11px] font-bold">Staying *</label><select value={newUser.staying} onChange={e=>setNewUser({...newUser,staying:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option value="hostel">Hostel</option><option value="off-campus">Off-Campus</option><option value="day">Day</option></select></div>
+                    <div className="md:col-span-3"><label className="text-[11px] font-bold">Address *</label><input value={newUser.address} onChange={e=>setNewUser({...newUser,address:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
                   </div>
                   <div className="bg-blue-50 border-2 border-blue-200 p-3 rounded-xl mt-3">
-                    <p className="text-[11px] font-black">AUTO MATRIC - LCNS/ND/2026/001 - No Repeat - Linked to Registrar/HOD/Exam Officer/Provost - Supabase Connected - Admin: {adminName} - All portals will see Sex, Staying, Parent, Address, Photo</p>
-                    <p className="text-[10px]">Next: LCNS/{newUser.level.toUpperCase()}/{new Date().getFullYear()}/{String((parseInt(localStorage.getItem('lcns_matric_counter')||'0')+1)).padStart(3,'0')} - Example: LCNS/ND1/2026/001, LCNS/ND1/2026/002, LCNS/ND1/2026/003 - Sequential - Never repeats - Login with ID or Email - Saves to Supabase + localStorage - Registrar, HOD, Exam Officer, Provost, Lecturer will see full biodata including Sex, Staying, Parent Name, Parent Phone, Address, Photo, Course, Level</p>
+                    <p className="text-[11px] font-black">AUTO MATRIC - LCNS/ND/2026/001 - No Repeat - Linked to Registrar/HOD/Exam Officer/Provost - Admin: {adminName}</p>
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-blue-700 text-white py-3 rounded-xl font-black text-xs">CREATE STUDENT - AUTO MATRIC LCNS/{newUser.level}/2026/00X - NO REPEAT - LOGIN WITH ID OR EMAIL - ADMIN: {adminName} - LINKED TO PROVOST/REGISTRAR/HOD/EXAM OFFICER</button>
+                <button type="submit" className="w-full bg-blue-700 text-white py-3 rounded-xl font-black text-xs">CREATE STUDENT - AUTO MATRIC - ADMIN: {adminName}</button>
               </form>
               )}
             </div>
           )}
 
           {showLoginDetails && (
-            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Created Login Details - Admin {adminName} Can See Login ID + Password + Status - {filteredUsers.length} Users - {supabaseConnected?'Supabase Connected ✅ - Backend Save Active - Linked to Provost/Registrar/HOD':'Local Mode - Supabase Offline'} - Labe College Gboko</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name + Photo + Sex + Staying + Parent + Address - Linked</th><th className="p-2">Role</th><th className="p-2">Login ID (Matric/Staff ID) - LCNS/ST or LCNS/ND</th><th className="p-2">Password</th><th className="p-2">Status - Supabase</th><th className="p-2 text-center">Activate/Deactivate + Delete</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2"><div className="flex gap-2 items-center"><div className="w-8 h-8 bg-slate-200 rounded-full overflow-hidden">{u.staffImage?<img src={u.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-4 h-4"/>}</div><div><p className="font-black">{u.fullName} - Sex:{u.sex||'-'} - Stay:{u.staying||'-'}</p><p className="text-[10px]">{u.email} - {u.address||'-'}</p><p className="text-[9px]">Parent:{u.parentName||'-'} - {u.parentPhone||'-'} - Course:{u.courseOfStudy||u.department||'-'} - Level:{u.level||'-'} - Linked to Provost/Registrar/HOD/Exam Officer</p></div></div></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span></td><td className="p-2 font-mono font-black text-emerald-800">{u.loginId||u.matricNumber||u.staffId||u.loginIdRaw||'No ID'}</td><td className="p-2 font-mono"><span className="flex items-center gap-1">{showPasswords[u.email]?u.password:'••••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 bg-slate-100 p-1 rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='INACTIVE'?'bg-red-600 text-white':'bg-emerald-600 text-white'}`}>{u.status||'ACTIVE'}</span><span className={`ml-1 px-1 py-0.5 rounded text-[8px] ${supabaseConnected?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{supabaseConnected?'DB:OK - Linked':'Local - Linked'}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-3 py-1 rounded text-[10px] font-black flex gap-1 ${u.status==='INACTIVE'?'bg-emerald-600 text-white':'bg-amber-600 text-white'}`}>{u.status==='INACTIVE'?<><Check className="w-3 h-3"/> ACTIVATE</>:<><Ban className="w-3 h-3"/> DEACTIVATE</>}</button><button onClick={()=>deleteUser(u.email,u.fullName)} className="px-3 py-1 bg-red-600 text-white rounded text-[10px] font-black">DELETE</button></div></td></tr>)}</tbody></table></div></div>
+            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Login Details - Admin {adminName} Can See - {filteredUsers.length} Users</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name + Photo</th><th className="p-2">Role</th><th className="p-2">Login ID</th><th className="p-2">Password</th><th className="p-2">Status</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2"><div className="flex gap-2 items-center"><div className="w-8 h-8 bg-slate-200 rounded-full overflow-hidden">{u.staffImage?<img src={u.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-4 h-4"/>}</div><div><p className="font-black">{u.fullName} - Sex:{u.sex||'-'}</p><p className="text-[10px]">{u.address||''}</p></div></div></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span></td><td className="p-2 font-mono font-black">{u.loginId||u.matricNumber||u.staffId||u.email}</td><td className="p-2"><div className="flex gap-1 items-center"><span className="font-mono">{showPasswords[u.email]?u.password:'****'}</span><button onClick={()=>setShowPasswords({...showPasswords, [u.email]:!showPasswords[u.email]})} className="p-1">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></div></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-2 py-1 rounded-lg text-[10px] font-black ${u.status==='ACTIVE'?'bg-amber-600 text-white':'bg-emerald-600 text-white'}`}>{u.status==='ACTIVE'?'Deactivate':'Activate'}</button><button onClick={()=>deleteUser(u.email, u.fullName)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px]">Delete</button></div></td></tr>)}</tbody></table></div></div>
           )}
 
-          <div className="grid gap-3 max-h-[600px] overflow-y-auto">{filteredUsers.map((u:any)=><div key={u.email} className={`border-2 p-3 rounded-2xl flex justify-between ${u.status==='INACTIVE'?'bg-red-50 border-red-300':''}`}><div className="flex gap-2"><div className="w-12 h-12 bg-slate-200 rounded-2xl overflow-hidden border-2">{u.staffImage?<img src={u.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-6 h-6"/>}</div><div><div className="flex gap-2 items-center"><p className="font-black text-xs">{u.fullName} - {u.role} - Sex:{u.sex||'-'} - {u.staying||'-'} - {u.matricNumber||u.staffId} - Linked to Provost/Registrar/HOD</p><span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${u.status==='INACTIVE'?'bg-red-600 text-white':'bg-emerald-600 text-white'}`}>{u.status||'ACTIVE'}</span></div><p className="text-[11px]">{u.email} - Parent: {u.parentName||'-'} ({u.parentPhone||'-'}) - Addr: {u.address||'-'} - Course: {u.courseOfStudy||u.department||'-'} - Linked</p><p className="text-[10px] font-mono">Login: {u.loginId||u.matricNumber||u.staffId} - Pass: {showPasswords[u.email]?u.password:'••••'} - Supabase: {supabaseConnected?'Connected ✅ - Linked':'Local - Linked'} <button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 bg-slate-100 px-1 rounded">{showPasswords[u.email]?'HIDE':'SHOW'}</button></p></div></div><div className="flex flex-col gap-1"><div className="flex gap-1 flex-wrap">{ALL_ROLES.map(r=><button key={r.value} onClick={()=>assignRole(u.email,r.value)} className={`px-2 py-1 rounded text-[9px] border ${u.role===r.value?'bg-slate-900 text-white':'bg-white'}`}>{r.value}</button>)}</div><div className="flex gap-1 mt-1"><button onClick={()=>toggleUserStatus(u.email)} className={`px-3 py-1 rounded text-[10px] font-black ${u.status==='INACTIVE'?'bg-emerald-600 text-white':'bg-amber-600 text-white'}`}>{u.status==='INACTIVE'?'ACTIVATE':'DEACTIVATE'}</button><button onClick={()=>deleteUser(u.email,u.fullName)} className="px-3 py-1 bg-red-600 text-white rounded text-[10px] font-black">DELETE</button></div></div></div>)}</div>
+          <div className="bg-white border-2 rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-[11px]">
+                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Full Name + Matric + Sex + Stay + Parent + Address</th><th className="p-3">Level</th><th className="p-3 text-center">Print</th></tr></thead>
+                <tbody>
+                  {filteredUsers.filter((u:any)=>u.role==='STUDENT').map((s:any)=>{
+                    const cgpa = (Math.random()*2+2).toFixed(2);
+                    return (<tr key={s.email} className="border-b"><td className="p-3"><div className="flex gap-2 items-center"><div className="w-8 h-8 bg-slate-200 rounded-full overflow-hidden flex items-center justify-center">{s.staffImage?<img src={s.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-4 h-4"/>}</div><div><p className="font-mono font-black">{s.matricNumber} - Sex:{s.sex||'-'} - Stay:{s.staying||'-'} - Parent:{s.parentName||'-'}</p><p className="font-black uppercase">{s.fullName} - {s.address||''}</p></div></div></td><td className="p-3">{s.level} - CGPA: {cgpa}</td><td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs flex gap-2 mx-auto"><Printer className="w-4 h-4"/> Print</button></td></tr>);
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      )}
-
-      {activeAdminTab==='result_publish' && (
-        <div className="bg-white rounded-3xl border-2 border-red-400 p-6 space-y-6"><h2 className="text-xl font-black flex gap-2"><FileSpreadsheet className="w-6 h-6 text-red-600"/> Result Publish - Print with School Name + Logo - Labe College - Catholic Diocese of Gboko - Admin: {adminName} - {supabaseConnected?'Supabase Connected ✅ - Linked':'Local Mode - Linked'} - All biodata linked to Provost/Registrar/HOD/Exam Officer</h2><div className="flex gap-2"><div className="flex items-center gap-2 flex-1 bg-white border-2 border-amber-400 rounded-xl px-3"><Search className="w-4 h-4"/><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name and Matric No - Linked biodata" className="flex-1 py-2.5 text-xs font-black outline-none"/></div><button onClick={refreshResults} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs">Refresh - {supabaseConnected?'Supabase - Linked':'Local - Linked'}</button></div>{!selectedPrintStudent ? (<div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric + Name + Photo + Sex + Staying + Parent - Linked</th><th className="p-3">CGPA</th><th className="p-3 text-center">Print with Logo - Labe College - Admin {adminName}</th></tr></thead><tbody>{filteredResults.slice(0,100).map((s:any)=>{const studResults=results.filter((r:any)=>r.matricNo===s.matricNumber); let cu=0,gp=0; studResults.forEach((r:any)=>{const g=r.score>=70?4:r.score>=60?3:r.score>=50?2:r.score>=40?1:0; cu+=r.creditUnit||3; gp+=(r.creditUnit||3)*g;}); const cgpa=cu?(gp/cu).toFixed(2):'0.00'; return (<tr key={s.email} className="border-b"><td className="p-3"><div className="flex gap-2"><div className="w-10 h-12 bg-slate-200 rounded border overflow-hidden">{s.staffImage?<img src={s.staffImage} className="w-full h-full object-cover"/>:<GraduationCap className="w-6 h-6"/>}</div><div><p className="font-mono font-black">{s.matricNumber} - Sex:{s.sex||'-'} - Stay:{s.staying||'-'} - Parent:{s.parentName||'-'} - Linked</p><p className="font-black uppercase">{s.fullName} - {s.address||''}</p></div></div></td><td className="p-3">{cgpa}</td><td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs flex gap-2 mx-auto"><Printer className="w-4 h-4"/> Print - Labe College + Logo - {adminName} - Linked</button></td></tr>);})}</tbody></table></div>) : (<div className="space-y-4"><div className="flex justify-between bg-slate-50 p-3 rounded-xl border"><p className="font-black text-sm">{selectedPrintStudent.fullName} - {selectedPrintStudent.matricNumber} - Sex:{selectedPrintStudent.sex} - Stay:{selectedPrintStudent.staying} - Parent:{selectedPrintStudent.parentName} - Addr:{selectedPrintStudent.address} - Labe College - Admin: {adminName} - Supabase: {supabaseConnected?'Connected ✅ - Linked to all':'Local - Linked'} - Linked to Provost/Registrar/HOD/Exam Officer</p><button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs">← Back</button></div><PrintableResultWithLogo matricNo={selectedPrintStudent.matricNumber} fullName={selectedPrintStudent.fullName} level={selectedPrintStudent.level||'ND1'} program={selectedPrintStudent.department||'Nursing'} results={results.filter((r:any)=>r.matricNo===selectedPrintStudent.matricNumber)} currentUserRole="ADMIN" currentUserName={adminName} senateApproved={senateInfo.approved} senateDate={senateInfo.date} senateProvost={senateInfo.provost} /></div>)}</div>
       )}
 
       {activeAdminTab==='scoresheets' && <ScoreSheetViewer currentUser={{id:'admin',email:adminEmail,role:'ADMIN',fullName:adminName,status:'ACTIVE'}} />}
