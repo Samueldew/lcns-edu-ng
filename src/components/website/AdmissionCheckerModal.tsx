@@ -18,13 +18,12 @@ export const AdmissionCheckerModal: React.FC<Props> = ({ isOpen, onClose, defaul
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // === ADD ONLY - AUTO FILL WHEN COMING FROM APPLICATION FORM ===
+  // === AUTO FILL WHEN COMING FROM APPLICATION FORM ===
   useEffect(() => {
     if (defaultFormNo) {
       setFormNo(defaultFormNo);
     }
   }, [defaultFormNo, isOpen]);
-  // === END ADD ===
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,14 +35,12 @@ export const AdmissionCheckerModal: React.FC<Props> = ({ isOpen, onClose, defaul
     try {
       const cleanFormNo = formNo.trim().toUpperCase();
       
-      // Search in Supabase - FIXED: use eq for exact match first, then fallback to ilike
       let { data, error: dbError } = await supabase
         .from('college_applications')
         .select('form_no')
         .eq('form_no', cleanFormNo)
         .maybeSingle();
 
-      // If not found with exact, try ilike
       if (!data) {
         const result = await supabase
           .from('college_applications')
@@ -61,14 +58,12 @@ export const AdmissionCheckerModal: React.FC<Props> = ({ isOpen, onClose, defaul
         return;
       }
 
-      // FOUND - Redirect to private dashboard using App.tsx method
       setLoading(false);
       onClose();
       
       if (onFound) {
         onFound(data.form_no);
       } else {
-        // Fallback for old App.tsx
         window.history.pushState({}, '', `/applicant/dashboard?app_no=${encodeURIComponent(data.form_no)}`);
         window.dispatchEvent(new PopStateEvent('popstate'));
       }
@@ -121,3 +116,5 @@ export const AdmissionCheckerModal: React.FC<Props> = ({ isOpen, onClose, defaul
     </div>
   );
 };
+
+export default AdmissionCheckerModal;
