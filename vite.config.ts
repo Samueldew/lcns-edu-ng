@@ -14,9 +14,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    hmr: {
-      clientPort: 443
-    }
+    hmr: { clientPort: 443 }
   },
   build: {
     sourcemap: false,
