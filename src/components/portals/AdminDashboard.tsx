@@ -93,7 +93,9 @@ const LeadershipManager = ({ showStatus }: any) => {
       <div className="bg-emerald-50 border-2 border-emerald-300 rounded-3xl p-6"><h3 className="font-black flex gap-2"><UserCheck className="w-5 h-5"/> PROVOST {loading&&'(Loading)'}</h3><div className="h-64 bg-white border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center mt-3">{provost.image?<img src={provost.image} className="w-full h-full object-cover"/>:<span>No Image</span>}</div><input type="file" accept="image/*" onChange={e=>handleImg(e,'provost')} className="w-full mt-2 text-[11px] file:bg-emerald-800 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/><input value={provost.name} onChange={e=>setProvost({...provost,name:e.target.value})} className="w-full mt-2 p-3 border-2 rounded-xl text-xs font-bold"/><input value={provost.title} onChange={e=>setProvost({...provost,title:e.target.value})} className="w-full mt-2 p-3 border-2 rounded-xl text-xs"/><textarea value={provost.description} onChange={e=>setProvost({...provost,description:e.target.value})} className="w-full mt-2 p-3 border-2 rounded-xl text-xs h-20"/><button onClick={()=>save('provost')} className="w-full mt-2 bg-emerald-800 text-white py-3 rounded-xl font-black text-xs">SAVE PROVOST TO BACKEND</button></div>
     </div>
   );
-};// ===== 2. GALLERY MANAGER - NOT DELETED =====
+};
+
+// ===== 2. GALLERY MANAGER - NOT DELETED =====
 const GalleryManager = ({ showStatus }: any) => {
   const [gallery, setGallery] = useState<any[]>(()=>{
     try{return JSON.parse(localStorage.getItem('lcns_gallery')||'[]');}catch{return[];}
@@ -233,7 +235,8 @@ const PromotionManager = ({ showStatus, users, setUsers }: any) => {
   const [selected, setSelected] = useState<string[]>([]);
   useEffect(()=>{ localStorage.setItem('lcns_current_session', session); localStorage.setItem('lcns_current_semester', semester); },[session, semester]);
   const students = users.filter((u:any)=>u.role==='STUDENT'&&u.level===fromLevel);
-  const toggle = (email:string)=>{ setSelected(s=>s.includes(email)?s.filter(x=>x!==email):[...s,email]); };  const promote = async()=>{
+  const toggle = (email:string)=>{ setSelected(s=>s.includes(email)?s.filter(x=>x!==email):[...s,email]); };
+  const promote = async()=>{
     if(selected.length===0){showStatus('Select students to promote','error');return;}
     const updated = users.map((u:any)=>selected.includes(u.email)?{...u, level:toLevel, previousLevel:u.level, promotedAt:new Date().toISOString(), academicYear:session, semester}:u);
     setUsers(updated);
@@ -325,9 +328,7 @@ const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
       <div className="bg-white border-2 rounded-3xl p-6"><h4 className="font-black">⚙️ RESET PORTAL</h4><div className="flex gap-2 mt-3"><button onClick={()=>resetPortal('users')} className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-black">RESET USERS</button><button onClick={()=>resetPortal('results')} className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black">RESET RESULTS</button><button onClick={()=>resetPortal('all')} className="px-4 py-2 bg-black text-white rounded-xl text-xs font-black">RESET ALL - FULL WIPE</button><button onClick={handover} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">HANDOVER TO SCHOOL ADMIN</button></div></div>
     </div>
   );
-};
-
-// ===== 6. APPLICATION MANAGER =====
+};// ===== 6. APPLICATION MANAGER =====
 const ApplicationManager = ({ showStatus }: any) => {
   const [appStatus, setAppStatus] = useState<any>(()=>{
     try{
@@ -395,7 +396,7 @@ const AnnouncementManager = ({ showStatus }: any) => {
   );
 };
 
-// ===== 8. APPLICANTS MANAGER - FIXED - ADMIN SEES ALL - LCNS_APPLICANTS TABLE - NO user_id FILTER - SSCE1 + SSCE2 =====
+// ===== 8. APPLICANTS MANAGER - FIXED =====
 const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
   const [applicants, setApplicants] = useState<any[]>(()=>{
     try{ return JSON.parse(localStorage.getItem('lcns_applicants')||'[]'); }catch{return[];}
@@ -447,8 +448,8 @@ const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
     <div className="space-y-4">
       <div className="bg-white border-2 border-rose-300 rounded-3xl p-6">
         <div className="flex justify-between items-center">
-          <h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} - Admin, HOD, Exam Officer see ALL - lcns_applicants - SSCE1 + SSCE2 - FIXED {loading&&'(Loading...)'}</h3>
-          <button onClick={deleteAllApplicants} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">DELETE ALL - Whole Portal</button>
+          <h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} - FIXED {loading&&'(Loading...)'}</h3>
+          <button onClick={deleteAllApplicants} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">DELETE ALL</button>
         </div>
         <div className="mt-4 flex gap-2">
           <div className="flex-1 relative">
@@ -460,7 +461,7 @@ const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
       </div>
       {applicants.length===0 ? (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-10 text-center">
-          <p className="font-black text-amber-800">No Applicants Yet - 0 - Go to /apply and register - /apply saves to lcns_applicants table</p>
+          <p className="font-black text-amber-800">No Applicants Yet - 0 - Go to /apply and register</p>
         </div>
       ) : (
         <div className="bg-white border-2 rounded-3xl overflow-hidden">
@@ -488,266 +489,8 @@ const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
   );
 };
 
-const handleImgUpload = (e:any, set: any, current: any) => {
-  const f=e.target.files?.[0];
-  if(!f) return;
-  const r=new FileReader();
-  r.onload=()=>{ set({...current  const promote = async()=>{
-    if(selected.length===0){showStatus('Select students to promote','error');return;}
-    const updated = users.map((u:any)=>selected.includes(u.email)?{...u, level:toLevel, previousLevel:u.level, promotedAt:new Date().toISOString(), academicYear:session, semester}:u);
-    setUsers(updated);
-    localStorage.setItem('lcns_users',JSON.stringify(updated));
-    localStorage.setItem('users',JSON.stringify(updated));
-    const sb=getSupabase();
-    if(sb){
-      try{
-        for(const email of selected){
-          await sb.from('users').update({level:toLevel, academic_year:session}).eq('email',email);
-        }
-      }catch{}
-    }
-    showStatus(`✅ ${selected.length} students promoted from ${fromLevel} to ${toLevel} for ${session} - ${semester}`);
-    setSelected([]);
-  };
-  const setAcademicYear = async()=>{
-    localStorage.setItem('lcns_current_session', session);
-    localStorage.setItem('lcns_current_semester', semester);
-    const sb=getSupabase();
-    if(sb){
-      try{
-        await sb.from('school_settings').upsert({key:'academic_year', value:JSON.stringify({session, semester, updated_at:new Date().toISOString()}), updated_at:new Date().toISOString()},{onConflict:'key'});
-      }catch{}
-    }
-    window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ Academic Year set to ${session} - ${semester} - Saved to backend!`);
-  };
-  return (
-    <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><ArrowUpCircle className="w-5 h-5"/> Promote Student by Session and Semester and Set Academic Year e.g. 2026/2027 - Supabase Connected</h3>
-        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Academic Year (Session) e.g. 2026/2027</label><input value={session} onChange={e=>setSession(e.target.value)} placeholder="2026/2027" className="w-full mt-1 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/></div><div><label className="text-[11px] font-bold">Semester</label><select value={semester} onChange={e=>setSemester(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>First Semester</option><option>Second Semester</option></select></div><div className="flex items-end"><button onClick={setAcademicYear} className="w-full bg-amber-700 text-white py-3 rounded-xl font-black text-xs">SET ACADEMIC YEAR {session} - {semester} + PUBLISH TO BACKEND</button></div></div>
-        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">From Level</label><select value={fromLevel} onChange={e=>setFromLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div><label className="text-[11px] font-bold">To Level</label><select value={toLevel} onChange={e=>setToLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div className="flex items-end"><button onClick={promote} className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">PROMOTE {selected.length} STUDENTS - {fromLevel} → {toLevel}</button></div></div>
-        <div className="mt-4 border-2 rounded-xl overflow-hidden"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2"><input type="checkbox" onChange={e=>{ if(e.target.checked) setSelected(students.map((s:any)=>s.email)); else setSelected([]); }}/></th><th className="p-2 text-left">Full Name + Matric</th><th className="p-2">Level</th></tr></thead><tbody>{students.map((s:any)=><tr key={s.email} className="border-b"><td className="p-2"><input type="checkbox" checked={selected.includes(s.email)} onChange={()=>toggle(s.email)}/></td><td className="p-2">{s.fullName} - {s.matricNumber||s.email}</td><td className="p-2">{s.level}</td></tr>)}</tbody></table></div>
-      </div>
-    </div>
-  );
-};
-
-// ===== 5. ADMIN SETTINGS MANAGER =====
-const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
-  const [resetConfirm, setResetConfirm] = useState('');
-  const resetByRole = async(role:string)=>{
-    if(resetConfirm!=='RESET'){showStatus('Type RESET to confirm','error');return;}
-    if(!confirm(`Are you sure you want to reset ALL ${role}?`)) return;
-    const remaining = users.filter((u:any)=>u.role!==role);
-    setUsers(remaining);
-    localStorage.setItem('lcns_users',JSON.stringify(remaining));
-    const sb=getSupabase();
-    if(sb){ try{await sb.from('users').delete().eq('role',role);}catch{} }
-    window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ All ${role} reset - Deleted from portal`);
-    setResetConfirm('');
-  };
-  const resetPortal = async(type:'users'|'results'|'all')=>{
-    if(resetConfirm!=='RESET'){showStatus('Type RESET to confirm','error');return;}
-    if(!confirm(`Are you sure you want to reset ${type}?`)) return;
-    const sb=getSupabase();
-    if(type==='users'||type==='all'){
-      localStorage.removeItem('lcns_users');
-      localStorage.removeItem('users');
-      if(sb){try{await sb.from('users').delete().neq('id','00000000-0000-0000-0000-000000000000');}catch{}}
-      setUsers([]);
-    }
-    if(type==='results'||type==='all'){
-      localStorage.removeItem('lcns_results');
-      if(sb){try{await sb.from('results').delete().neq('id','00000000-0000-0000-0000-000000000000');}catch{}}
-    }
-    if(type==='all'){
-      localStorage.clear();
-      if(sb){try{await sb.from('school_settings').delete().neq('key','logo');}catch{}}
-    }
-    window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ Portal ${type} reset completed`);
-    setResetConfirm('');
-  };
-  const handover = async()=>{
-    const data={handover_date:new Date().toISOString(), handover_by:'Director of ICT', school:'Labe College of Nursing Sciences - Gboko', academic_year: localStorage.getItem('lcns_current_session')||'2026/2027', total_users: users.length, status:'READY FOR SCHOOL ADMIN'};
-    localStorage.setItem('lcns_handover', JSON.stringify(data));
-    const sb=getSupabase();
-    if(sb){ try{await sb.from('school_settings').upsert({key:'handover', value:JSON.stringify(data), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
-    showStatus('✅ Portal published and handed over to school admin - 2026/2027 session ready!');
-  };
-  const rolesToReset = ['LECTURER','BURSAR','PROVOST','REGISTRAR','EXAM_OFFICER','HOD','ADMISSION_OFFICER','ADMIN','ICT_OFFICER'];
-  return (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-br from-slate-900 to-[#0a4d2e] text-white rounded-3xl p-6 border-2"><h3 className="font-black flex gap-2"><Settings className="w-5 h-5"/> Admin Settings - Reset Portal and Publish to Hand Over to School Admin - Supabase Connected</h3><p className="text-xs mt-2 text-emerald-200">Reset portal to clean state for new session 2026/2027 - Then publish to hand over to school admin - Labe College, Gboko</p></div>
-      <div className="bg-white border-2 border-amber-300 rounded-3xl p-6"><h4 className="font-black text-amber-800">🔄 RESET BY ROLE - Lecturer, Bursar, Provost, Registrar, Exam Officer, HOD, Admission Officer</h4><p className="text-[11px] mt-1">Type RESET to confirm, then click role to delete ALL users with that role from whole portal</p><input value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} placeholder="Type RESET to confirm" className="w-full mt-3 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/><div className="grid md:grid-cols-3 gap-2 mt-3">{rolesToReset.map(r=><button key={r} onClick={()=>resetByRole(r)} className="px-3 py-2 bg-amber-100 border-2 border-amber-400 rounded-xl text-[11px] font-black">{r}</button>)}</div></div>
-      <div className="bg-white border-2 rounded-3xl p-6"><h4 className="font-black">⚙️ RESET PORTAL</h4><div className="flex gap-2 mt-3"><button onClick={()=>resetPortal('users')} className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-black">RESET USERS</button><button onClick={()=>resetPortal('results')} className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black">RESET RESULTS</button><button onClick={()=>resetPortal('all')} className="px-4 py-2 bg-black text-white rounded-xl text-xs font-black">RESET ALL - FULL WIPE</button><button onClick={handover} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">HANDOVER TO SCHOOL ADMIN</button></div></div>
-    </div>
-  );
-};
-
-// ===== 6. APPLICATION MANAGER =====
-const ApplicationManager = ({ showStatus }: any) => {
-  const [appStatus, setAppStatus] = useState<any>(()=>{
-    try{
-      return JSON.parse(localStorage.getItem('lcns_app_status')||'null')||{isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Admissions for 2026/2027 Academic Year is CLOSED'};
-    }catch{
-      return {isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Closed'};
-    }
-  });
-  const [link, setLink] = useState(appStatus.link);
-  const [deadline, setDeadline] = useState(appStatus.deadline);
-  const [message, setMessage] = useState(appStatus.message);
-  const toggle = async()=>{
-    const newStatus={isOpen:!appStatus.isOpen, link, deadline, message: !appStatus.isOpen?message:'Admissions for 2026/2027 Academic Year is CLOSED'};
-    setAppStatus(newStatus);
-    localStorage.setItem('lcns_app_status',JSON.stringify(newStatus));
-    const sb=getSupabase();
-    if(sb){ try{ await sb.from('school_settings').upsert({key:'app_status', value:JSON.stringify(newStatus), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
-    window.dispatchEvent(new Event('storage'));
-    showStatus(newStatus.isOpen?'✅ Admissions OPENED':'✅ Admissions CLOSED');
-  };
-  return (
-    <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black">🎓 Admission Open/Close - Control /apply</h3>
-        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Application Link</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Deadline</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Message</label><input value={message} onChange={e=>setMessage(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div></div>
-        <div className="mt-4 flex gap-2"><button onClick={toggle} className={`px-6 py-3 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-red-600 text-white':'bg-emerald-700 text-white'}`}>{appStatus.isOpen?'CLOSE ADMISSIONS':'OPEN ADMISSIONS'}</button><span className={`px-4 py-2 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{appStatus.isOpen?'OPEN':'CLOSED'} - {appStatus.deadline}</span></div>
-      </div>
-    </div>
-  );
-};
-
-// ===== 7. ANNOUNCEMENT MANAGER =====
-const AnnouncementManager = ({ showStatus }: any) => {
-  const [announcements, setAnnouncements] = useState<any[]>(()=>{
-    try{return JSON.parse(localStorage.getItem('lcns_announcements')||'[]');}catch{return[];}
-  });
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const save = async()=>{
-    if(!title||!content){showStatus('Title + Content required','error');return;}
-    const newAnn={id:Date.now().toString(), title, content, created_at:new Date().toISOString()};
-    const updated=[newAnn, ...announcements];
-    setAnnouncements(updated);
-    localStorage.setItem('lcns_announcements',JSON.stringify(updated));
-    const sb=getSupabase();
-    if(sb){ try{ await sb.from('school_settings').upsert({key:'announcements', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
-    window.dispatchEvent(new Event('storage'));
-    showStatus('✅ Announcement published to website + backend!');
-    setTitle(''); setContent('');
-  };
-  const delAnn = async(id:string)=>{
-    const updated=announcements.filter((a:any)=>a.id!==id);
-    setAnnouncements(updated);
-    localStorage.setItem('lcns_announcements',JSON.stringify(updated));
-    const sb=getSupabase();
-    if(sb){ try{ await sb.from('school_settings').upsert({key:'announcements', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
-    showStatus('Deleted');
-  };
-  return (
-    <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Megaphone className="w-5 h-5"/> Announcements & Events - Publish to Website</h3>
-        <div className="space-y-3 mt-4"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title e.g. Resumption Date 2026/2027" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="Content" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><button onClick={save} className="w-full bg-orange-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH ANNOUNCEMENT TO WEBSITE + SUPABASE</button></div>
-      </div>
-      <div className="grid md:grid-cols-2 gap-4">{announcements.map((a:any)=><div key={a.id} className="bg-white border-2 rounded-2xl p-4"><p className="font-black text-xs">{a.title}</p><p className="text-[11px] mt-1">{a.content}</p><button onClick={()=>delAnn(a.id)} className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></div>)}</div>
-    </div>
-  );
-};
-
-// ===== 8. APPLICANTS MANAGER - FIXED - ADMIN SEES ALL - LCNS_APPLICANTS TABLE - NO user_id FILTER - SSCE1 + SSCE2 =====
-const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
-  const [applicants, setApplicants] = useState<any[]>(()=>{
-    try{ return JSON.parse(localStorage.getItem('lcns_applicants')||'[]'); }catch{return[];}
-  });
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
-  useEffect(()=>{
-    const load=async()=>{
-      setLoading(true);
-      const sb=getSupabase();
-      if(!sb){ setLoading(false); return; }
-      try{
-        const { data, error } = await sb.from('lcns_applicants').select('*').order('created_at', { ascending: false });
-        if(!error && data){
-          if(data.length>0){
-            setApplicants(data);
-            localStorage.setItem('lcns_applicants', JSON.stringify(data));
-          }
-        }
-      }catch(e){}
-      setLoading(false);
-    };
-    load();
-  },[]);
-  const filtered = applicants.filter((a:any)=>{
-    if(!search) return true;
-    const t=search.toLowerCase();
-    return (a.fullName||a.full_name||'').toLowerCase().includes(t) || (a.email||'').toLowerCase().includes(t) || (a.phone||'').toLowerCase().includes(t) || (a.application_number||'').toLowerCase().includes(t);
-  });
-  const deleteApplicant = async(id:string, name:string)=>{
-    if(!confirm(`Delete ${name}?`)) return;
-    const filteredUpdated = applicants.filter((a:any)=>{ return (a.id||'')!==id && (a.email||'')!==id && (a.application_number||'')!==id; });
-    setApplicants(filteredUpdated);
-    localStorage.setItem('lcns_applicants',JSON.stringify(filteredUpdated));
-    const sb=getSupabase();
-    if(sb){ try{ await sb.from('lcns_applicants').delete().or(`id.eq.${id},email.eq.${id},application_number.eq.${id}`); }catch{} }
-    showStatus(`Deleted ${name}`);
-  };
-  const deleteAllApplicants = async()=>{
-    if(!confirm(`DELETE ALL ${applicants.length}?`)) return;
-    if(prompt('Type DELETE ALL')!=='DELETE ALL') return;
-    setApplicants([]);
-    localStorage.removeItem('lcns_applicants');
-    const sb=getSupabase();
-    if(sb){ try{ await sb.from('lcns_applicants').delete().neq('id','00000000-0000-0000-0000-000000000000'); }catch{} }
-    showStatus(`All deleted`);
-  };
-  return (
-    <div className="space-y-4">
-      <div className="bg-white border-2 border-rose-300 rounded-3xl p-6">
-        <div className="flex justify-between items-center">
-          <h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} - Admin, HOD, Exam Officer see ALL - lcns_applicants - SSCE1 + SSCE2 - FIXED {loading&&'(Loading...)'}</h3>
-          <button onClick={deleteAllApplicants} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">DELETE ALL - Whole Portal</button>
-        </div>
-        <div className="mt-4 flex gap-2">
-          <div className="flex-1 relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400"/>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search" className="w-full pl-10 p-3 border-2 rounded-xl text-xs"/>
-          </div>
-          <button onClick={()=>window.location.reload()} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs">Refresh</button>
-        </div>
-      </div>
-      {applicants.length===0 ? (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-10 text-center">
-          <p className="font-black text-amber-800">No Applicants Yet - 0 - Go to /apply and register - /apply saves to lcns_applicants table</p>
-        </div>
-      ) : (
-        <div className="bg-white border-2 rounded-3xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-[11px]">
-              <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Photo + Name + App No</th><th className="p-3">Contact</th><th className="p-3">SSCE1 + SSCE2</th><th className="p-3">State + LGA</th><th className="p-3">Date</th><th className="p-3 text-center">Action</th></tr></thead>
-              <tbody>
-                {filtered.map((a:any)=>{
-                  const fullName = a.fullName||a.full_name||'-';
-                  const appNo = a.application_number||'-';
-                  const email = a.email||'-'; const phone = a.phone||'-'; const photo = a.passport||'';
-                  const ssce1 = a.ssce1_type||'-'; const ssce1Year = a.ssce1_year||'-';
-                  const ssce2 = a.ssce2_type||'-'; const ssce2Year = a.ssce2_year||'-';
-                  const state = a.state_of_origin||'-'; const lga = a.lga||'-';
-                  const created = a.created_at ? new Date(a.created_at).toLocaleDateString() : '-';
-                  const idKey = a.id||a.email||appNo;
-                  return (<tr key={idKey} className="border-b"><td className="p-3"><div className="flex gap-2 items-center"><div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden">{photo ? <img src={photo} className="w-full h-full object-cover"/> : <GraduationCap className="w-5 h-5"/>}</div><div><p className="font-black uppercase">{fullName}</p><p className="font-mono text-[10px]">{appNo}</p></div></div></td><td className="p-3"><p>{email}</p><p className="font-bold">{phone}</p></td><td className="p-3"><p>SSCE1: {ssce1} {ssce1Year}</p><p>SSCE2: {ssce2} {ssce2Year}</p></td><td className="p-3"><p>{state}</p><p>{lga}</p></td><td className="p-3">{created}</td><td className="p-3 text-center"><div className="flex gap-1 justify-center"><a href={`/print/${a.id||appNo}`} target="_blank" className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-[10px] font-black">Print</a><button onClick={()=>deleteApplicant(idKey, fullName)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black">Delete</button></div></td></tr>);
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-const handleImgUpload = (e:any, set: any, current: any) => {
+// ===== FIXED HELPER - THIS WAS THE BREAKER - NOW FIXED =====
+const handleImgUploadHelper = (e:any, set: any, current: any) => {
   const f=e.target.files?.[0];
   if(!f) return;
   const r=new FileReader();
@@ -779,7 +522,6 @@ const handleImgUpload = (e:any, set: any, current: any) => {
   const showStatus = (text:string, type:'success'|'error'='success')=>{ setStatus({text,type}); setTimeout(()=>setStatus(null),4000); };
   const getRoleColor = (r:string)=>{ const ALL_ROLES = [{value:'STUDENT',color:'bg-blue-100 text-blue-800'},{value:'LECTURER',color:'bg-emerald-100 text-emerald-800'},{value:'HOD',color:'bg-purple-100 text-purple-800'},{value:'EXAM_OFFICER',color:'bg-orange-100 text-orange-800'},{value:'REGISTRAR',color:'bg-amber-100 text-amber-800'},{value:'PROVOST',color:'bg-emerald-100 text-emerald-800'},{value:'BURSAR',color:'bg-yellow-100 text-yellow-800'},{value:'ADMIN',color:'bg-slate-900 text-white'}]; return ALL_ROLES.find(x=>x.value===r)?.color||'bg-slate-100'; };
 
-  // FIXED - LOAD ALL 5 USERS FROM SUPABASE - WITH PASSWORD - SHOWS USER ID + EMAIL + PASSWORD - 2026/2027
   useEffect(()=>{
     const loadAll = async()=>{
       try{
