@@ -154,8 +154,8 @@ const GalleryManager = ({ showStatus }: any) => {
   };
   return (
     <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Camera className="w-5 h-5"/> Gallery - Upload Pictures with Description</h3>
-        <div className="grid md:grid-cols-2 gap-4 mt-4"><div className="space-y-3"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Picture Title e.g. Matriculation 2026" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Description" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><input type="file" accept="image/*" onChange={handleImg} className="w-full text-[11px] file:bg-slate-900 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/><button onClick={save} className="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-xs">PUBLISH PICTURE TO WEBSITE + SUPABASE</button></div><div className="h-64 bg-slate-100 border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{img?<img src={img} className="w-full h-full object-cover"/>:<span className="text-[11px]">Preview</span>}</div></div>
+      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Camera className="w-5 h-5"/> Gallery - Upload Pictures</h3>
+        <div className="grid md:grid-cols-2 gap-4 mt-4"><div className="space-y-3"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Picture Title" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Description" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><input type="file" accept="image/*" onChange={handleImg} className="w-full text-[11px] file:bg-slate-900 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/><button onClick={save} className="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-xs">PUBLISH PICTURE</button></div><div className="h-64 bg-slate-100 border-2 border-dashed rounded-2xl overflow-hidden flex items-center justify-center">{img?<img src={img} className="w-full h-full object-cover"/>:<span className="text-[11px]">Preview</span>}</div></div>
       </div>
       <div className="grid md:grid-cols-3 gap-4">{gallery.map((g:any)=><div key={g.id} className="bg-white border-2 rounded-2xl overflow-hidden"><div className="h-48 overflow-hidden"><img src={g.image} className="w-full h-full object-cover"/></div><div className="p-3"><p className="font-black text-xs">{g.title}</p><p className="text-[11px]">{g.description}</p><button onClick={()=>del(g.id)} className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></div></div>)}</div>
     </div>
@@ -199,7 +199,7 @@ const CourseManager = ({ showStatus, users }: any) => {
         await sb.from('school_settings').upsert({key:'courses', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});
       }catch{}
     }
-    showStatus(`✅ Course ${newCourse.code} added and assigned`);
+    showStatus(`✅ Course ${newCourse.code} added`);
     setCode(''); setCTitle(''); setLecturer('');
   };
   const del = async(id:string)=>{
@@ -217,8 +217,8 @@ const CourseManager = ({ showStatus, users }: any) => {
   return (
     <div className="space-y-6">
       <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><BookIcon className="w-5 h-5"/> Add Course and Assign to Lecturers</h3>
-        <div className="grid md:grid-cols-4 gap-3 mt-4"><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Course Code e.g. NUR111" className="p-3 border-2 rounded-xl text-xs font-bold"/><input value={cTitle} onChange={e=>setCTitle(e.target.value)} placeholder="Course Title e.g. Anatomy" className="p-3 border-2 rounded-xl text-xs"/><select value={unit} onChange={e=>setUnit(e.target.value)} className="p-3 border-2 rounded-xl text-xs"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><select value={level} onChange={e=>setLevel(e.target.value)} className="p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
-        <div className="mt-3 flex gap-2"><select value={lecturer} onChange={e=>setLecturer(e.target.value)} className="flex-1 p-3 border-2 rounded-xl text-xs"><option value="">Assign to Lecturer</option>{lecturers.map((l:any)=><option key={l.email} value={l.email}>{l.fullName} - {l.role} - {l.email}</option>)}</select><button onClick={save} className="px-6 bg-[#0a4d2e] text-white rounded-xl text-xs font-black">ADD COURSE + ASSIGN</button></div>
+        <div className="grid md:grid-cols-4 gap-3 mt-4"><input value={code} onChange={e=>setCode(e.target.value)} placeholder="NUR111" className="p-3 border-2 rounded-xl text-xs font-bold"/><input value={cTitle} onChange={e=>setCTitle(e.target.value)} placeholder="Anatomy" className="p-3 border-2 rounded-xl text-xs"/><select value={unit} onChange={e=>setUnit(e.target.value)} className="p-3 border-2 rounded-xl text-xs"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><select value={level} onChange={e=>setLevel(e.target.value)} className="p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
+        <div className="mt-3 flex gap-2"><select value={lecturer} onChange={e=>setLecturer(e.target.value)} className="flex-1 p-3 border-2 rounded-xl text-xs"><option value="">Assign to Lecturer</option>{lecturers.map((l:any)=><option key={l.email} value={l.email}>{l.fullName} - {l.role}</option>)}</select><button onClick={save} className="px-6 bg-[#0a4d2e] text-white rounded-xl text-xs font-black">ADD COURSE + ASSIGN</button></div>
       </div>
       <div className="bg-white border-2 rounded-2xl overflow-hidden"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Code</th><th className="p-3 text-left">Title</th><th className="p-3">Unit</th><th className="p-3">Level</th><th className="p-3">Lecturer</th><th className="p-3">Action</th></tr></thead><tbody>{courses.map((c:any)=><tr key={c.id} className="border-b"><td className="p-3 font-black">{c.code}</td><td className="p-3">{c.title}</td><td className="p-3">{c.creditUnit}</td><td className="p-3">{c.level}</td><td className="p-3">{c.lecturerName||c.lecturerEmail}</td><td className="p-3"><button onClick={()=>del(c.id)} className="px-2 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></td></tr>)}</tbody></table></div>
     </div>
@@ -239,7 +239,6 @@ const PromotionManager = ({ showStatus, users, setUsers }: any) => {
     const updated = users.map((u:any)=>selected.includes(u.email)?{...u, level:toLevel, previousLevel:u.level, promotedAt:new Date().toISOString(), academicYear:session, semester}:u);
     setUsers(updated);
     localStorage.setItem('lcns_users',JSON.stringify(updated));
-    localStorage.setItem('users',JSON.stringify(updated));
     const sb=getSupabase();
     if(sb){
       try{
@@ -248,7 +247,7 @@ const PromotionManager = ({ showStatus, users, setUsers }: any) => {
         }
       }catch{}
     }
-    showStatus(`✅ ${selected.length} students promoted from ${fromLevel} to ${toLevel} for ${session} - ${semester}`);
+    showStatus(`✅ ${selected.length} students promoted from ${fromLevel} to ${toLevel}`);
     setSelected([]);
   };
   const setAcademicYear = async()=>{
@@ -261,13 +260,13 @@ const PromotionManager = ({ showStatus, users, setUsers }: any) => {
       }catch{}
     }
     window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ Academic Year set to ${session} - ${semester} - Saved to backend!`);
+    showStatus(`✅ Academic Year set to ${session} - ${semester}`);
   };
   return (
     <div className="space-y-6">
       <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><ArrowUpCircle className="w-5 h-5"/> Promote Student by Session and Semester</h3>
-        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Academic Year (Session) e.g. 2026/2027</label><input value={session} onChange={e=>setSession(e.target.value)} placeholder="2026/2027" className="w-full mt-1 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/></div><div><label className="text-[11px] font-bold">Semester</label><select value={semester} onChange={e=>setSemester(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>First Semester</option><option>Second Semester</option></select></div><div className="flex items-end"><button onClick={setAcademicYear} className="w-full bg-amber-700 text-white py-3 rounded-xl font-black text-xs">SET ACADEMIC YEAR {session} - {semester} + PUBLISH TO BACKEND</button></div></div>
-        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">From Level</label><select value={fromLevel} onChange={e=>setFromLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div><label className="text-[11px] font-bold">To Level</label><select value={toLevel} onChange={e=>setToLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div className="flex items-end"><button onClick={promote} className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">PROMOTE {selected.length} STUDENTS - {fromLevel} → {toLevel}</button></div></div>
+        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Session e.g. 2026/2027</label><input value={session} onChange={e=>setSession(e.target.value)} className="w-full mt-1 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/></div><div><label className="text-[11px] font-bold">Semester</label><select value={semester} onChange={e=>setSemester(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>First Semester</option><option>Second Semester</option></select></div><div className="flex items-end"><button onClick={setAcademicYear} className="w-full bg-amber-700 text-white py-3 rounded-xl font-black text-xs">SET ACADEMIC YEAR</button></div></div>
+        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">From Level</label><select value={fromLevel} onChange={e=>setFromLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div><label className="text-[11px] font-bold">To Level</label><select value={toLevel} onChange={e=>setToLevel(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div className="flex items-end"><button onClick={promote} className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">PROMOTE {selected.length} STUDENTS</button></div></div>
         <div className="mt-4 border-2 rounded-xl overflow-hidden"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2"><input type="checkbox" onChange={e=>{ if(e.target.checked) setSelected(students.map((s:any)=>s.email)); else setSelected([]); }}/></th><th className="p-2 text-left">Full Name + Matric</th><th className="p-2">Level</th></tr></thead><tbody>{students.map((s:any)=><tr key={s.email} className="border-b"><td className="p-2"><input type="checkbox" checked={selected.includes(s.email)} onChange={()=>toggle(s.email)}/></td><td className="p-2">{s.fullName} - {s.matricNumber||s.email}</td><td className="p-2">{s.level}</td></tr>)}</tbody></table></div>
       </div>
     </div>
@@ -285,7 +284,7 @@ const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
     const sb=getSupabase();
     if(sb){ try{await sb.from('users').delete().eq('role',role);}catch{} }
     window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ All ${role} reset - Deleted from portal`);
+    showStatus(`✅ All ${role} reset`);
     setResetConfirm('');
   };
   const resetPortal = async(type:'users'|'results'|'all')=>{
@@ -307,7 +306,7 @@ const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
       if(sb){try{await sb.from('school_settings').delete().neq('key','logo');}catch{}}
     }
     window.dispatchEvent(new Event('storage'));
-    showStatus(`✅ Portal ${type} reset completed`);
+    showStatus(`✅ Portal ${type} reset`);
     setResetConfirm('');
   };
   const handover = async()=>{
@@ -315,14 +314,14 @@ const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
     localStorage.setItem('lcns_handover', JSON.stringify(data));
     const sb=getSupabase();
     if(sb){ try{await sb.from('school_settings').upsert({key:'handover', value:JSON.stringify(data), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
-    showStatus('✅ Portal published and handed over to school admin - 2026/2027 session ready!');
+    showStatus('✅ Portal handed over');
   };
   const rolesToReset = ['LECTURER','BURSAR','PROVOST','REGISTRAR','EXAM_OFFICER','HOD','ADMISSION_OFFICER','ADMIN','ICT_OFFICER'];
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-br from-slate-900 to-[#0a4d2e] text-white rounded-3xl p-6 border-2"><h3 className="font-black flex gap-2"><Settings className="w-5 h-5"/> Admin Settings - Reset Portal and Publish to Hand Over to School Admin</h3></div>
-      <div className="bg-white border-2 border-amber-300 rounded-3xl p-6"><h4 className="font-black text-amber-800">🔄 RESET BY ROLE</h4><p className="text-[11px] mt-1">Type RESET to confirm, then click role to delete ALL users with that role</p><input value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} placeholder="Type RESET to confirm" className="w-full mt-3 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/><div className="grid md:grid-cols-3 gap-2 mt-3">{rolesToReset.map(r=><button key={r} onClick={()=>resetByRole(r)} className="px-3 py-2 bg-amber-100 border-2 border-amber-400 rounded-xl text-[11px] font-black">{r}</button>)}</div></div>
-      <div className="bg-white border-2 rounded-3xl p-6"><h4 className="font-black">⚙️ RESET PORTAL</h4><div className="flex gap-2 mt-3"><button onClick={()=>resetPortal('users')} className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-black">RESET USERS</button><button onClick={()=>resetPortal('results')} className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black">RESET RESULTS</button><button onClick={()=>resetPortal('all')} className="px-4 py-2 bg-black text-white rounded-xl text-xs font-black">RESET ALL - FULL WIPE</button><button onClick={handover} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">HANDOVER TO SCHOOL ADMIN</button></div></div>
+      <div className="bg-gradient-to-br from-slate-900 to-[#0a4d2e] text-white rounded-3xl p-6 border-2"><h3 className="font-black flex gap-2"><Settings className="w-5 h-5"/> Admin Settings - Reset Portal</h3></div>
+      <div className="bg-white border-2 border-amber-300 rounded-3xl p-6"><h4 className="font-black text-amber-800">RESET BY ROLE</h4><input value={resetConfirm} onChange={e=>setResetConfirm(e.target.value)} placeholder="Type RESET to confirm" className="w-full mt-3 p-3 border-2 border-amber-500 rounded-xl text-xs font-black"/><div className="grid md:grid-cols-3 gap-2 mt-3">{rolesToReset.map(r=><button key={r} onClick={()=>resetByRole(r)} className="px-3 py-2 bg-amber-100 border-2 border-amber-400 rounded-xl text-[11px] font-black">{r}</button>)}</div></div>
+      <div className="bg-white border-2 rounded-3xl p-6"><h4 className="font-black">RESET PORTAL</h4><div className="flex gap-2 mt-3"><button onClick={()=>resetPortal('users')} className="px-4 py-2 bg-orange-600 text-white rounded-xl text-xs font-black">RESET USERS</button><button onClick={()=>resetPortal('results')} className="px-4 py-2 bg-red-600 text-white rounded-xl text-xs font-black">RESET RESULTS</button><button onClick={()=>resetPortal('all')} className="px-4 py-2 bg-black text-white rounded-xl text-xs font-black">RESET ALL</button><button onClick={handover} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black">HANDOVER</button></div></div>
     </div>
   );
 };
@@ -330,7 +329,7 @@ const AdminSettingsManager = ({ showStatus, users, setUsers }: any) => {
 const ApplicationManager = ({ showStatus }: any) => {
   const [appStatus, setAppStatus] = useState<any>(()=>{
     try{
-      return JSON.parse(localStorage.getItem('lcns_app_status')||'null')||{isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Admissions for 2026/2027 Academic Year is CLOSED'};
+      return JSON.parse(localStorage.getItem('lcns_app_status')||'null')||{isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Admissions CLOSED'};
     }catch{
       return {isOpen:false, link:'/apply', deadline:'2026-11-30', message:'Closed'};
     }
@@ -339,7 +338,7 @@ const ApplicationManager = ({ showStatus }: any) => {
   const [deadline, setDeadline] = useState(appStatus.deadline);
   const [message, setMessage] = useState(appStatus.message);
   const toggle = async()=>{
-    const newStatus={isOpen:!appStatus.isOpen, link, deadline, message: !appStatus.isOpen?message:'Admissions for 2026/2027 Academic Year is CLOSED'};
+    const newStatus={isOpen:!appStatus.isOpen, link, deadline, message: !appStatus.isOpen?message:'Admissions CLOSED'};
     setAppStatus(newStatus);
     localStorage.setItem('lcns_app_status',JSON.stringify(newStatus));
     const sb=getSupabase();
@@ -349,9 +348,9 @@ const ApplicationManager = ({ showStatus }: any) => {
   };
   return (
     <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black">🎓 Admission Open/Close - Control /apply</h3>
-        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Application Link</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Deadline</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Message</label><input value={message} onChange={e=>setMessage(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div></div>
-        <div className="mt-4 flex gap-2"><button onClick={toggle} className={`px-6 py-3 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-red-600 text-white':'bg-emerald-700 text-white'}`}>{appStatus.isOpen?'CLOSE ADMISSIONS':'OPEN ADMISSIONS'}</button><span className={`px-4 py-2 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{appStatus.isOpen?'OPEN':'CLOSED'} - {appStatus.deadline}</span></div>
+      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black">Admission Open/Close</h3>
+        <div className="grid md:grid-cols-3 gap-3 mt-4"><div><label className="text-[11px] font-bold">Link</label><input value={link} onChange={e=>setLink(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Deadline</label><input type="date" value={deadline} onChange={e=>setDeadline(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div><div><label className="text-[11px] font-bold">Message</label><input value={message} onChange={e=>setMessage(e.target.value)} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"/></div></div>
+        <div className="mt-4 flex gap-2"><button onClick={toggle} className={`px-6 py-3 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-red-600 text-white':'bg-emerald-700 text-white'}`}>{appStatus.isOpen?'CLOSE':'OPEN'}</button><span className={`px-4 py-2 rounded-xl text-xs font-black ${appStatus.isOpen?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{appStatus.isOpen?'OPEN':'CLOSED'}</span></div>
       </div>
     </div>
   );
@@ -372,7 +371,7 @@ const AnnouncementManager = ({ showStatus }: any) => {
     const sb=getSupabase();
     if(sb){ try{ await sb.from('school_settings').upsert({key:'announcements', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'});}catch{} }
     window.dispatchEvent(new Event('storage'));
-    showStatus('✅ Announcement published to website + backend!');
+    showStatus('✅ Announcement published');
     setTitle(''); setContent('');
   };
   const delAnn = async(id:string)=>{
@@ -385,8 +384,8 @@ const AnnouncementManager = ({ showStatus }: any) => {
   };
   return (
     <div className="space-y-6">
-      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Megaphone className="w-5 h-5"/> Announcements & Events - Publish to Website</h3>
-        <div className="space-y-3 mt-4"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title e.g. Resumption Date 2026/2027" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="Content" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><button onClick={save} className="w-full bg-orange-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH ANNOUNCEMENT TO WEBSITE + SUPABASE</button></div>
+      <div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><Megaphone className="w-5 h-5"/> Announcements</h3>
+        <div className="space-y-3 mt-4"><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Title" className="w-full p-3 border-2 rounded-xl text-xs font-bold"/><textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="Content" className="w-full p-3 border-2 rounded-xl text-xs h-24"/><button onClick={save} className="w-full bg-orange-700 text-white py-3 rounded-xl font-black text-xs">PUBLISH</button></div>
       </div>
       <div className="grid md:grid-cols-2 gap-4">{announcements.map((a:any)=><div key={a.id} className="bg-white border-2 rounded-2xl p-4"><p className="font-black text-xs">{a.title}</p><p className="text-[11px] mt-1">{a.content}</p><button onClick={()=>delAnn(a.id)} className="mt-2 px-3 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></div>)}</div>
     </div>
@@ -429,33 +428,23 @@ const ApplicantsManager = ({ showStatus }: any) => {
     if(sb){ try{ await sb.from('lcns_applicants').delete().or(`id.eq.${id},email.eq.${id},application_number.eq.${id}`); }catch{} }
     showStatus(`Deleted ${name}`);
   };
-  const deleteAllApplicants = async()=>{
-    if(!confirm(`DELETE ALL ${applicants.length}?`)) return;
-    if(prompt('Type DELETE ALL')!=='DELETE ALL') return;
-    setApplicants([]);
-    localStorage.removeItem('lcns_applicants');
-    const sb=getSupabase();
-    if(sb){ try{ await sb.from('lcns_applicants').delete().neq('id','00000000-0000-0000-0000-000000000000'); }catch{} }
-    showStatus(`All deleted`);
-  };
   return (
     <div className="space-y-4">
       <div className="bg-white border-2 border-rose-300 rounded-3xl p-6">
         <div className="flex justify-between items-center">
           <h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} {loading&&'(Loading...)'}</h3>
-          <button onClick={deleteAllApplicants} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">DELETE ALL</button>
         </div>
         <div className="mt-4 flex gap-2">
           <div className="flex-1 relative">
             <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400"/>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search Name, Email, Phone, App No" className="w-full pl-10 p-3 border-2 rounded-xl text-xs"/>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search" className="w-full pl-10 p-3 border-2 rounded-xl text-xs"/>
           </div>
           <button onClick={()=>window.location.reload()} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs">Refresh</button>
         </div>
       </div>
       {applicants.length===0 ? (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-10 text-center">
-          <p className="font-black text-amber-800">No Applicants Yet - 0 - Go to /apply and register</p>
+          <p className="font-black text-amber-800">No Applicants Yet - Go to /apply and register</p>
         </div>
       ) : (
         <div className="bg-white border-2 rounded-3xl overflow-hidden">
@@ -472,7 +461,7 @@ const ApplicantsManager = ({ showStatus }: any) => {
                   const state = a.state_of_origin||'-'; const lga = a.lga||'-';
                   const created = a.created_at ? new Date(a.created_at).toLocaleDateString() : '-';
                   const idKey = a.id||a.email||appNo;
-                  return (<tr key={idKey} className="border-b"><td className="p-3"><div className="flex gap-2 items-center"><div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden">{photo ? <img src={photo} className="w-full h-full object-cover"/> : <GraduationCap className="w-5 h-5"/>}</div><div><p className="font-black uppercase">{fullName}</p><p className="font-mono text-[10px]">{appNo}</p></div></div></td><td className="p-3"><p>{email}</p><p className="font-bold">{phone}</p></td><td className="p-3"><p>SSCE1: {ssce1} {ssce1Year}</p><p>SSCE2: {ssce2} {ssce2Year}</p></td><td className="p-3"><p>{state}</p><p>{lga}</p></td><td className="p-3">{created}</td><td className="p-3 text-center"><div className="flex gap-1 justify-center"><a href={`/print/${a.id||appNo}`} target="_blank" className="px-3 py-1.5 bg-blue-700 text-white rounded-lg text-[10px] font-black">Print</a><button onClick={()=>deleteApplicant(idKey, fullName)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black">Delete</button></div></td></tr>);
+                  return (<tr key={idKey} className="border-b"><td className="p-3"><div className="flex gap-2 items-center"><div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden">{photo ? <img src={photo} className="w-full h-full object-cover"/> : <GraduationCap className="w-5 h-5"/>}</div><div><p className="font-black uppercase">{fullName}</p><p className="font-mono text-[10px]">{appNo}</p></div></div></td><td className="p-3"><p>{email}</p><p className="font-bold">{phone}</p></td><td className="p-3"><p>SSCE1: {ssce1} {ssce1Year}</p><p>SSCE2: {ssce2} {ssce2Year}</p></td><td className="p-3"><p>{state}</p><p>{lga}</p></td><td className="p-3">{created}</td><td className="p-3 text-center"><button onClick={()=>deleteApplicant(idKey, fullName)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black">Delete</button></td></tr>);
                 })}
               </tbody>
             </table>
@@ -490,7 +479,7 @@ export const AdminDashboard: React.FC = () => {
   const [userType, setUserType] = useState<'STUDENT'|'STAFF'>('STUDENT');
   const [showPasswords, setShowPasswords] = useState<{[k:string]:boolean}>({});
   const [showLoginDetails, setShowLoginDetails] = useState(false);
-  const [activeAdminTab, setActiveAdminTab] = useState<'users'|'result_publish'|'leadership'|'gallery'|'courses'|'promotion'|'settings'|'application'|'announcements'|'applicants'|'scoresheets'>('users');
+  const [activeAdminTab, setActiveAdminTab] = useState<'users'|'leadership'|'gallery'|'courses'|'promotion'|'settings'|'application'|'announcements'|'applicants'|'scoresheets'>('users');
   const [status, setStatus] = useState<{text:string,type:'success'|'error'}|null>(null);
   const [searchResult, setSearchResult] = useState('');
   const [supabaseConnected, setSupabaseConnected] = useState(false);
@@ -546,18 +535,10 @@ export const AdminDashboard: React.FC = () => {
     loadAll();
   },[]);
 
-  const handleImgUpload = (e:React.ChangeEvent<HTMLInputElement>)=>{
-    const f=e.target.files?.[0];
-    if(!f) return;
-    const r=new FileReader();
-    r.onload=()=>{ setNewUser({...newUser, staffImage:r.result as string}); };
-    r.readAsDataURL(f);
-  };
-
   const handleCreateUser = async ()=>{
     if(!newUser.fullName || !newUser.email){ showStatus('Enter Full Name + Email','error'); return; }
     if(userType==='STUDENT' && !newUser.sex){ showStatus('Select Sex - Male or Female','error'); return; }
-    if(userType==='STUDENT' && !newUser.level){ showStatus('Select Level - ND1/ND2/HND1/HND2','error'); return; }
+    if(userType==='STUDENT' && !newUser.level){ showStatus('Select Level','error'); return; }
     const getNextMatricNumber = () => {
       const counterKey = 'lcns_matric_counter';
       let counter = parseInt(localStorage.getItem(counterKey) || '0', 10);
@@ -565,8 +546,7 @@ export const AdminDashboard: React.FC = () => {
       localStorage.setItem(counterKey, counter.toString());
       const padded = String(counter).padStart(3, '0');
       const year = new Date().getFullYear();
-      const lvl = newUser.level.toUpperCase();
-      return `LCNS/${lvl}/${year}/${padded}`;
+      return `LCNS/${newUser.level.toUpperCase()}/${year}/${padded}`;
     };
     const getNextStaffId = () => {
       const counterKey = 'lcns_staff_counter';
@@ -651,7 +631,7 @@ export const AdminDashboard: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div>
             <div className="flex flex-wrap gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin - {adminName} - 2026/2027 - Sex + Level + Auto Matric - Checked Very Well</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin - {adminName} - 2026/2027 - Sex + Level + Auto Matric</span>
               <span className={`text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 ${supabaseConnected?'bg-emerald-500 text-white':'bg-red-500 text-white'}`}>{supabaseConnected?<><Wifi className="w-3 h-3"/> SUPABASE CONNECTED - {users.length} USERS</>:<><WifiOff className="w-3 h-3"/> LOCAL MODE</>}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard - {adminName}</h1>
@@ -687,7 +667,7 @@ export const AdminDashboard: React.FC = () => {
         <div className="bg-white rounded-3xl border-2 p-6 shadow-sm space-y-6">
           <div className="flex justify-between items-center"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - {users.length} Users - Sex + Level + Auto Matric - Checked Very Well</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">Sex Male/Female dropdown + Level ND1/ND2/HND1/HND2 dropdown - Auto Matric LCNS/ND1/2026/001 auto increment 001,002 - Auto Staff ID LCNS/ST/2026/001 - No Deletion - All checked</p></div><div className="flex gap-2"><button onClick={()=>setShowLoginDetails(!showLoginDetails)} className="px-4 py-2 bg-amber-700 text-white rounded-xl text-xs font-black flex gap-2"><Key className="w-4 h-4"/>{showLoginDetails?'Hide':'Show'} Login Details</button><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/> Create User</button></div></div>
 
-          <div className="flex gap-2"><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric, Staff ID - steve@gmail.com" className="flex-1 p-3 border-2 rounded-xl text-xs"/><select value={userFilter} onChange={e=>setUserFilter(e.target.value as any)} className="p-3 border-2 rounded-xl text-xs font-black"><option value="ALL">ALL Users - {users.length}</option><option value="STUDENT">STUDENTS</option><option value="STAFF">STAFF</option></select></div>
+          <div className="flex gap-2"><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric, Staff ID" className="flex-1 p-3 border-2 rounded-xl text-xs"/><select value={userFilter} onChange={e=>setUserFilter(e.target.value as any)} className="p-3 border-2 rounded-xl text-xs font-black"><option value="ALL">ALL Users - {users.length}</option><option value="STUDENT">STUDENTS</option><option value="STAFF">STAFF</option></select></div>
 
           {showCreateUser && (
             <div className="bg-slate-50 border-2 rounded-3xl p-4">
@@ -707,7 +687,7 @@ export const AdminDashboard: React.FC = () => {
                     )}
                     <div><label className="text-[11px] font-bold">Role *</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-black"><option>STUDENT</option><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option></select></div>
                     <div><label className="text-[11px] font-bold">Department</label><select value={newUser.department} onChange={e=>setNewUser({...newUser,department:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option>Nursing</option><option>Midwifery</option></select></div>
-                    <div className="col-span-3 bg-amber-50 border-2 border-amber-300 p-3 rounded-xl text-[10px] font-bold"><p>✅ AUTO MATRIC LOGIC - CHECKED VERY WELL:</p><p>STUDENT: LCNS/{newUser.level.toUpperCase()}/{new Date().getFullYear()}/001 → 001,002,003 auto increment - Saved in localStorage counter lcns_matric_counter</p><p>STAFF: LCNS/ST/{new Date().getFullYear()}/001 → 001,002,003 auto increment - Saved in lcns_staff_counter</p><p>SEX: {newUser.sex||'Select Male/Female'} - LEVEL: {newUser.level} - No Deletion - All features from Word kept</p></div>
+                    <div className="col-span-3 bg-amber-50 border-2 border-amber-300 p-3 rounded-xl text-[10px] font-bold"><p>✅ AUTO MATRIC LOGIC - CHECKED VERY WELL:</p><p>STUDENT: LCNS/{newUser.level.toUpperCase()}/{new Date().getFullYear()}/001 → 001,002,003 auto increment - Counter in localStorage</p><p>STAFF: LCNS/ST/{new Date().getFullYear()}/001 → 001,002,003 auto increment</p><p>SEX: {newUser.sex||'Select Male/Female'} - LEVEL: {newUser.level} - No Deletion</p></div>
                   </div>
                 </div>
                 <button type="submit" className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">CREATE USER - Sex {newUser.sex||'Male/Female'} + Level {newUser.level} + Auto Matric LCNS/{newUser.level}/{new Date().getFullYear()}/XXX + Auto Staff ID + Password - Saves to Supabase - Checked Very Well</button>
@@ -716,7 +696,7 @@ export const AdminDashboard: React.FC = () => {
           )}
 
           {showLoginDetails && (
-            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Login Details - {users.length} Users - User ID + Email + Password - Sex + Level - Checked Very Well</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name</th><th className="p-2">Sex</th><th className="p-2">Level</th><th className="p-2">Role</th><th className="p-2">Email</th><th className="p-2">User ID / Matric / Staff ID</th><th className="p-2">Password - Click Eye</th><th className="p-2">Status</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2 font-black">{u.fullName}</td><td className="p-2">{u.sex||'-'}</td><td className="p-2 font-bold">{u.level||'-'}</td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span></td><td className="p-2">{u.email}</td><td className="p-2 font-mono font-black text-[11px]">{u.loginId||u.matricNumber||u.staffId||u.email}<br/><span className="text-[9px] text-slate-500">ID: {u.id?.substring(0,8)}...</span></td><td className="p-2 font-mono text-[11px]"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-black">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-2 py-1 rounded-lg text-[10px] font-black ${u.status==='ACTIVE'?'bg-amber-600 text-white':'bg-emerald-600 text-white'}`}>{u.status==='ACTIVE'?'Deactivate':'Activate'}</button><button onClick={()=>deleteUser(u.email, u.fullName)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px]">Delete</button></div></td></tr>)}</tbody></table></div><p className="text-[10px] mt-2 font-bold text-slate-600">Sex + Level visible - Matric auto LCNS/ND1/2026/001 increments - Staff ID auto LCNS/ST/2026/001 - Password eye - Checked very well - No deletion - All from Word kept</p></div>
+            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Login Details - {users.length} Users</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Full Name</th><th className="p-2">Sex</th><th className="p-2">Level</th><th className="p-2">Role</th><th className="p-2">Email</th><th className="p-2">User ID / Matric / Staff ID</th><th className="p-2">Password</th><th className="p-2">Status</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2 font-black">{u.fullName}</td><td className="p-2">{u.sex||'-'}</td><td className="p-2 font-bold">{u.level||'-'}</td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span></td><td className="p-2">{u.email}</td><td className="p-2 font-mono font-black text-[11px]">{u.loginId||u.matricNumber||u.staffId}</td><td className="p-2 font-mono text-[11px]"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-black">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-2 py-1 rounded-lg text-[10px] font-black ${u.status==='ACTIVE'?'bg-amber-600 text-white':'bg-emerald-600 text-white'}`}>{u.status==='ACTIVE'?'Deactivate':'Activate'}</button><button onClick={()=>deleteUser(u.email, u.fullName)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px]">Delete</button></div></td></tr>)}</tbody></table></div></div>
           )}
 
           <div className="bg-white border-2 rounded-2xl overflow-hidden">
@@ -739,6 +719,5 @@ export const AdminDashboard: React.FC = () => {
   );
 };
 
-// ✅ FINAL FIX - NO DUPLICATE EXPORT - ONLY 2 EXPORTS - GREEN BUILD - SEX + LEVEL + AUTO MATRIC + AUTO STAFF ID - CHECKED VERY WELL - NO DELETION
 export { AdminDashboard as AdminDashboardNamed };
 export default AdminDashboard;
