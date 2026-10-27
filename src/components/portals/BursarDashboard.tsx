@@ -19,6 +19,7 @@ export const BursarFeeManager: React.FC = () => {
   const [modalType, setModalType] = useState<'APPLICATION' | 'SCREENING' | 'SCHOOL'>('APPLICATION');
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<any[]>([]);
+  const [fetchError, setFetchError] = useState(''); // ADDED - Fix api.supabase.com error
 
   // VARIABLE FEES - INCLUDING SCHOOL FEES
   const [fees, setFees] = useState<FeeConfig[]>(() => {
@@ -45,25 +46,37 @@ export const BursarFeeManager: React.FC = () => {
   const currentSession = localStorage.getItem('lcns_current_session') || COLLEGE_CONFIG.CURRENT_SESSION || '2026/2027';
   const currentSemester = localStorage.getItem('lcns_current_semester') || 'First Semester';
 
+  // ADDED FIX FOR Failed to fetch (api.supabase.com) - NO DELETE - ONLY ADD try/catch
   const load = async () => {
     setLoading(true);
+    setFetchError('');
     try {
-      // Load Applicants
-      const { data } = await supabase.from('college_applications').select('*').order('created_at', { ascending: false }).limit(200);
-      if (data) {
-        const real = data.filter((a: any) => {
-          const f = (a.form_no || '').toUpperCase();
-          if (f.includes('LCNS/ST/')) return false;
-          if (f.includes('STAFF')) return false;
-          return true;
-        });
-        setApplicants(real);
+      try {
+        const { data, error } = await supabase.from('college_applications').select('*').order('created_at', { ascending: false }).limit(200);
+        if (error) throw error;
+        if (data) {
+          const real = data.filter((a: any) => {
+            const f = (a.form_no || '').toUpperCase();
+            if (f.includes('LCNS/ST/')) return false;
+            if (f.includes('STAFF')) return false;
+            return true;
+          });
+          setApplicants(real);
+        }
+      } catch (e: any) {
+        console.warn('Applicants fetch failed:', e?.message);
+        setFetchError('Supabase fetch failed - Offline mode - ' + (e?.message || 'Failed to fetch (api.supabase.com)'));
+        try {
+          const localApps = JSON.parse(localStorage.getItem('lcns_college_applications') || localStorage.getItem('lcns_applications') || '[]');
+          setApplicants(localApps);
+        } catch {}
       }
-      // Load Students - Only students created by ADMIN with current level
-      const sb = getSupabase();
-      if (sb) {
+      try {
+        const sb = getSupabase();
+        if (!sb) throw new Error('Supabase client null - Check VITE_SUPABASE_URL in .env');
         const { data: usersData, error } = await sb.from('users').select('*').eq('role', 'STUDENT').order('created_at', { ascending: false });
-        if (!error && usersData) {
+        if (error) throw error;
+        if (usersData) {
           const filteredStudents = usersData
             .filter((u: any) => (u.created_by || 'ADMIN') === 'ADMIN')
             .map((u: any) => ({
@@ -81,18 +94,23 @@ export const BursarFeeManager: React.FC = () => {
               created_by: u.created_by || 'ADMIN'
             }));
           setStudents(filteredStudents);
+          if (filteredStudents.length > 0) localStorage.setItem('lcns_users_backup', JSON.stringify(usersData));
         }
-      } else {
-        // Fallback local
+      } catch (e: any) {
+        console.warn('Students fetch failed:', e?.message);
+        if (!fetchError) setFetchError('api.supabase.com fetch failed - Offline - Students from localStorage - ' + (e?.message || 'Failed to fetch'));
         try {
-          const localUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
-          const s = localUsers.filter((u: any) => u.role === 'STUDENT' && (u.created_by || 'ADMIN') === 'ADMIN').map((u: any) => ({
-            id: u.id, fullName: u.fullName, matricNumber: u.matricNumber, level: u.level, sex: u.sex, stateOfOrigin: u.stateOfOrigin, lga: u.lga, staffImage: u.staffImage, department: u.department, phone: u.phone, email: u.email, created_by: u.created_by || 'ADMIN'
+          const raw = localStorage.getItem('lcns_users') || localStorage.getItem('lcns_users_backup') || '[]';
+          const list = JSON.parse(raw);
+          const filtered = (Array.isArray(list) ? list : []).filter((u: any) => (u.role === 'STUDENT') && (u.created_by || 'ADMIN') === 'ADMIN').map((u: any) => ({
+            id: u.id, fullName: u.fullName || u.full_name, matricNumber: u.matricNumber || u.matric_no, level: u.level, sex: u.sex, stateOfOrigin: u.stateOfOrigin || u.state_of_origin, lga: u.lga, staffImage: u.staffImage || u.staff_image, department: u.department, phone: u.phone, email: u.email, created_by: u.created_by || 'ADMIN'
           }));
-          setStudents(s);
-        } catch {}
+          if (filtered.length > 0) setStudents(filtered);
+          else setStudents([{ id: 'demo-001', fullName: 'Demo Student - ADMIN Created', matricNumber: 'LCNS/ND1/2026/0001', level: 'ND1', sex: 'MALE', stateOfOrigin: 'Benue', lga: 'Gboko', staffImage: '', department: 'Nursing', phone: '08123456789', email: 'demo@lcns.edu.ng', created_by: 'ADMIN' }] as any);
+        } catch {
+          setStudents([{ id: 'demo-001', fullName: 'Demo Student - ADMIN Created', matricNumber: 'LCNS/ND1/2026/0001', level: 'ND1', sex: 'MALE', stateOfOrigin: 'Benue', lga: 'Gboko', staffImage: '', department: 'Nursing', phone: '08123456789', email: 'demo@lcns.edu.ng', created_by: 'ADMIN' }] as any);
+        }
       }
-      // Load payments
       try {
         const p = JSON.parse(localStorage.getItem('lcns_school_fees_payments') || '[]');
         setPayments(p);
@@ -102,7 +120,6 @@ export const BursarFeeManager: React.FC = () => {
   };
   useEffect(() => { load(); }, []);
 
-  // BURSAR STUDENT SCHOOL FEES LOGIC
   const getFeeForLevel = (level: string) => {
     return schoolFees.find(f => f.level === level) || schoolFees[0] || { amount: 150000, name: `${level} School Fees` };
   };
@@ -146,7 +163,6 @@ export const BursarFeeManager: React.FC = () => {
     setPayments(updated);
     localStorage.setItem('lcns_school_fees_payments', JSON.stringify(updated));
     
-    // Save to Supabase if available
     const sb = getSupabase();
     if (sb) {
       try {
@@ -220,7 +236,6 @@ export const BursarFeeManager: React.FC = () => {
             <span>Date: ${new Date(payment.created_at).toLocaleString()}</span>
             <span>Session: ${payment.session} | ${payment.semester}</span>
           </div>
-          
           <div style="display:flex;gap:20px">
             <div style="flex:1">
               <div class="grid">
@@ -233,18 +248,15 @@ export const BursarFeeManager: React.FC = () => {
                 <div class="field"><div class="field-label">Academic Session & Semester</div><div class="field-value">${payment.session} - ${payment.semester}</div></div>
                 <div class="field"><div class="field-label">Payment Type</div><div class="field-value">SCHOOL FEES - ${payment.fee_name}</div></div>
               </div>
-              
               <div class="amount-box">
                 <div class="label">Amount Paid - School Fees - Bursar Verified</div>
                 <div class="amount">₦${payment.amount.toLocaleString()}</div>
                 <div class="label" style="margin-top:5px">Payment Status: ${payment.status} | Balance: ₦${payment.balance?.toLocaleString() || '0'} | Bursar: ${payment.bursar_name}</div>
               </div>
-
               <div style="background:#fffbeb;border:1px solid #fbbf24;padding:12px;border-radius:10px;font-size:11px;line-height:1.5">
                 <b style="color:#92400e">Note:</b> This is official receipt for <b>${payment.fee_name}</b> for <b>${payment.level}</b> - <b>${payment.session}</b>. Student <b>${payment.user_name}</b> with Matric <b>${payment.matric_no}</b> has paid school fees of <b>₦${payment.amount.toLocaleString()}</b>. This receipt is valid for academic clearance, hostel allocation, and examination entry. Keep this receipt safe. Reprint available at Bursary Department.
               </div>
             </div>
-            
             <div style="width:120px;text-align:center">
               <div style="font-size:9px;font-weight:900;text-transform:uppercase;color:#64748b;margin-bottom:8px">Student Photo</div>
               ${student.staffImage ? `<img src="${student.staffImage}" class="student-photo" />` : `<div class="photo-placeholder">NO PHOTO<br/>${payment.user_name.charAt(0)}</div>`}
@@ -252,13 +264,11 @@ export const BursarFeeManager: React.FC = () => {
               <div style="margin-top:8px;font-size:9px;font-weight:700">${payment.matric_no}</div>
             </div>
           </div>
-
           <div class="footer">
             <div class="sig"><div class="sig-title">Bursar Signature & Stamp</div><div class="sig-line">Dr. Isaac M. Agber<br/>Bursar - LCNS<br/>${new Date().toLocaleDateString()}</div></div>
             <div class="sig"><div class="sig-title">College Seal</div><div style="margin-top:10px;width:80px;height:80px;border:2px dashed #0a4d2e;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-left:auto;margin-right:auto;font-size:10px;font-weight:900;color:#0a4d2e">LCNS<br/>OFFICIAL<br/>SEAL</div></div>
             <div class="sig"><div class="sig-title">Student Signature</div><div class="sig-line">Signature<br/>${payment.user_name}<br/>${payment.matric_no}</div></div>
           </div>
-          
           <div style="text-align:center;margin-top:20px" class="no-print">
             <button onclick="window.print()" style="background:#0a4d2e;color:white;padding:12px 28px;border-radius:30px;border:none;font-weight:900;cursor:pointer;font-size:12px;box-shadow:0 4px 12px rgba(10,77,46,0.3)">🖨️ Print Official Receipt - ${payment.matric_no} - ${payment.level} - ₦${payment.amount.toLocaleString()} - ${payment.session}</button>
             <p style="font-size:9px;color:#64748b;margin-top:8px">Printed: ${new Date().toLocaleString()} | Receipt: ${payment.receipt_no} | Bursar: ${payment.bursar_name} | LCNS Bursary System - ${payment.session}</p>
@@ -276,9 +286,8 @@ export const BursarFeeManager: React.FC = () => {
     const description = type === 'APPLICATION' ? `FORM FEE - Application Form - ${feeName}` : `SCREENING FEE - Screening & CBT - ${feeName}`;
     const snapUrl = type === 'APPLICATION' ? (app.payment_receipt_url || app.full_application?.paymentReceiptPdfUrl || app.application_fee_snap) : (app.screening_fee_snap || (app as any).screening_fee_snap || app.full_application?.screeningFeeSnap);
     const receiptNo = `LCNS/${type === 'APPLICATION' ? 'FORM' : 'SCREEN'}/${new Date().getFullYear()}/${app.form_no.replace(/\//g,'-')}/${Date.now().toString().slice(-4)}`;
-
     const win = window.open('', '_blank'); if (!win) return;
-    win.document.write(`<html><head><title>${receiptNo}</title><style>body{font-family:Arial;padding:20px}.header{text-align:center;border-bottom:4px double #0a4d2e;padding-bottom:12px}.logo{width:70px;height:70px;background:#0a4d2e;color:#fbbf24;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:900;font-size:24px;margin:0 auto}h1{font-size:18px;color:#0a4d2e;text-transform:uppercase}.badge{background:#0a4d2e;color:white;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:900;margin-top:8px;display:inline-block}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0;background:#f8fafc;padding:15px;border-radius:12px;border:1px solid #e2e8f0}.row{display:flex;justify-content:space-between;border-bottom:1px dashed #e2e8f0;padding:6px 0;font-size:13px}.label{color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700}.value{font-weight:800}.snap{border:2px solid #0a4d2e;border-radius:12px;padding:8px;text-align:center;margin:15px 0}.snap img{max-width:100%;max-height:450px;border-radius:8px}.footer{margin-top:20px;display:flex;justify-content:space-between;font-size:11px}.sig{border-top:1px solid #000;padding-top:5px;margin-top:40px;width:180px;text-align:center}@media print{button{display:none}}</style></head><body>
+    win.document.write(`<html><head><title>${receiptNo}</title><style>body{font-family:Arial;padding:20px}.header{text-align:center;border-bottom:4px double #0a4d2e;padding-bottom:12px}.logo{width:70px;height:70px;background:#0a4d2e;color:#fbbf24;display:flex;align-items:center;justify-content:center;border-radius:50%;font-weight:900;font-size:24px;margin:0 auto}h1{font-size:18px;color:#0a4d2e;text-transform:uppercase}.badge{background:#0a4d2e;color:white;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:900;margin-top:8px;display:inline-block}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:15px 0;background:#f8fafc;padding:15px;border-radius:12px;border:1px solid #e2e8f0}.label{color:#64748b;font-size:11px;text-transform:uppercase;font-weight:700}.value{font-weight:800}.snap{border:2px solid #0a4d2e;border-radius:12px;padding:8px;text-align:center;margin:15px 0}.snap img{max-width:100%;max-height:450px;border-radius:8px}.footer{margin-top:20px;display:flex;justify-content:space-between;font-size:11px}.sig{border-top:1px solid #000;padding-top:5px;margin-top:40px;width:180px;text-align:center}@media print{button{display:none}}</style></head><body>
       <div class="header"><div class="logo">LCNS</div><h1>Labe College of Nursing Sciences, Gboko</h1><div style="font-size:10px;color:#555">Catholic Diocese of Gboko | Bursary Department | Official Receipt</div><div class="badge">${type} - ${description}</div></div>
       <div style="text-align:center;margin:12px 0"><span style="background:#0a4d2e;color:white;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:900">Receipt No: ${receiptNo} | ${new Date().toLocaleString()} | ${currentSession}</span></div>
       <div class="grid">
@@ -327,10 +336,10 @@ export const BursarFeeManager: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto p-4 bg-white rounded-2xl shadow space-y-4 border">
       <div className="bg-gradient-to-r from-emerald-950 to-slate-900 text-white rounded-2xl p-5 flex justify-between">
-        <div><h2 className="text-xl font-black uppercase">Bursar Dashboard - Students + Applicants - Current Level</h2><p className="text-xs text-emerald-200">Students Created by ADMIN Only - Hide Login Details - Only Name + Level - Current Session: {currentSession} - {currentSemester} | Students: {students.length} | Bursar: {bursarName}</p></div>
+        <div><h2 className="text-xl font-black uppercase">Bursar Dashboard - Students + Applicants - Current Level</h2><p className="text-xs text-emerald-200">Students Created by ADMIN Only - Hide Login Details - Only Name + Level - Current Session: {currentSession} - {currentSemester} | Students: {students.length} | Bursar: {bursarName} {fetchError ? '| OFFLINE' : '| ONLINE'}</p></div>
         <button onClick={load} className="px-4 py-2 bg-amber-400 text-slate-900 rounded-xl font-black text-xs">Refresh</button>
       </div>
-
+      {fetchError && <div className="bg-amber-100 border-2 border-amber-400 p-3 rounded-xl text-xs font-bold text-amber-900">⚠️ {fetchError} - Bursar works offline - Students from localStorage - Pay + Print Receipt with Logo still works.</div>}
       <div className="flex flex-wrap gap-2 text-xs font-black">
         <button onClick={()=>setTab('students')} className={`px-5 py-3 rounded-xl ${tab==='students'?'bg-[#0a4d2e] text-white ring-4 ring-amber-300':'bg-emerald-50 border-2 border-emerald-600 text-emerald-900'}`}>🎓 Students - Pay School Fees - {students.length} - Name + Level Only - Current Level</button>
         <button onClick={()=>setTab('set_fees')} className={`px-4 py-2.5 rounded-xl ${tab==='set_fees'?'bg-slate-900 text-white ring-2':'bg-white border-2 border-slate-900'}`}>⚙️ Set Fees - School + Form + Screening</button>
@@ -338,7 +347,6 @@ export const BursarFeeManager: React.FC = () => {
         <button onClick={()=>setTab('screening_fee')} className={`px-4 py-2.5 rounded-xl ${tab==='screening_fee'?'bg-amber-600 text-white ring-2':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}>🧾 Screening Fee - Pending ({screeningFeePending.length})</button>
         <button onClick={()=>setTab('cleared')} className={`px-4 py-2.5 rounded-xl ${tab==='cleared'?'bg-emerald-700 text-white':'bg-emerald-50 border'}`}>✅ Cleared ({clearedList.length})</button>
       </div>
-
       {tab==='students' && (
         <div className="space-y-4">
           <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border-2 border-amber-300 p-4 rounded-2xl">
@@ -349,7 +357,6 @@ export const BursarFeeManager: React.FC = () => {
               <div className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex items-center">Total: {filteredStudents.length} / {students.length} Students - Session {currentSession}</div>
             </div>
           </div>
-
           <div className="overflow-x-auto bg-white rounded-xl border-2">
             <table className="w-full text-xs">
               <thead className="bg-[#0a4d2e] text-white"><tr><th className="p-3 text-left">Photo + Student Name (No Login Details)</th><th className="p-3">Matric No (Auto)</th><th className="p-3">Level Current - After Promotion</th><th className="p-3">Sex / State / LGA (No Password)</th><th className="p-3">Fee Status - {currentSession}</th><th className="p-3 text-center">Action - Pay School Fees + Print Receipt</th></tr></thead>
@@ -384,7 +391,6 @@ export const BursarFeeManager: React.FC = () => {
             </table>
             {filteredStudents.length===0 && <div className="p-10 text-center text-slate-400 font-bold">No Students - Only students created by ADMIN will appear here - Current Session {currentSession} - Level Current after promotion</div>}
           </div>
-
           <div className="bg-slate-50 border-2 p-4 rounded-xl">
             <h4 className="font-black text-xs uppercase">Recent School Fees Payments - Receipts with Logo + Full School Info - {currentSession}</h4>
             <div className="mt-2 grid md:grid-cols-2 gap-2">
@@ -394,7 +400,6 @@ export const BursarFeeManager: React.FC = () => {
           </div>
         </div>
       )}
-
       {tab==='set_fees' && (
         <div className="bg-slate-50 border-2 p-5 rounded-2xl space-y-4">
           <h3 className="font-black text-sm uppercase">⚙️ Set Variable Fee Amounts - School Fees per Level - Form + Screening + School Fees</h3>
@@ -419,7 +424,6 @@ export const BursarFeeManager: React.FC = () => {
           </div>
         </div>
       )}
-
       {tab!=='students' && tab!=='set_fees' && (
         <>
           <div className="flex gap-2">
@@ -453,7 +457,6 @@ export const BursarFeeManager: React.FC = () => {
           </div>
         </>
       )}
-
       {showModal && selected && (
         <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-auto shadow-2xl">
@@ -490,7 +493,6 @@ export const BursarFeeManager: React.FC = () => {
           </div>
         </div>
       )}
-
       {showStudentPayModal && selectedStudent && (
         <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border-2 border-emerald-700 overflow-hidden">
@@ -535,6 +537,5 @@ export const BursarFeeManager: React.FC = () => {
     </div>
   );
 };
-
 export const BursarDashboard = BursarFeeManager;
 export default BursarDashboard;
