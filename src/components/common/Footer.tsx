@@ -80,7 +80,7 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          {/* Col 4: Contacts */}
+          {/* Col 4: Contacts - FIXED EMAILS */}
           <div className="space-y-3">
             <h4 className="text-white font-bold text-sm uppercase tracking-wider border-b border-[#0a4d2e] pb-2">
               College Contacts
@@ -92,22 +92,29 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[#22c55e] shrink-0" />
-                <span>lcnsgboko@gmail.com</span>
+                <div className="flex flex-col">
+                  <a href="mailto:info@lcns.edu.ng" className="hover:text-[#ca8a04]">info@lcns.edu.ng</a>
+                  <a href="mailto:ict.lcns@lcns.edu.ng" className="hover:text-[#ca8a04]">ict.lcns@lcns.edu.ng</a>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-[#22c55e] shrink-0" />
-                <span>08126799565</span>
+                <span>08126799565 (ICT)</span>
               </div>
               <div className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-[#22c55e] shrink-0" />
-                <span>lcns.edu.ng</span>
+                <span>lcns.edu.ng | portal.lcns.edu.ng</span>
+              </div>
+              <div className="mt-2 p-2 bg-[#0a4d2e] rounded border border-[#22c55e]/20">
+                <p className="text-[10px] font-bold text-[#ca8a04]">2026/2027 ADMISSION CLOSED</p>
+                <p className="text-[10px] text-emerald-200">Resumption: November 2026</p>
               </div>
             </div>
           </div>
         </div>
 
         <div className="mt-12 pt-6 border-t border-[#0a4d2e] flex flex-col sm:flex-row items-center justify-between text-xs text-emerald-300 gap-3">
-          <p>© {new Date().getFullYear()} Labe College of Nursing Sciences, Catholic Diocese of Gboko. All Rights Reserved.</p>
+          <p>© {new Date().getFullYear()} Labe College of Nursing Sciences, Catholic Diocese of Gboko. All Rights Reserved. | info@lcns.edu.ng | ict.lcns@lcns.edu.ng</p>
           <p className="flex items-center gap-2">
             <span>Powered by LCNS ICT Directorate</span>
             <span>•</span>
