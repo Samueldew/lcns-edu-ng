@@ -13,7 +13,6 @@ import { ApiService } from './services/api';
 import { Lock, Mail, UserCheck, AlertCircle } from 'lucide-react';
 import { CheckAdmissionPage } from './components/applicant/CheckAdmissionPage';
 import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
-import { ApplicantPrintoutPage } from './components/applicant/ApplicantPrintoutPage';
 import { ApplicantCBTPage } from './components/applicant/ApplicantCBTPage';
 import { AdmissionProcessingView } from './components/portals/AdmissionProcessingView';
 import { BursarDashboard } from './components/portals/BursarDashboard';
@@ -22,20 +21,15 @@ import { CourseManagerView } from './components/common/CourseManagerView';
 import { CBTExamManager } from './components/cbt/CBTExamManager';
 import { StudentPortal } from './components/portals/StudentPortal';
 import { ErrorBoundary } from './components/ErrorBoundary';
-// === ADD ONLY - FIX FOR ND/HND 4YEARS APPLICATION - NO DELETE ===
 import { supabase } from './lib/supabase';
-// === END ADD ===
-// === ADD ONLY - EXAM PORTAL - ROLLING BATCH - ONLY APPLICANTS - PROVOST/REGISTRAR/ADMIN SET DATE ===
 import { AdminExamSettings } from './components/portals/AdminExamSettings';
 import { ExamPortal } from './components/portals/ExamPortal';
-// === END ADD ===
-// === ADD ONLY - APPLICANT DASHBOARD REDIRECT FIX ===
+
 const navigateToApplicantDashboard = (formNo: string) => {
   const cleanNo = formNo.trim().toUpperCase();
   window.history.pushState({}, '', `/applicant/dashboard?app_no=${encodeURIComponent(cleanNo)}`);
   window.dispatchEvent(new PopStateEvent('popstate'));
 };
-// === END ADD ===
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(StorageService.getCurrentUser());
@@ -44,7 +38,6 @@ export default function App() {
     | null
     | 'check-admission'
     | 'applicant-dashboard'
-    | 'applicant-printout'
     | 'applicant-cbt'
     | 'admissions'
     | 'bursar'
@@ -55,16 +48,11 @@ export default function App() {
     | 'exam-settings'
     | 'exam-portal'
   >(null);
-  const [adminInitialTab, setAdminInitialTab] = useState<
-    'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system'
-  >('settings');
-
+  const [adminInitialTab, setAdminInitialTab] = useState<'settings' | 'management' | 'gallery' | 'users' | 'cbt' | 'system'>('settings');
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isApplicationOpen, setIsApplicationOpen] = useState(false);
   const [isAdmissionCheckerOpen, setIsAdmissionCheckerOpen] = useState(false);
   const [checkerDefaultFormNo, setCheckerDefaultFormNo] = useState<string | undefined>(undefined);
-
-  // FIXED FOR AVULE SAMUEL - CHIEF ADMIN
   const [adminEmail, setAdminEmail] = useState('samuel@lcns.edu.ng');
   const [adminPassword, setAdminPassword] = useState('Lcns@2026');
   const [adminLoginLoading, setAdminLoginLoading] = useState(false);
@@ -74,18 +62,11 @@ export default function App() {
     const pathname = window.location.pathname.toLowerCase();
     const params = new URLSearchParams(window.location.search);
     const pageParam = params.get('page');
-    // === ADD ONLY - KEEP APP_NO WHEN ON DASHBOARD ===
     const appNoParam = params.get('app_no');
     if (appNoParam && pathname === '/applicant/dashboard') {
       setCheckerDefaultFormNo(appNoParam);
     }
-    // === END ADD ===
-
-    if (pathname === '/applicant/printout') {
-      setCustomView('applicant-printout');
-      setActiveView('website');
-      return;
-    } else if (pathname === '/applicant/dashboard') {
+    if (pathname === '/applicant/dashboard') {
       setCustomView('applicant-dashboard');
       setActiveView('website');
       return;
@@ -101,11 +82,7 @@ export default function App() {
       setCustomView('applicant-cbt');
       setActiveView('website');
       return;
-    } else if (
-      pathname === '/admin/courses' ||
-      pathname === '/hod/courses' ||
-      pathname === '/registrar/courses'
-    ) {
+    } else if (pathname === '/admin/courses' || pathname === '/hod/courses' || pathname === '/registrar/courses') {
       setCustomView('courses');
       setActiveView('website');
       return;
@@ -125,7 +102,6 @@ export default function App() {
       setCustomView('bursar');
       setActiveView('website');
       return;
-    // === ADD ONLY - EXAM PORTAL ROUTES - ROLLING BATCH - ONLY APPLICANTS ===
     } else if (pathname === '/exam' || pathname === '/applicant/exam' || pathname.startsWith('/exam/')) {
       setCustomView('exam-portal');
       setActiveView('website');
@@ -134,16 +110,13 @@ export default function App() {
       setCustomView('exam-settings');
       setActiveView('website');
       return;
-    // === END ADD ===
     } else if (pathname === '/apply') {
       setCustomView(null);
       setActiveView('website');
       setIsApplicationOpen(true);
       return;
     }
-
     setCustomView(null);
-
     if (pathname.startsWith('/admin')) {
       if (pathname.includes('/settings')) setAdminInitialTab('settings');
       else if (pathname.includes('/management')) setAdminInitialTab('management');
@@ -151,28 +124,16 @@ export default function App() {
       else if (pathname.includes('/users')) setAdminInitialTab('users');
       else if (pathname.includes('/cbt')) setAdminInitialTab('cbt');
       else setAdminInitialTab('settings');
-      
       const cur = StorageService.getCurrentUser();
       if (cur) setActiveView('portal');
       else setActiveView('website');
       return;
     }
-
-    if (
-      pageParam === 'portal' ||
-      pageParam === 'provost' ||
-      pageParam === 'registrar' ||
-      pageParam === 'bursar' ||
-      pageParam === 'lecturer' ||
-      pageParam === 'hod' ||
-      pageParam === 'exam' ||
-      pageParam === 'student'
-    ) {
+    if (pageParam === 'portal' || pageParam === 'provost' || pageParam === 'registrar' || pageParam === 'bursar' || pageParam === 'lecturer' || pageParam === 'hod' || pageParam === 'exam' || pageParam === 'student') {
       if (StorageService.getCurrentUser()) setActiveView('portal');
       else setIsLoginOpen(true);
       return;
     }
-
     if (pathname === '/gallery' || window.location.hash === '#gallery') {
       setActiveView('website');
       setTimeout(() => {
@@ -185,16 +146,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    // === ADD ONLY - GLOBAL FIX FOR hc.submitApplication is not a function + ND/HND 4Years ===
-    // Patch any old hc global if exists
     (window as any).hc = (window as any).hc || {};
     if (!(window as any).hc.submitApplication) {
       (window as any).hc.submitApplication = async (data: any) => {
-        console.log("PATCHED hc.submitApplication called - forwarding to Supabase ND/HND 4Years");
         const payload = {
           full_name: data.fullName || data.full_name || 'Applicant',
           program: 'ND/HND Nursing 4Years',
-          course_choice_1: 'ND/HND Nursing Sciences - 4 Years Collegiate (ND 1-2 + HND 3-4)',
+          course_choice_1: 'ND/HND Nursing Sciences - 4 Years Collegiate',
           course_choice_2: 'ND/HND Nursing Sciences - 4 Years Collegiate',
           full_application: data,
           status: 'PENDING_BURSAR',
@@ -205,8 +163,6 @@ export default function App() {
         return result;
       };
     }
-    // === END ADD ===
-
     const handleAuthUpdate = () => setCurrentUser(StorageService.getCurrentUser());
     const handleStorageSync = (e: StorageEvent) => {
       if (e.key?.includes('lcns')) {
@@ -242,7 +198,6 @@ export default function App() {
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     setActiveView('portal');
-    // ALLOW CHIEF_ADMIN
     if (user.role.toLowerCase().includes('admin') || user.role === 'CHIEF_ADMIN') {
       window.history.pushState({}, '', '/admin');
       setAdminInitialTab('settings');
@@ -271,7 +226,7 @@ export default function App() {
     if (result.success && result.user) {
       handleLoginSuccess(result.user);
     } else {
-      setAdminLoginError(result.message || 'Invalid credentials - Use samuel@lcns.edu.ng / Lcns@2026');
+      setAdminLoginError(result.message || 'Invalid credentials');
     }
   };
 
@@ -281,16 +236,11 @@ export default function App() {
     <ErrorBoundary>
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 antialiased selection:bg-[#0a4d2e] selection:text-white">
         <div className="marquee-top no-print" style={{ background: '#ca8a04', color: '#0a4d2e', fontWeight: 900, textTransform: 'uppercase', padding: '8px 0', overflow: 'hidden', whiteSpace: 'nowrap', fontSize: '14px' }}>
-          <div style={{ display: 'inline-block', animation: 'marquee 25s linear infinite' }}>
-            LABE COLLEGE OF NURSING SCIENCES GBOKO - CHIEF ICT: AVULE SAMUEL - EMAIL: INFO@LCNS.EDU.NG - ICT: 08126799565 - ADMISSION 2026/2027 OPEN - LEARN, SERVE & SAVE
-          </div>
+          <div style={{ display: 'inline-block', animation: 'marquee 25s linear infinite' }}>LABE COLLEGE OF NURSING SCIENCES GBOKO - CHIEF ICT: AVULE SAMUEL - EMAIL: INFO@LCNS.EDU.NG - ICT: 08126799565 - ADMISSION 2026/2027 OPEN - LEARN, SERVE & SAVE</div>
         </div>
-
         <Navbar currentUser={currentUser} onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} activeView={activeView} setActiveView={setActiveView} />
-
         <div className="flex-1">
-          {customView === 'applicant-printout' ? <ApplicantPrintoutPage /> :
-           customView === 'applicant-dashboard' ? <ApplicantDashboard /> :
+          {customView === 'applicant-dashboard' ? <ApplicantDashboard /> :
            customView === 'check-admission' ? <CheckAdmissionPage onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} /> :
            customView === 'applicant-cbt' ? <ApplicantCBTPage /> :
            customView === 'admissions' ? <div className="min-h-screen bg-slate-100 py-8 px-4"><div className="max-w-7xl mx-auto"><AdmissionProcessingView /></div></div> :
@@ -326,32 +276,15 @@ export default function App() {
                       {adminLoginLoading ? <span>Verifying...</span> : <><UserCheck className="w-4 h-4 text-[#22c55e]" /><span>Sign In as Avule Samuel</span></>}
                     </button>
                   </form>
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <button onClick={() => { window.history.pushState({}, '', '/'); setActiveView('website'); }} className="text-slate-500 hover:text-slate-900 font-bold">&larr; Return to Website</button>
-                    <button onClick={() => { setAdminEmail('samuel@lcns.edu.ng'); setAdminPassword('Lcns@2026'); }} className="text-[#0a4d2e] font-bold hover:underline text-[11px]">Auto-Fill Chief Admin</button>
-                  </div>
                 </div>
               </div>
             </div>
           ) : <CollegeWebsite onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} />}
         </div>
-
         {activeView === 'website' && !isDirectAdminUrl && (!customView || customView === 'check-admission') && <Footer onOpenLogin={() => setIsLoginOpen(true)} onOpenApplication={() => setIsApplicationOpen(true)} onOpenAdmissionChecker={() => { setCheckerDefaultFormNo(undefined); setIsAdmissionCheckerOpen(true); }} setActiveView={setActiveView} />}
-
         <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} onLoginSuccess={handleLoginSuccess} />
         <ApplicationFormModal isOpen={isApplicationOpen} onClose={() => setIsApplicationOpen(false)} onOpenAdmissionChecker={handleOpenAdmissionCheckerWithForm} />
-        {/* === MODIFIED - NOW IT REDIRECTS TO DASHBOARD === */}
-        <AdmissionCheckerModal 
-          isOpen={isAdmissionCheckerOpen} 
-          onClose={() => setIsAdmissionCheckerOpen(false)} 
-          defaultFormNo={checkerDefaultFormNo} 
-          onOpenLogin={() => setIsLoginOpen(true)}
-          onFound={(formNo: string) => {
-            setIsAdmissionCheckerOpen(false);
-            navigateToApplicantDashboard(formNo);
-          }}
-        />
-        {/* === END MODIFIED === */}
+        <AdmissionCheckerModal isOpen={isAdmissionCheckerOpen} onClose={() => setIsAdmissionCheckerOpen(false)} defaultFormNo={checkerDefaultFormNo} onOpenLogin={() => setIsLoginOpen(true)} onFound={(formNo: string) => { setIsAdmissionCheckerOpen(false); navigateToApplicantDashboard(formNo); }} />
       </div>
     </ErrorBoundary>
   );
