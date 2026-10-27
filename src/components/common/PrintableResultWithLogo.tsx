@@ -1,59 +1,50 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
-import { CollegeLogo } from "../common/CollegeLogo";
+import React from 'react';
+import { CollegeLogo } from './CollegeLogo';
 
-export const ApplicantPrintoutPage = () => {
-  const { id } = useParams();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+interface Props {
+  student: any;
+  results: any[];
+  academicYear?: string;
+  semester?: string;
+  gpa?: number;
+  cgpa?: number;
+  senateApproved?: boolean;
+  provostName?: string;
+}
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!id) return;
-      const { data: applicant, error } = await supabase.from("lcns_applicants").select("*").eq("id", id).single();
-      if (!error && applicant) setData(applicant);
-      else {
-        const { data: byAppNo } = await supabase.from("lcns_applicants").select("*").eq("application_number", id).single();
-        if (byAppNo) setData(byAppNo);
-      }
-      setLoading(false);
-    };
-    fetchData();
-  }, [id]);
-
-  if (loading) return <div style={{ padding: 20, textAlign: "center" }}>Loading...</div>;
-  if (!data) return <div style={{ padding: 20, textAlign: "center" }}>Not found: {id}</div>;
-
-  const ssce = data.ssce_data;
-  const sitting1 = ssce?.sitting1;
-  const sitting2 = ssce?.sitting2;
-  const passportSrc = data.photo_url || data.passport_url || "";
+export const PrintableResultWithLogo: React.FC<Props> = ({ student, results = [], academicYear = '2026/2027', semester = 'First Semester', gpa = 0, cgpa = 0, senateApproved = false, provostName = 'Provost' }) => {
+  const totalUnits = results.reduce((s: number, r: any) => s + (r.creditUnit || r.unit || 0), 0);
+  const name = student?.fullName || student?.full_name || 'Student';
+  const matric = student?.matricNumber || student?.matric_no || student?.email || '-';
+  const level = student?.level || 'ND1';
+  const sex = student?.sex || '-';
+  const dept = student?.department || 'Nursing';
 
   return (
-    <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: 10 }}>
-      <div style={{ maxWidth: 800, margin: "0 auto 15px", display: "flex", justifyContent: "center", gap: 10 }}>
-        <button onClick={()=>window.print()} style={{ padding: "12px 30px", background: "#0a4d2e", color: "white", borderRadius: 8, fontWeight: 900 }}>PRINT</button>
-        <button onClick={()=>window.history.back()} style={{ padding: "12px 20px", background: "#64748b", color: "white", borderRadius: 8 }}>Back</button>
-      </div>
-      <div id="print-full-a4" style={{ maxWidth: 800, margin: "0 auto", background: "white", padding: 20, fontFamily: "Arial", border: "3px solid black" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: "3px double #0a4d2e", paddingBottom: 10, marginBottom: 15 }}>
-          <CollegeLogo size="lg" />
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <h2 style={{ margin: 0, color: "#0a4d2e", fontSize: 18, fontWeight: 900 }}>Labe College of Nursing Sciences</h2>
-            <p style={{ fontSize: 11 }}>Application Printout - {data.application_number}</p>
-          </div>
-          <CollegeLogo size="lg" />
+    <div className="bg-white p-8 max-w-4xl mx-auto">
+      <div className="flex justify-between items-center border-b-4 border-[#0a4d2e] pb-4 mb-6">
+        <CollegeLogo size="lg" />
+        <div className="text-center flex-1">
+          <h1 className="text-xl font-black uppercase text-[#0a4d2e]">Labe College of Nursing Sciences</h1>
+          <p className="text-[11px] font-bold">Catholic Diocese of Gboko</p>
+          <p className="text-[11px] font-black mt-1">RESULT - {academicYear} - {semester}</p>
         </div>
-        <p><strong>Full Name:</strong> {data.full_name}</p>
-        <p><strong>Phone:</strong> {data.phone} | <strong>Email:</strong> {data.email}</p>
-        <p><strong>State/LGA:</strong> {data.state} / {data.lga}</p>
-        <p><strong>JAMB:</strong> {data.jamb_reg} - {data.jamb_score}</p>
-        {sitting1 && <div><strong>SITTING 1: {sitting1.exam} {sitting1.year}</strong><div>{sitting1.subjects?.map((s:any,i:number)=><div key={i}>{s.subject} - {s.grade}</div>)}</div></div>}
-        {sitting2 && <div><strong>SITTING 2: {sitting2.exam} {sitting2.year}</strong><div>{sitting2.subjects?.map((s:any,i:number)=><div key={i}>{s.subject} - {s.grade}</div>)}</div></div>}
+        <CollegeLogo size="lg" />
       </div>
+      <div className="grid grid-cols-2 gap-4 bg-slate-50 border-2 rounded-2xl p-4 mb-6 text-[11px]">
+        <div><b>Name:</b> {name}</div><div><b>Matric:</b> {matric}</div>
+        <div><b>Sex:</b> {sex}</div><div><b>Level:</b> {level}</div>
+        <div><b>Dept:</b> {dept}</div><div><b>Year:</b> {academicYear}</div>
+      </div>
+      <div className="border-2 rounded-2xl overflow-hidden mb-6">
+        <table className="w-full text-[11px]">
+          <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Code</th><th className="p-3 text-left">Title</th><th className="p-3">Unit</th><th className="p-3">Score</th><th className="p-3">Grade</th></tr></thead>
+          <tbody>{results.map((r: any, i: number) => <tr key={i} className="border-b"><td className="p-3 font-black">{r.courseCode || r.code}</td><td className="p-3">{r.courseTitle || r.title}</td><td className="p-3 text-center">{r.creditUnit || r.unit}</td><td className="p-3 text-center font-black">{r.score}</td><td className="p-3 text-center">{r.grade}</td></tr>)}</tbody>
+        </table>
+      </div>
+      <div className="text-center"><button onClick={() => window.print()} className="px-6 py-3 bg-slate-900 text-white rounded-xl text-xs font-black print:hidden">Print Result</button></div>
     </div>
   );
 };
 
-export default ApplicantPrintoutPage;
+export default PrintableResultWithLogo;
