@@ -56,7 +56,9 @@ export function ApplicantPrintoutPage() {
               <h2 style={{ margin: 0, color: "#0a4d2e", fontSize: 18, fontWeight: 900, textTransform: "uppercase" }}>Labe College of Nursing Sciences</h2>
               <p style={{ margin: "2px 0", fontSize: 11, fontWeight: 700 }}>Catholic Diocese of Gboko, Benue State</p>
               <p style={{ margin: 0, fontSize: 10 }}>Application Printout - 2026/2027 - APP NO: {data.application_number}</p>
+              <p style={{ margin: "4px 0 0 0", fontSize: 10, fontWeight: 900 }}>Sex: {data.gender || '-'} | Level: {data.level || 'ND1'} | Matric: {data.application_number}</p>
             </div>
+            <CollegeLogo size="lg" />
           </div>
 
           <div style={{ display: "flex", gap: 20, marginBottom: 15 }}>
@@ -105,6 +107,4 @@ export function ApplicantPrintoutPage() {
   );
 }
 
-// ✅ THIS FIXES YOUR BUILD ERROR - BOTH EXPORTS!
-export { ApplicantPrintoutPage as ApplicantPrintoutPageNamed };
 export default ApplicantPrintoutPage;
