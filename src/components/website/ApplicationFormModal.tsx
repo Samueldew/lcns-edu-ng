@@ -9,7 +9,14 @@ const GRADES = ["A1","B2","B3","C4","C5","C6","D7","E8","F9"] as const;
 type SubjectRow = { subject: string; grade: string; };
 const makeSubjects = (): SubjectRow[] => Array.from({ length: 9 }, () => ({ subject: "", grade: "" }));
 
-export function ApplicationFormModal({ open, onClose }: any) {
+// ✅ DEFAULT NURSING SUBJECTS - ONE CLICK FILL
+const DEFAULT_SUBJECTS = [
+  "English Language", "Mathematics", "Biology", "Chemistry", "Physics",
+  "Geography", "Economics", "Civic Education", "Agric Science"
+];
+
+export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChecker }: any) {
+  const isModalOpen = open ?? isOpen;
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string>("");
   const [sittingCount, setSittingCount] = useState<1 | 2>(1);
@@ -23,10 +30,41 @@ export function ApplicationFormModal({ open, onClose }: any) {
   });
   const [subjects1, setSubjects1] = useState<SubjectRow[]>(() => makeSubjects());
   const [subjects2, setSubjects2] = useState<SubjectRow[]>(() => makeSubjects());
+
+  // ✅ NEW: AUTO-FILL ALL SUBJECTS IN ONE CLICK
+  const autoFillAll = (sitting: 1 | 2) => {
+    const filled = DEFAULT_SUBJECTS.map(s => ({ subject: s, grade: "" }));
+    if (sitting === 1) setSubjects1(filled);
+    else setSubjects2(filled);
+  };
+
   const onSubjectChange = (sitting: 1 | 2, idx: number, field: keyof SubjectRow, value: string) => {
+    // ✅ NEW: If first subject clicked when all empty, auto-fill all!
+    if (field === "subject" && idx === 0 && value) {
+      const isEmpty = (sitting === 1 ? subjects1 : subjects2).every(r => !r.subject);
+      if (isEmpty) {
+        const filled = DEFAULT_SUBJECTS.map((s, i) => ({
+          subject: i === 0 ? value : s,
+          grade: ""
+        }));
+        // Avoid duplicate
+        if (filled[0].subject !== value) filled[0].subject = value;
+        // Ensure unique
+        const uniqueFilled = DEFAULT_SUBJECTS.map((s, i) => {
+          if (i === 0) return { subject: value, grade: "" };
+          if (s === value) return { subject: "", grade: "" }; // avoid duplicate
+          return { subject: s, grade: "" };
+        });
+        if (sitting === 1) setSubjects1(uniqueFilled);
+        else setSubjects2(uniqueFilled);
+        return;
+      }
+    }
+
     if (sitting === 1) { const copy = [...subjects1]; copy[idx] = { ...copy[idx], [field]: value }; setSubjects1(copy); }
     else { const copy = [...subjects2]; copy[idx] = { ...copy[idx], [field]: value }; setSubjects2(copy); }
   };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passportFile) { alert("Please upload passport"); return; }
@@ -38,7 +76,6 @@ export function ApplicationFormModal({ open, onClose }: any) {
       if (upErr) throw new Error(upErr.message);
       const { data: pub } = supabase.storage.from("applicant-photos").getPublicUrl(fileName);
       const photoUrl = pub.publicUrl;
-      // FIXED: lcns_applicants NOT applicants
       const { count } = await supabase.from("lcns_applicants").select("*", { count: "exact", head: true });
       const num = (count || 0) + 8341 + 1;
       const appNo = `LCNS/2026/${num}`;
@@ -55,15 +92,16 @@ export function ApplicationFormModal({ open, onClose }: any) {
           sitting2: sittingCount === 2 ? { exam: form.ssce_exam2, year: form.ssce_year2, no: form.ssce_no2, subjects: subjects2 } : null
         }
       };
-      // FIXED: lcns_applicants NOT applicants
       const { data, error } = await supabase.from("lcns_applicants").insert([payload]).select().single();
       if (error) throw error;
       alert("Registered! Form No: " + appNo);
-      window.location.href = `/print/${data.id}`;
+      onClose?.();
+      if (onOpenAdmissionChecker) onOpenAdmissionChecker(appNo);
+      else window.location.href = `/print/${data.id}`;
     } catch (err: any) { alert("Error: " + (err?.message || "Unknown error")); } finally { setLoading(false); }
   };
 
-  if (!open) return null;
+  if (!isModalOpen) return null;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, overflowY: "auto", padding: 16 }}>
@@ -86,24 +124,32 @@ export function ApplicationFormModal({ open, onClose }: any) {
               <input type="file" accept="image/*" required onChange={e=>{ const f = e.target.files && e.target.files[0]; if (f) { setPassportFile(f); setPreview(URL.createObjectURL(f)); } }} />
               {preview && <img src={preview} alt="preview" style={{ width: 120, height: 140, objectFit: "cover", marginTop: 10, border: "2px solid #0a4d2e", marginLeft: "auto", marginRight: "auto", display: "block" }} />}
             </div>
+
             <div style={{ border: "2px solid #0a4d2e", padding: 12, borderRadius: 8 }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <h3 style={{ margin: 0, color: "#0a4d2e" }}>SSCE - 9 Subjects</h3>
-                <select value={sittingCount} onChange={e=>setSittingCount(Number(e.target.value) as 1|2)}><option value={1}>One Sitting</option><option value={2}>Two Sittings</option></select>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" onClick={()=>autoFillAll(1)} style={{ padding: "6px 12px", background: "#ca8a04", color: "black", fontWeight: 900, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>⚡ AUTO-FILL ALL 9 SUBJECTS</button>
+                  <select value={sittingCount} onChange={e=>setSittingCount(Number(e.target.value) as 1|2)}><option value={1}>One Sitting</option><option value={2}>Two Sittings</option></select>
+                </div>
               </div>
+              <p style={{ fontSize: 11, color: "#666", margin: "6px 0" }}>👉 Click AUTO-FILL, then just select grades! Or click first subject - it will auto-fill the rest!</p>
               <div style={{ background: "#f1f5f9", padding: 10, marginTop: 12, borderRadius: 6 }}>
                 <strong>SITTING 1</strong>
                 {subjects1.map((row, i)=>(
                   <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                     <span style={{ width: 18 }}>{i+1}</span>
-                    <select value={row.subject} onChange={e=>onSubjectChange(1, i, "subject", e.target.value)} style={{ flex: 1, padding: 6 }}><option value="">Select Subject</option>{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                    <select value={row.subject} onChange={e=>onSubjectChange(1, i, "subject", e.target.value)} style={{ flex: 1, padding: 6, border: row.subject ? "2px solid #0a4d2e" : "1px solid #ccc", fontWeight: row.subject ? 700 : 400 }}><option value="">Select Subject</option>{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select>
                     <select value={row.grade} onChange={e=>onSubjectChange(1, i, "grade", e.target.value)} style={{ width: 80, padding: 6 }}><option value="">Grade</option>{GRADES.map(g=><option key={g} value={g}>{g}</option>)}</select>
                   </div>
                 ))}
               </div>
               {sittingCount===2 && (
                 <div style={{ background: "#fef9c3", padding: 10, marginTop: 12, borderRadius: 6, border: "2px solid #eab308" }}>
-                  <strong>SITTING 2</strong>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <strong>SITTING 2</strong>
+                    <button type="button" onClick={()=>autoFillAll(2)} style={{ padding: "4px 10px", background: "#eab308", color: "black", fontWeight: 900, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11 }}>⚡ AUTO-FILL SITTING 2</button>
+                  </div>
                   {subjects2.map((row, i)=>(
                     <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
                       <span style={{ width: 18 }}>{i+1}</span>
