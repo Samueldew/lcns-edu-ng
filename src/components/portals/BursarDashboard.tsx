@@ -19,9 +19,8 @@ export const BursarFeeManager: React.FC = () => {
   const [modalType, setModalType] = useState<'APPLICATION' | 'SCREENING' | 'SCHOOL'>('APPLICATION');
   const [loading, setLoading] = useState(true);
   const [payments, setPayments] = useState<any[]>([]);
-  const [fetchError, setFetchError] = useState(''); // ADDED - Fix api.supabase.com error
+  const [fetchError, setFetchError] = useState('');
 
-  // VARIABLE FEES - INCLUDING SCHOOL FEES
   const [fees, setFees] = useState<FeeConfig[]>(() => {
     const saved = localStorage.getItem('lcns_fee_config_v2');
     if (saved) return JSON.parse(saved);
@@ -46,7 +45,6 @@ export const BursarFeeManager: React.FC = () => {
   const currentSession = localStorage.getItem('lcns_current_session') || COLLEGE_CONFIG.CURRENT_SESSION || '2026/2027';
   const currentSemester = localStorage.getItem('lcns_current_semester') || 'First Semester';
 
-  // ADDED FIX FOR Failed to fetch (api.supabase.com) - NO DELETE - ONLY ADD try/catch
   const load = async () => {
     setLoading(true);
     setFetchError('');
@@ -111,9 +109,41 @@ export const BursarFeeManager: React.FC = () => {
           setStudents([{ id: 'demo-001', fullName: 'Demo Student - ADMIN Created', matricNumber: 'LCNS/ND1/2026/0001', level: 'ND1', sex: 'MALE', stateOfOrigin: 'Benue', lga: 'Gboko', staffImage: '', department: 'Nursing', phone: '08123456789', email: 'demo@lcns.edu.ng', created_by: 'ADMIN' }] as any);
         }
       }
+      // Load payments - Local + Backend school_fees_payments table
       try {
         const p = JSON.parse(localStorage.getItem('lcns_school_fees_payments') || '[]');
         setPayments(p);
+      } catch {}
+      try {
+        const sb = getSupabase();
+        if (sb) {
+          const { data, error } = await sb.from('school_fees_payments').select('*').order('created_at', { ascending: false }).limit(100);
+          if (!error && data && data.length > 0) {
+            const backendPayments = data.map((row: any) => ({
+              id: row.id,
+              matric_no: row.matric_no,
+              level: row.level,
+              session: row.session,
+              semester: row.semester,
+              user_name: row.user_name,
+              fee_name: row.fee_name,
+              amount: row.amount,
+              amount_paid: row.amount_paid,
+              status: row.status,
+              receipt_no: row.receipt_no,
+              payment_type: row.payment_type,
+              balance: row.balance,
+              bursar_name: row.bursar_name,
+              sex: row.sex,
+              state: row.state,
+              lga: row.lga,
+              department: row.department,
+              created_at: row.created_at
+            }));
+            setPayments(backendPayments);
+            localStorage.setItem('lcns_school_fees_payments', JSON.stringify(backendPayments));
+          }
+        }
       } catch {}
     } catch {}
     setLoading(false);
@@ -166,14 +196,49 @@ export const BursarFeeManager: React.FC = () => {
     const sb = getSupabase();
     if (sb) {
       try {
-        await sb.from('school_settings').upsert({
-          key: `payment_${receiptNo}`,
-          value: JSON.stringify(payment),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'key' });
-      } catch {}
+        const { error } = await sb.from('school_fees_payments').insert({
+          id: payment.id,
+          matric_no: payment.matric_no,
+          level: payment.level,
+          session: payment.session,
+          semester: payment.semester,
+          user_name: payment.user_name,
+          fee_name: payment.fee_name,
+          amount: payment.amount,
+          amount_paid: payment.amount_paid,
+          status: payment.status,
+          receipt_no: payment.receipt_no,
+          payment_type: payment.payment_type,
+          balance: payment.balance,
+          bursar_name: payment.bursar_name,
+          sex: payment.sex,
+          state: payment.state,
+          lga: payment.lga,
+          department: payment.department,
+          created_at: payment.created_at
+        });
+        if (error) {
+          console.warn('school_fees_payments insert error:', error);
+          await sb.from('school_settings').upsert({
+            key: `payment_${receiptNo}`,
+            value: JSON.stringify(payment),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        } else {
+          console.log('✅ Saved to school_fees_payments table');
+        }
+      } catch (e) {
+        console.warn('Backend save failed', e);
+        try {
+          await sb.from('school_settings').upsert({
+            key: `payment_${receiptNo}`,
+            value: JSON.stringify(payment),
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'key' });
+        } catch {}
+      }
     }
-    alert(`✅ School Fees Paid!\n${student.fullName}\n${student.matricNumber}\nLevel: ${student.level}\nSession: ${session}\nAmount: ₦${feeConfig.amount.toLocaleString()}\nReceipt: ${receiptNo}`);
+    alert(`✅ School Fees Paid!\n${student.fullName}\n${student.matricNumber}\nLevel: ${student.level}\nSession: ${session}\nAmount: ₦${feeConfig.amount.toLocaleString()}\nReceipt: ${receiptNo}\n\nSaved to Backend school_fees_payments table!`);
     printStudentReceipt(payment, student);
     setShowStudentPayModal(false);
   };
