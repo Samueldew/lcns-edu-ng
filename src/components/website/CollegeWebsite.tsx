@@ -15,12 +15,11 @@ const LCNSWebsite = () => {
   const [gallery, setGallery] = useState<any[]>([]);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [logo, setLogo] = useState<string | null>(null);
-  const [currentSlide, setCurrentSlide] = useState(0); // TOP HERO - auto 3s
-  const [gallerySlide, setGallerySlide] = useState(0); // DOWN GALLERY - manual with title/desc
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [gallerySlide, setGallerySlide] = useState(0);
 
   useEffect(() => {
     const loadCMS = async () => {
-      // === GALLERY - DIRECT FROM school_settings - YOUR 13 LOVED ===
       try {
         const { data: galleryData, error } = await supabase
           .from('school_settings')
@@ -39,7 +38,6 @@ const LCNSWebsite = () => {
             try { parsed = JSON.parse(parsed); } catch {}
           }
           if (Array.isArray(parsed) && parsed.length > 0) {
-            // Force image field to be valid base64
             const cleaned = parsed.map((g:any) => {
               const img = g.image || g.image_base64 || g.image_url || g.url || "";
               return { ...g, image: img, image_url: img, image_base64: img, title: g.title || `Campus ${g.id}`, description: g.description || g.category || "Labe College of Nursing Sciences, Gboko" };
@@ -49,7 +47,6 @@ const LCNSWebsite = () => {
             console.log(`✅ Gallery loaded: ${cleaned.length} photos - First: ${cleaned[0]?.title}`);
           }
         } else {
-          // Fallback
           const photos = await (StorageService as any).getGallery?.();
           if (photos?.length) setGallery(photos);
         }
@@ -61,7 +58,6 @@ const LCNSWebsite = () => {
         } catch {}
       }
 
-      // === BISHOP & PROVOST - FROM school_settings ===
       const loadAll = async () => {
         try{
           let bImg: string | null = null;
@@ -96,7 +92,6 @@ const LCNSWebsite = () => {
             }
           } catch {}
 
-          // Fallback localStorage
           try {
             const b1 = JSON.parse(localStorage.getItem('lcns_bishop')||'null'); 
             const s1 = JSON.parse(localStorage.getItem('lcns_settings')||'{}'); 
@@ -121,7 +116,6 @@ const LCNSWebsite = () => {
     loadCMS();
   }, []);
 
-  // TOP HERO ONLY - Auto every 3 seconds
   useEffect(() => {
     if(gallery.length <= 1) return;
     const timer = setInterval(() => {
@@ -151,8 +145,8 @@ const LCNSWebsite = () => {
 
       <div className="bg-yellow-400 text-[#0f2e1f] py-3 px-4 text-center border-b-4 border-[#0f4c2e]">
         <div className="max-w-7xl mx-auto">
-          <h2 className="text-xl md:text-2xl font-black tracking-tight">ND/HND NURSING SCIENCE</h2>
-          <p className="text-sm md:text-[15px] font-bold mt-1">Four Years Full-Time National Diploma Higher National Diploma • NMCN Accredited • NBTE Approved • Admission Open</p>
+          <h2 className="text-xl md:text-2xl font-black tracking-tight">ND/HND NURSING SCIENCE - 2026/2027 ADMISSION CLOSED</h2>
+          <p className="text-sm md:text-[15px] font-bold mt-1">School Resumes November 2026 for First & New Academic Year • NMCN Accredited • NBTE Approved</p>
         </div>
       </div>
 
@@ -170,7 +164,7 @@ const LCNSWebsite = () => {
             </div>
             <div className="flex gap-4">
               <button onClick={()=>scrollTo('programmes')} className="bg-yellow-400 text-[#0f2e1f] px-8 py-3.5 rounded-full font-black">View Program <ChevronRight className="inline ml-1"/></button>
-              <button onClick={()=>scrollTo('admission')} className="bg-white/10 border border-white/20 px-8 py-3.5 rounded-full">Apply Now</button>
+              <button onClick={()=>window.open('https://portal.lcns.edu.ng', '_blank')} className="bg-white/10 border border-white/20 px-8 py-3.5 rounded-full hover:bg-white hover:text-[#0f4c2e] font-black transition-all">Portal Login</button>
             </div>
           </div>
           <div className="relative">
@@ -238,7 +232,7 @@ const LCNSWebsite = () => {
                   <p className="text-sm font-bold mt-1">Valid JAMB UTME score • First Choice Labe College of Nursing Sciences, Gboko</p>
                   <p className="text-xs mt-1">JAMB Registration Number and Score required during application — ND HND Nursing Science</p>
                 </div>
-                <button onClick={()=>scrollTo('admission')} className="w-full bg-white text-[#0f4c2e] py-3.5 rounded-full font-black">Apply Now for ND HND</button>
+                <button onClick={()=>window.open('https://portal.lcns.edu.ng', '_blank')} className="w-full bg-white text-[#0f4c2e] py-3.5 rounded-full font-black hover:bg-yellow-400 transition-all">Portal Login →</button>
               </div>
             </div>
           </div>
@@ -322,9 +316,32 @@ const LCNSWebsite = () => {
         </div>
       </section>
 
-      <section id="admission" className="py-16 bg-yellow-400 text-[#0f2e1f] text-center scroll-mt-24"><div className="max-w-7xl mx-auto px-4"><h2 className="text-3xl font-black">ND HND Nursing Science — Admission Open</h2><p className="font-bold mt-2">Four Years Full-Time National Diploma Higher National Diploma • NMCN Accredited • Five O-Level Credits including English, Maths, Biology, Chemistry, Physics plus Valid JAMB UTME</p></div></section>
+      <section id="admission" className="py-16 bg-[#0f2e1f] text-white text-center scroll-mt-24 border-y-4 border-yellow-400">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="inline-flex bg-red-600 text-white px-6 py-2 rounded-full font-black text-xs tracking-widest mb-4">2026/2027 ADMISSION CLOSED</div>
+          <h2 className="text-3xl md:text-4xl font-black">Thank You for Your Interest!</h2>
+          <p className="font-bold mt-3 text-yellow-300 text-lg">ND/HND Nursing Science 2026/2027 Admission is Now Closed</p>
+          <p className="text-green-100 mt-4 text-[15px] leading-relaxed max-w-2xl mx-auto">
+            Admission for the 2026/2027 Academic Session has been officially closed. 
+            Our first and new academic year will resume in <span className="text-yellow-300 font-black">November, 2026</span>. 
+            For enquiries, please contact us at <span className="font-bold">info@lcns.edu.ng</span> or <span className="font-bold">ict.lcns@lcns.edu.ng</span>
+          </p>
+          <div className="mt-8 flex flex-col md:flex-row gap-4 justify-center">
+            <button onClick={()=>window.open('https://portal.lcns.edu.ng', '_blank')} className="bg-yellow-400 text-[#0f2e1f] px-10 py-4 rounded-full font-black text-lg hover:scale-105 transition-all shadow-xl">
+              Check Admission Status / Student Portal →
+            </button>
+            <button onClick={()=>window.open('mailto:info@lcns.edu.ng', '_blank')} className="bg-white/10 border border-white/20 px-10 py-4 rounded-full font-black hover:bg-white hover:text-[#0f2e1f] transition-all">
+              info@lcns.edu.ng | ict.lcns@lcns.edu.ng
+            </button>
+          </div>
+          <p className="text-xs mt-6 text-green-300">Portal: portal.lcns.edu.ng | Official Emails: info@lcns.edu.ng | ict.lcns@lcns.edu.ng • Resumption: November 2026</p>
+        </div>
+      </section>
 
-      <section id="contact" className="py-10 bg-[#0f2e1f] text-white text-center text-xs text-green-200 scroll-mt-24">© Labe College of Nursing Sciences, Gboko. Catholic Diocese of Gboko. Learn • Serve • Save</section>
+      <section id="contact" className="py-10 bg-[#0f2e1f] text-white text-center text-xs text-green-200 scroll-mt-24">
+        © Labe College of Nursing Sciences, Gboko. Catholic Diocese of Gboko. Learn • Serve • Save<br/>
+        info@lcns.edu.ng | ict.lcns@lcns.edu.ng | portal.lcns.edu.ng • Resumption: November 2026
+      </section>
     </div>
   );
 };
