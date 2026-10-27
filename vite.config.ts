@@ -8,7 +8,7 @@ export default defineConfig({
   envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   resolve: {
     alias: {
-      '@': path.resolve(import.meta.dirname, './src')
+      '@': path.resolve(__dirname, './src')
     }
   },
   server: {
@@ -17,5 +17,12 @@ export default defineConfig({
     hmr: {
       clientPort: 443
     }
-  }
+  },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 2000,
+    outDir: 'dist',
+    emptyOutDir: true
+  },
+  cacheDir: 'node_modules/.vite'
 })
