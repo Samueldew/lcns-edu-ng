@@ -1,176 +1,231 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { CollegeLogo } from "../common/CollegeLogo";
 
-export function ApplicantPrintoutPage() {
-  const { id } = useParams();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+const SUBJECTS = [
+  "English Language", "Mathematics", "Biology", "Chemistry", "Physics",
+  "Geography", "Economics", "Agric Science", "Civic Education", "Government", "Literature", "Further Maths", "Animal Husbandry", "Marketing", "Commerce", "CRS", "IRS"
+];
+const GRADES = ["A1","B2","B3","C4","C5","C6","D7","E8","F9"] as const;
+const EXAM_TYPES = ["WAEC", "NECO", "NABTEB", "NBAIS", "GCE"] as const;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!id) return;
-      const { data: applicant, error } = await supabase
-        .from("lcns_applicants")
-        .select("*")
-        .eq("id", id)
-        .single();
-      if (!error) setData(applicant);
-      else {
-        // Try by application_number fallback
-        const { data: byAppNo } = await supabase.from("lcns_applicants").select("*").eq("application_number", id).single();
-        if (byAppNo) setData(byAppNo);
-      }
-      setLoading(false);
-    };
-    fetchData();
-  }, [id]);
+type SubjectRow = { subject: string; grade: string; };
+const makeSubjects = (): SubjectRow[] => Array.from({ length: 9 }, () => ({ subject: "", grade: "" }));
+const DEFAULT_SUBJECTS = ["English Language", "Mathematics", "Biology", "Chemistry", "Physics", "Geography", "Economics", "Civic Education", "Agric Science"];
 
-  if (loading) return <div style={{ padding: 20, textAlign: "center" }}>Loading printout...</div>;
-  if (!data) return <div style={{ padding: 20, textAlign: "center" }}>Applicant not found: {id}</div>;
+export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChecker }: any) {
+  const isModalOpen = open ?? isOpen;
+  const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string>("");
+  const [resultFile1, setResultFile1] = useState<File | null>(null);
+  const [resultFile2, setResultFile2] = useState<File | null>(null);
+  const [resultPreview1, setResultPreview1] = useState<string>("");
+  const [resultPreview2, setResultPreview2] = useState<string>("");
+  const [combineResult, setCombineResult] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const ssce = data.ssce_data;
-  const sitting1 = ssce?.sitting1;
-  const sitting2 = ssce?.sitting2;
-  // ✅ PASSPORT FIX - try all possible fields
-  const passportSrc = data.photo_url || data.passport_url || data.avatar_url || "";
+  const [form, setForm] = useState({
+    full_name: "", dob: "", gender: "Female", phone: "", email: "", state: "Benue", lga: "Gboko", address: "",
+    jamb_reg: "", jamb_score: "", course: "ND/HND Nursing Science",
+    ssce_exam1: "WAEC" as typeof EXAM_TYPES[number], ssce_year1: "2024", ssce_no1: "",
+    ssce_exam2: "NECO" as typeof EXAM_TYPES[number], ssce_year2: "2023", ssce_no2: "",
+  });
+  const [subjects1, setSubjects1] = useState<SubjectRow[]>(() => makeSubjects());
+  const [subjects2, setSubjects2] = useState<SubjectRow[]>(() => makeSubjects());
+
+  const autoFillAll = (sitting: 1 | 2) => {
+    const filled = DEFAULT_SUBJECTS.map(s => ({ subject: s, grade: "" }));
+    if (sitting === 1) setSubjects1(filled);
+    else setSubjects2(filled);
+  };
+
+  const onSubjectChange = (sitting: 1 | 2, idx: number, field: keyof SubjectRow, value: string) => {
+    if (sitting === 1) { const copy = [...subjects1]; copy[idx] = { ...copy[idx], [field]: value }; setSubjects1(copy); }
+    else { const copy = [...subjects2]; copy[idx] = { ...copy[idx], [field]: value }; setSubjects2(copy); }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+  });
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passportFile) { alert("Please upload passport"); return; }
+    setLoading(true);
+    try {
+      let photoUrl = "";
+      try {
+        const safeName = passportFile.name.replace(/\s/g, "_");
+        const fileName = `passport-${Date.now()}-${safeName}`;
+        const { error } = await supabase.storage.from("applicant-photos").upload(fileName, passportFile);
+        if (error) throw error;
+        const { data: pub } = supabase.storage.from("applicant-photos").getPublicUrl(fileName);
+        photoUrl = pub.publicUrl;
+      } catch { photoUrl = await fileToBase64(passportFile); }
+
+      let resultUrl1 = "";
+      let resultUrl2 = "";
+      if (resultFile1) { try { const fn = `result1-${Date.now()}-${resultFile1.name}`; const { error } = await supabase.storage.from("applicant-results").upload(fn, resultFile1); if (!error) { const { data } = supabase.storage.from("applicant-results").getPublicUrl(fn); resultUrl1 = data.publicUrl; } else { resultUrl1 = await fileToBase64(resultFile1); } } catch { resultUrl1 = await fileToBase64(resultFile1); } }
+      if (resultFile2) { try { const fn = `result2-${Date.now()}-${resultFile2.name}`; const { error } = await supabase.storage.from("applicant-results").upload(fn, resultFile2); if (!error) { const { data } = supabase.storage.from("applicant-results").getPublicUrl(fn); resultUrl2 = data.publicUrl; } else { resultUrl2 = await fileToBase64(resultFile2); } } catch { resultUrl2 = await fileToBase64(resultFile2); } }
+
+      const { count } = await supabase.from("lcns_applicants").select("*", { count: "exact", head: true });
+      const num = (count || 0) + 8341 + 1;
+      const appNo = `LCNS/2026/${num}`;
+      const examNo = `LCNS/2026/EXM/${num}`;
+
+      const payload = {
+        full_name: form.full_name, application_number: appNo, exam_no: examNo, dob: form.dob, gender: form.gender,
+        phone: form.phone, email: form.email, state: form.state, lga: form.lga, address: form.address,
+        jamb_reg: form.jamb_reg, jamb_score: form.jamb_score, course: form.course,
+        photo_url: photoUrl, passport_url: photoUrl,
+        ssce_exam: form.ssce_exam1, ssce_year: form.ssce_year1, ssce_no: form.ssce_no1,
+        ssce_sitting_count: combineResult ? 2 : 1,
+        result_url_1: resultUrl1, result_url_2: resultUrl2,
+        ssce_data: {
+          sitting1: { exam: form.ssce_exam1, year: form.ssce_year1, no: form.ssce_no1, subjects: subjects1, result_url: resultUrl1 },
+          sitting2: combineResult ? { exam: form.ssce_exam2, year: form.ssce_exam2, no: form.ssce_no2, subjects: subjects2, result_url: resultUrl2 } : null,
+          combine: combineResult
+        }
+      };
+      const { data, error } = await supabase.from("lcns_applicants").insert([payload]).select().single();
+      if (error) throw error;
+      alert("✅ Registered! Form No: " + appNo);
+      onClose?.();
+      if (onOpenAdmissionChecker) onOpenAdmissionChecker(appNo);
+      else window.location.href = `/print/${data.id}`;
+    } catch (err: any) { alert("Error: " + (err?.message || "Unknown")); } finally { setLoading(false); }
+  };
+
+  if (!isModalOpen) return null;
 
   return (
-    <>
-      <style>{`
-        @page { size: A4; margin: 10mm; }
-        @media print {
-          body { background: white !important; margin: 0 !important; }
-          .no-print { display: none !important; }
-          #print-full-a4 {
-            width: 210mm !important;
-            min-height: 297mm !important;
-            margin: 0 !important;
-            padding: 10mm !important;
-            border: 3px solid black !important;
-            box-sizing: border-box !important;
-          }
-        }
-      `}</style>
-
-      <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: 10 }}>
-        <div className="no-print" style={{ maxWidth: 800, margin: "0 auto 15px auto", display: "flex", justifyContent: "center", gap: 10 }}>
-          <button onClick={()=>window.print()} style={{ padding: "12px 30px", background: "#0a4d2e", color: "white", border: "none", borderRadius: 8, fontWeight: 900, cursor: "pointer" }}>🖨️ PRINT A4</button>
-          <button onClick={()=>window.history.back()} style={{ padding: "12px 20px", background: "#64748b", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>Back</button>
-        </div>
-
-        {/* ✅ A4 FULL PAPER */}
-        <div id="print-full-a4" style={{ 
-          maxWidth: 800, 
-          width: "100%",
-          minHeight: "297mm",
-          margin: "0 auto", 
-          background: "white", 
-          padding: 20, 
-          fontFamily: "Arial",
-          border: "3px solid black",
-          boxSizing: "border-box",
-          position: "relative",
-          display: "flex",
-          flexDirection: "column"
-        }}>
-          {/* ✅ LOGO ATTACHED HEADER */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: "3px double #0a4d2e", paddingBottom: 10, marginBottom: 15 }}>
-            <CollegeLogo size="lg" />
-            <div style={{ flex: 1, textAlign: "center" }}>
-              <h2 style={{ margin: 0, color: "#0a4d2e", fontSize: 18, fontWeight: 900, textTransform: "uppercase" }}>Labe College of Nursing Sciences</h2>
-              <p style={{ margin: "2px 0", fontSize: 11, fontWeight: 700 }}>Catholic Diocese of Gboko, Benue State</p>
-              <p style={{ margin: 0, fontSize: 10 }}>NMCN Approved • NBTE Accredited • 2026/2027 Application Slip</p>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9999, overflowY: "auto", padding: 12 }}>
+      <div style={{ maxWidth: 960, margin: "0 auto", background: "#fff", padding: 16, borderRadius: 10, position: "relative" }}>
+        <button onClick={onClose} style={{ position: "absolute", top: 10, right: 10, background: "red", color: "white", border: "none", borderRadius: 50, width: 32, height: 32, cursor: "pointer", fontWeight: 900 }}>X</button>
+        <h2 style={{ textAlign: "center", color: "#0a4d2e", fontWeight: 900, margin: "0 0 10px 0" }}>LABE COLLEGE - APPLICATION FORM 2026/2027</h2>
+        
+        <form onSubmit={onSubmit}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {/* PERSONAL */}
+            <input placeholder="Full Name (Surname First)" required value={form.full_name} onChange={e=>setForm({...form, full_name:e.target.value})} style={{ padding: 10, border: "1px solid #ccc", borderRadius: 6 }} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input type="date" required value={form.dob} onChange={e=>setForm({...form, dob:e.target.value})} style={{ flex: 1, padding: 10, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }} />
+              <select value={form.gender} onChange={e=>setForm({...form, gender:e.target.value})} style={{ flex: 1, padding: 10, border: "1px solid #ccc", borderRadius: 6, minWidth: 100 }}><option>Female</option><option>Male</option></select>
+              <input placeholder="Phone" required value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} style={{ flex: 1, padding: 10, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }} />
             </div>
-            <div style={{ textAlign: "right", fontSize: 10 }}>
-              <div style={{ background: "#0a4d2e", color: "white", padding: "4px 8px", borderRadius: 4, fontWeight: 900 }}>{data.application_number}</div>
-              <div style={{ marginTop: 4 }}>{data.exam_no}</div>
-            </div>
-          </div>
+            <input placeholder="Email" required type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} style={{ padding: 10, border: "1px solid #ccc", borderRadius: 6 }} />
 
-          <div style={{ display: "flex", gap: 20, marginBottom: 15, flex: 1 }}>
-            <div style={{ flex: 1 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <tbody>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700, width: 110 }}>Full Name</td><td style={{ border: "1px solid #000", padding: 6, fontWeight: 900 }}>{data.full_name?.toUpperCase()}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>APP NO</td><td style={{ border: "1px solid #000", padding: 6, fontWeight: 900, color: "#0a4d2e" }}>{data.application_number}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>EXAM NO</td><td style={{ border: "1px solid #000", padding: 6, fontWeight: 700 }}>{data.exam_no}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>DOB / Gender</td><td style={{ border: "1px solid #000", padding: 6 }}>{data.dob} / {data.gender}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>Phone</td><td style={{ border: "1px solid #000", padding: 6 }}>{data.phone}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>Email</td><td style={{ border: "1px solid #000", padding: 6 }}>{data.email}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>State / LGA</td><td style={{ border: "1px solid #000", padding: 6 }}>{data.state} / {data.lga}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>JAMB</td><td style={{ border: "1px solid #000", padding: 6 }}>{data.jamb_reg} - {data.jamb_score}</td></tr>
-                  <tr><td style={{ border: "1px solid #000", padding: 6, background: "#f1f5f9", fontWeight: 700 }}>Course</td><td style={{ border: "1px solid #000", padding: 6, fontWeight: 700 }}>{data.course}</td></tr>
-                </tbody>
-              </table>
+            {/* PASSPORT */}
+            <div style={{ border: "2px dashed #0a4d2e", padding: 10, textAlign: "center", borderRadius: 8, background: "#f0fdf4" }}>
+              <p style={{ fontWeight: 800, margin: "0 0 6px 0", color: "#0a4d2e" }}>📸 Upload Passport Photo</p>
+              <input type="file" accept="image/*" required onChange={e=>{ const f = e.target.files?.[0]; if (f) { setPassportFile(f); setPreview(URL.createObjectURL(f)); } }} />
+              {preview && <img src={preview} alt="preview" style={{ width: 110, height: 130, objectFit: "cover", marginTop: 8, border: "2px solid #0a4d2e", display: "block", marginLeft: "auto", marginRight: "auto" }} />}
             </div>
-            <div style={{ width: 150, textAlign: "center" }}>
-              {/* ✅ PASSPORT FIX - SHOWS EVEN IF photo_url FAILS */}
-              <div style={{ width: 140, height: 170, border: "2px solid #0a4d2e", margin: "0 auto", overflow: "hidden", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {passportSrc ? (
-                  <img src={passportSrc} alt="passport" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e:any)=>{ e.target.style.display='none'; e.target.nextSibling.style.display='block'; }} />
-                ) : null}
-                <span style={{ display: passportSrc ? "none" : "block", fontSize: 11, color: "#999" }}>No Passport</span>
+
+            {/* COMBINE RESULT CHECKBOX */}
+            <div style={{ background: "#fef9c3", border: "2px solid #eab308", padding: 10, borderRadius: 8, display: "flex", alignItems: "center", gap: 10 }}>
+              <input type="checkbox" id="combine" checked={combineResult} onChange={e=>setCombineResult(e.target.checked)} style={{ width: 20, height: 20 }} />
+              <label htmlFor="combine" style={{ fontWeight: 900, cursor: "pointer", color: "#854d0e" }}>🔗 COMBINE RESULT? (Use 2 Sittings - WAEC + NECO etc)</label>
+              {combineResult && <span style={{ fontSize: 11, background: "#eab308", color: "black", padding: "2px 8px", borderRadius: 4, fontWeight: 800 }}>2 SITTINGS ACTIVE</span>}
+            </div>
+
+            {/* SITTING 1 - ALL IN ONE BOX */}
+            <div style={{ border: "3px solid #0a4d2e", padding: 12, borderRadius: 10, background: "#f8fafc" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                <h3 style={{ margin: 0, color: "#0a4d2e", fontWeight: 900 }}>📘 SITTING 1 - O'LEVEL RESULT</h3>
+                <button type="button" onClick={()=>autoFillAll(1)} style={{ padding: "6px 12px", background: "#ca8a04", color: "black", fontWeight: 900, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>⚡ AUTO-FILL 9 SUBJECTS</button>
               </div>
-              <p style={{ fontSize: 10, fontWeight: 700, marginTop: 5 }}>Passport Photo</p>
-              <div style={{ border: "1px solid black", height: 50, marginTop: 10, padding: 4 }}>
-                <p style={{ fontSize: 8, margin: 0 }}>Applicant Signature</p>
-              </div>
-            </div>
-          </div>
 
-          <div style={{ border: "2px solid #0a4d2e", padding: 10, marginBottom: 15 }}>
-            <h4 style={{ margin: "0 0 10px 0", color: "#fff", background: "#0a4d2e", padding: "6px 10px", fontSize: 12 }}>O'LEVEL RESULTS ({data.ssce_sitting_count} Sitting{data.ssce_sitting_count > 1 ? 's' : ''})</h4>
-            {sitting1 && (
-              <div style={{ marginBottom: 12 }}>
-                <strong style={{ fontSize: 12 }}>SITTING 1: {sitting1.exam} {sitting1.year} - {sitting1.no}</strong>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 1fr 60px", gap: 0, marginTop: 5, border: "1px solid black" }}>
-                  <div style={{ background: "#0a4d2e", color: "white", padding: 5, fontSize: 10, fontWeight: 700, borderRight: "1px solid black" }}>Subject</div>
-                  <div style={{ background: "#0a4d2e", color: "white", padding: 5, fontSize: 10, fontWeight: 700, borderRight: "1px solid black", textAlign: "center" }}>Grade</div>
-                  <div style={{ background: "#0a4d2e", color: "white", padding: 5, fontSize: 10, fontWeight: 700, borderRight: "1px solid black" }}>Subject</div>
-                  <div style={{ background: "#0a4d2e", color: "white", padding: 5, fontSize: 10, fontWeight: 700, textAlign: "center" }}>Grade</div>
-                  {Array.from({ length: 5 }).map((_, idx) => (
-                    <>
-                      <div style={{ padding: 5, fontSize: 11, borderRight: "1px solid black", borderTop: "1px solid black" }}>{sitting1.subjects?.[idx]?.subject || ""}</div>
-                      <div style={{ padding: 5, fontSize: 11, fontWeight: 700, borderRight: "1px solid black", borderTop: "1px solid black", textAlign: "center" }}>{sitting1.subjects?.[idx]?.grade || ""}</div>
-                      <div style={{ padding: 5, fontSize: 11, borderRight: "1px solid black", borderTop: "1px solid black" }}>{sitting1.subjects?.[idx+5]?.subject || ""}</div>
-                      <div style={{ padding: 5, fontSize: 11, fontWeight: 700, borderTop: "1px solid black", textAlign: "center" }}>{sitting1.subjects?.[idx+5]?.grade || ""}</div>
-                    </>
-                  ))}
+              {/* EXAM TYPE + YEAR + NUMBER + UPLOAD - IN ONE ROW */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10, background: "white", padding: 10, borderRadius: 8, border: "1px solid #ccc" }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800 }}>Exam Type</label>
+                  <select value={form.ssce_exam1} onChange={e=>setForm({...form, ssce_exam1: e.target.value as any})} style={{ width: "100%", padding: 8, border: "2px solid #0a4d2e", borderRadius: 6, fontWeight: 700 }}>
+                    {EXAM_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800 }}>Year</label>
+                  <input placeholder="2024" value={form.ssce_year1} onChange={e=>setForm({...form, ssce_year1:e.target.value})} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800 }}>Exam No</label>
+                  <input placeholder="e.g. 1234567890" value={form.ssce_no1} onChange={e=>setForm({...form, ssce_no1:e.target.value})} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }} />
+                </div>
+                <div style={{ gridColumn: "1 / span 3" }}>
+                  <label style={{ fontSize: 11, fontWeight: 800 }}>📤 Upload Result (Sitting 1) - WAEC/NECO/NABTEB Slip</label>
+                  <input type="file" accept="image/*,.pdf" onChange={e=>{ const f = e.target.files?.[0]; if (f) { setResultFile1(f); setResultPreview1(f.type.startsWith("image/") ? URL.createObjectURL(f) : ""); } }} style={{ width: "100%", padding: 6, border: "1px dashed #0a4d2e", borderRadius: 6, background: "#fff" }} />
+                  {resultPreview1 && <img src={resultPreview1} style={{ width: 100, marginTop: 6, border: "1px solid #ccc" }} />}
                 </div>
               </div>
-            )}
-            {sitting2 && (
-              <div>
-                <strong style={{ fontSize: 12, background: "#fef9c3", padding: "3px 8px", border: "1px solid #eab308" }}>SITTING 2: {sitting2.exam} {sitting2.year} - {sitting2.no}</strong>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 1fr 60px", gap: 0, marginTop: 5, border: "1px solid #eab308", background: "#fefce8" }}>
-                  {sitting2.subjects?.filter((s:any)=>s.subject).map((s:any, i:number)=>(
-                    <div key={i} style={{ display: "contents" }}>
-                      <div style={{ padding: 4, fontSize: 10, borderTop: "1px solid #eab308", borderRight: "1px solid #eab308" }}>{s.subject}</div>
-                      <div style={{ padding: 4, fontSize: 10, fontWeight: 700, borderTop: "1px solid #eab308", borderRight: "1px solid #eab308", textAlign: "center" }}>{s.grade}</div>
+
+              {/* ALL SUBJECTS + GRADES IN ONE BOX */}
+              <div style={{ background: "white", padding: 10, borderRadius: 8, border: "2px solid #0a4d2e" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "30px 1fr 100px", gap: 6, marginBottom: 6, fontWeight: 900, fontSize: 12, color: "#0a4d2e" }}>
+                  <div>#</div><div>SUBJECT</div><div>GRADE</div>
+                </div>
+                {subjects1.map((row, i)=>(
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "30px 1fr 100px", gap: 6, marginBottom: 6 }}>
+                    <span style={{ paddingTop: 8, fontWeight: 700 }}>{i+1}</span>
+                    <select value={row.subject} onChange={e=>onSubjectChange(1, i, "subject", e.target.value)} style={{ padding: 8, border: row.subject ? "2px solid #0a4d2e" : "1px solid #ccc", borderRadius: 6, fontWeight: row.subject ? 700 : 400 }}><option value="">-- Select Subject --</option>{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                    <select value={row.grade} onChange={e=>onSubjectChange(1, i, "grade", e.target.value)} style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, fontWeight: 700 }}><option value="">Grade</option>{GRADES.map(g=><option key={g} value={g}>{g}</option>)}</select>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* SITTING 2 - ONLY IF COMBINE CHECKED */}
+            {combineResult && (
+              <div style={{ border: "3px solid #eab308", padding: 12, borderRadius: 10, background: "#fefce8" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                  <h3 style={{ margin: 0, color: "#854d0e", fontWeight: 900 }}>📙 SITTING 2 - COMBINED RESULT</h3>
+                  <button type="button" onClick={()=>autoFillAll(2)} style={{ padding: "6px 12px", background: "#eab308", color: "black", fontWeight: 900, border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12 }}>⚡ AUTO-FILL SITTING 2</button>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10, background: "white", padding: 10, borderRadius: 8, border: "1px solid #eab308" }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800 }}>Exam Type (Sitting 2)</label>
+                    <select value={form.ssce_exam2} onChange={e=>setForm({...form, ssce_exam2: e.target.value as any})} style={{ width: "100%", padding: 8, border: "2px solid #eab308", borderRadius: 6, fontWeight: 700 }}>
+                      {EXAM_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800 }}>Year</label>
+                    <input placeholder="2023" value={form.ssce_year2} onChange={e=>setForm({...form, ssce_year2:e.target.value})} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800 }}>Exam No</label>
+                    <input placeholder="Exam No" value={form.ssce_no2} onChange={e=>setForm({...form, ssce_no2:e.target.value})} style={{ width: "100%", padding: 8, border: "1px solid #ccc", borderRadius: 6 }} />
+                  </div>
+                  <div style={{ gridColumn: "1 / span 3" }}>
+                    <label style={{ fontSize: 11, fontWeight: 800 }}>📤 Upload Result (Sitting 2)</label>
+                    <input type="file" accept="image/*,.pdf" onChange={e=>{ const f = e.target.files?.[0]; if (f) { setResultFile2(f); setResultPreview2(f.type.startsWith("image/") ? URL.createObjectURL(f) : ""); } }} style={{ width: "100%", padding: 6, border: "1px dashed #eab308", borderRadius: 6, background: "#fff" }} />
+                    {resultPreview2 && <img src={resultPreview2} style={{ width: 100, marginTop: 6, border: "1px solid #ccc" }} />}
+                  </div>
+                </div>
+
+                <div style={{ background: "white", padding: 10, borderRadius: 8, border: "2px solid #eab308" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "30px 1fr 100px", gap: 6, marginBottom: 6, fontWeight: 900, fontSize: 12, color: "#854d0e" }}>
+                    <div>#</div><div>SUBJECT</div><div>GRADE</div>
+                  </div>
+                  {subjects2.map((row, i)=>(
+                    <div key={i} style={{ display: "grid", gridTemplateColumns: "30px 1fr 100px", gap: 6, marginBottom: 6 }}>
+                      <span style={{ paddingTop: 8, fontWeight: 700 }}>{i+1}</span>
+                      <select value={row.subject} onChange={e=>onSubjectChange(2, i, "subject", e.target.value)} style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6 }}><option value="">-- Select Subject --</option>{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                      <select value={row.grade} onChange={e=>onSubjectChange(2, i, "grade", e.target.value)} style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6 }}><option value="">Grade</option>{GRADES.map(g=><option key={g} value={g}>{g}</option>)}</select>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-          </div>
 
-          {/* FOOTER - FILLS BOTTOM OF A4 */}
-          <div style={{ marginTop: "auto", borderTop: "3px double black", paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 9 }}>
-            <div>
-              <p style={{ margin: 0 }}>Printed: {new Date().toLocaleString()}</p>
-              <p style={{ margin: 0, fontWeight: 700 }}>info@lcns.edu.ng | 08126799565 | portal.lcns.edu.ng</p>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ margin: 0 }}>ICT: Avule Samuel</p>
-              <p style={{ margin: 0, fontWeight: 900 }}>KEEP THIS SLIP - EXAM HALL</p>
-            </div>
+            <button disabled={loading} type="submit" style={{ width: "100%", padding: 14, background: "#0a4d2e", color: "white", fontWeight: 900, border: "none", borderRadius: 8, marginTop: 10, fontSize: 16 }}>{loading ? "UPLOADING..." : "✅ SUBMIT & PRINT A4 SLIP"}</button>
           </div>
-        </div>
+        </form>
       </div>
-    </>
+    </div>
   );
 }
-
-export default ApplicantPrintoutPage;
+export default ApplicationFormModal;
