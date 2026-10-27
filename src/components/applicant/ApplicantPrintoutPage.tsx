@@ -1,78 +1,66 @@
-import React from 'react';
-import { CollegeLogo } from './CollegeLogo';
+import React, { useRef, useEffect, useState } from 'react';
+import { CollegeLogo } from "../common/CollegeLogo";
 
-// Helper functions — needed by other files
-export const gradeSystem = (score: number) => {
-  if (score >= 70) return { grade: 'A', point: 4, remark: 'Excellent' };
-  if (score >= 60) return { grade: 'B', point: 3, remark: 'Very Good' };
-  if (score >= 50) return { grade: 'C', point: 2, remark: 'Good' };
-  if (score >= 40) return { grade: 'D', point: 1, remark: 'Pass' };
-  return { grade: 'F', point: 0, remark: 'Fail' };
-};
+const ApplicantPrintoutPage: React.FC = () => {
+  const printRef = useRef<HTMLDivElement>(null);
+  const [applicant, setApplicant] = useState<any>(null);
 
-export const getClassOfDiploma = (cgpa: number) => {
-  if (cgpa >= 3.5) return { class: 'DISTINCTION' };
-  if (cgpa >= 3.0) return { class: 'UPPER CREDIT' };
-  if (cgpa >= 2.5) return { class: 'LOWER CREDIT' };
-  if (cgpa >= 2.0) return { class: 'PASS' };
-  return { class: 'FAIL' };
-};
+  useEffect(() => {
+    const data = localStorage.getItem('applicantData');
+    if (data) { try { setApplicant(JSON.parse(data)); } catch {} }
+    if (!data) {
+      setApplicant({
+        fullName: 'Sample Applicant',
+        applicationNo: 'LABE/2024/001',
+        email: 'test@example.com',
+        phone: '08012345678',
+        course: 'General Nursing',
+        jambRegNo: '12345678AB'
+      });
+    }
+  }, []);
 
-// ✅ NAMED EXPORT — Fixes Provost, Registrar, HOD — 3 errors!
-export const PrintableResultWithLogo: React.FC<{
-  matricNo: string;
-  fullName: string;
-  level: string;
-  semester?: string;
-  session?: string;
-  results: any[];
-  cgpa?: number;
-}> = ({ matricNo, fullName, level, semester, session, results, cgpa }) => {
-  const totalUnits = results?.reduce((sum: number, r: any) => sum + (r.creditUnit || r.unit || 0), 0) || 0;
-  
+  const handlePrint = () => {
+    if (printRef.current) {
+      const content = printRef.current.innerHTML;
+      const original = document.body.innerHTML;
+      document.body.innerHTML = content;
+      window.print();
+      document.body.innerHTML = original;
+      window.location.reload();
+    }
+  };
+
+  if (!applicant) return <div className="p-10">Loading...</div>;
+
   return (
-    <div className="printable-result">
-      <div id={`printable-${matricNo}`} className="bg-white border-4 border-double border-emerald-900 p-6 rounded-xl">
-        <div className="flex items-center justify-between mb-4">
-          <CollegeLogo size="lg" />
-          <div className="text-center">
-            <h1 className="font-black text-lg text-emerald-900">LABE COLLEGE OF NURSING SCIENCES, GBOKO</h1>
-            <p className="text-xs font-bold">Official Result Sheet</p>
-            <p className="text-[11px] mt-1">{matricNo} | {fullName} | {level} | {semester} {session}</p>
-            {cgpa !== undefined && <p className="text-[11px] font-black">CGPA: {cgpa.toFixed(2)}</p>}
-          </div>
-          <CollegeLogo size="lg" />
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between mb-4">
+          <h1 className="font-bold">Application Slip</h1>
+          <button onClick={handlePrint} className="bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold">Print</button>
         </div>
-        <table className="w-full text-[11px] border mt-3">
-          <thead className="bg-emerald-900 text-white">
-            <tr>
-              <th className="p-2 text-left">Course Code</th>
-              <th className="p-2 text-left">Course Title</th>
-              <th className="p-2">Unit</th>
-              <th className="p-2">Score</th>
-              <th className="p-2">Grade</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results?.map((r: any, i: number) => {
-              const g = gradeSystem(r.score || r.total || 0);
-              return (
-                <tr key={i} className="border-b">
-                  <td className="p-2 font-bold">{r.courseCode || r.code}</td>
-                  <td className="p-2">{r.courseTitle || r.title}</td>
-                  <td className="p-2 text-center">{r.creditUnit || r.unit}</td>
-                  <td className="p-2 text-center">{r.score || r.total}</td>
-                  <td className="p-2 text-center font-black">{g.grade}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <p className="text-[10px] mt-2">Total Units: {totalUnits}</p>
+        <div ref={printRef} className="bg-white border-4 border-double border-emerald-900 p-8 rounded-xl">
+          <div className="flex justify-between items-center border-b-2 border-emerald-900 pb-4 mb-6">
+            <CollegeLogo size="lg" />
+            <div className="text-center">
+              <h1 className="font-black text-xl text-emerald-900">LABE COLLEGE OF NURSING SCIENCES, GBOKO</h1>
+              <p className="text-xs font-bold mt-1">ADMISSION APPLICATION SLIP</p>
+            </div>
+            <CollegeLogo size="lg" />
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex border-b py-2"><span className="font-bold w-48">Application No:</span><span className="font-black">{applicant.applicationNo}</span></div>
+            <div className="flex border-b py-2"><span className="font-bold w-48">Full Name:</span><span className="font-bold uppercase">{applicant.fullName}</span></div>
+            <div className="flex border-b py-2"><span className="font-bold w-48">Course:</span><span>{applicant.course}</span></div>
+            <div className="flex border-b py-2"><span className="font-bold w-48">Email:</span><span>{applicant.email}</span></div>
+            <div className="flex border-b py-2"><span className="font-bold w-48">Phone:</span><span>{applicant.phone}</span></div>
+            <div className="flex border-b py-2"><span className="font-bold w-48">JAMB Reg:</span><span>{applicant.jambRegNo}</span></div>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
 
-// ✅ DEFAULT EXPORT — Only ONE default — no duplicate!
-export default PrintableResultWithLogo;
+export default ApplicantPrintoutPage;
