@@ -65,8 +65,8 @@ export const PrintableResultWithLogo: React.FC<{
     win.document.write(`
       <html><head><title>Result - ${matricNo} - ${fullName}</title>
       <style>
-        @page { size: portrait; margin: 15mm; }
-        body{font-family:Arial; font-size:11px; color:#000;}
+        @page { size: A4 portrait; margin: 10mm; }
+        body{font-family:Arial; font-size:11px; color:#000; margin:0;}
         table{width:100%; border-collapse:collapse; margin-bottom:10px;}
         th,td{border:1px solid #000; padding:5px; text-align:left;}
         th{background:#0a4d2e; color:#fff; text-align:center;}
@@ -76,8 +76,9 @@ export const PrintableResultWithLogo: React.FC<{
         .badge{padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px;}
         .footer{display:flex; justify-content:space-between; margin-top:30px; text-align:center; font-size:10px;}
         .stamp{border:2px dashed #0a4d2e; padding:10px; text-align:center; background:#f0faf0;}
+        #print-full{width:210mm; min-height:297mm; margin:0 auto; border:3px solid black; padding:10mm; box-sizing:border-box;}
       </style>
-      </head><body>${printContent}</body></html>
+      </head><body><div id="print-full">${printContent}</div></body></html>
     `);
     win.document.close();
     win.focus();
@@ -86,8 +87,9 @@ export const PrintableResultWithLogo: React.FC<{
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
-        <button onClick={printResult} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2">
+      <style>{`@media print { .no-print{display:none !important;} }`}</style>
+      <div className="flex gap-2 no-print">
+        <button onClick={printResult} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 cursor-pointer">
           🖨️ Print Individual Result - {currentUserRole} - {matricNo} - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Logo
         </button>
         <span className="px-3 py-2 bg-emerald-50 border rounded-xl text-[10px] font-bold">
@@ -96,7 +98,6 @@ export const PrintableResultWithLogo: React.FC<{
       </div>
 
       <div id={`printable-${matricNo}`} className="bg-white border-4 border-double border-emerald-900 rounded-2xl p-6 space-y-4">
-        {/* CORRECTED SCHOOL NAME + LOGO APPEARS - ALL PRINTED DOCUMENTS */}
         <div className="header">
           <div className="logo">
             <CollegeLogo size="lg" />
@@ -132,7 +133,7 @@ export const PrintableResultWithLogo: React.FC<{
           <h4 className="font-black text-sm bg-emerald-900 text-white px-3 py-1 rounded">FIRST SEMESTER - GPA {firstSem.gpa.toFixed(2)} - Carry Overs: {firstSem.carry.length || 'None'}</h4>
           <table><thead><tr><th>Course Code</th><th>Course Title</th><th>CU</th><th>Score</th><th>Grade</th><th>Point</th><th>GP</th><th>Remark</th></tr></thead>
             <tbody>
-              {firstSem.courses.map((r:any)=>{const g=gradeSystem(r.score||0); return (<tr key={r.id||r.courseCode}><td className="font-mono font-bold">{r.courseCode}</td><td>{r.courseTitle||r.title||''}</td><td className="text-center">{r.creditUnit||3}</td><td className="text-center font-bold">{r.score||0}</td><td className="text-center font-black">{g.grade}</td><td className="text-center">{g.point}</td><td className="text-center font-bold">{(r.creditUnit||3)*g.point}</td><td className={g.grade==='F'?'carry':''}>{g.remark}</td></tr>);})}
+              {firstSem.courses.map((r:any)=>{const g=gradeSystem(r.score||0); return (<tr key={r.id||r.courseCode}><td className="font-mono font-bold">{r.courseCode}</td><td>{r.courseTitle||r.title||''}</td><td className="text-center">{r.creditUnit||3}</td><td className="text-center font-bold">{r.score||0}</td><td className="text-center font-black">{g.grade}</td><td className="text-center">{g.point}</td><td className="text-center font-bold">{(r.creditUnit||3)*g.point}</td><td className={g.grade==='F'?'text-red-600 font-bold':''}>{g.remark}</td></tr>);})}
               {firstSem.courses.length===0 && <tr><td colSpan={8} className="text-center text-slate-400">No courses for First Semester</td></tr>}
             </tbody>
           </table>
@@ -142,31 +143,32 @@ export const PrintableResultWithLogo: React.FC<{
           <h4 className="font-black text-sm bg-blue-900 text-white px-3 py-1 rounded">SECOND SEMESTER - GPA {secondSem.gpa.toFixed(2)} - Carry Over from First Auto Reflects</h4>
           <table><thead><tr><th>Course Code</th><th>Course Title</th><th>CU</th><th>Score</th><th>Grade</th><th>Point</th><th>GP</th><th>Remark</th></tr></thead>
             <tbody>
-              {secondSem.courses.map((r:any)=>{const g=gradeSystem(r.score||0); return (<tr key={r.id||r.courseCode}><td className="font-mono font-bold">{r.courseCode}</td><td>{r.courseTitle||r.title||''}</td><td className="text-center">{r.creditUnit||3}</td><td className="text-center font-bold">{r.score||0}</td><td className="text-center font-black">{g.grade}</td><td className="text-center">{g.point}</td><td className="text-center font-bold">{(r.creditUnit||3)*g.point}</td><td className={g.grade==='F'?'carry':''}>{g.remark}</td></tr>);})}
-              {firstSem.carry.length>0 && <tr><td colSpan={8} className="carry">⚠️ CARRY OVER FROM FIRST SEMESTER AUTO REFLECTS HERE: {firstSem.carry.map((c:any)=>`${c.courseCode} - Score ${c.score} - F`).join(', ')} - Student must retake</td></tr>}
+              {secondSem.courses.map((r:any)=>{const g=gradeSystem(r.score||0); return (<tr key={r.id||r.courseCode}><td className="font-mono font-bold">{r.courseCode}</td><td>{r.courseTitle||r.title||''}</td><td className="text-center">{r.creditUnit||3}</td><td className="text-center font-bold">{r.score||0}</td><td className="text-center font-black">{g.grade}</td><td className="text-center">{g.point}</td><td className="text-center font-bold">{(r.creditUnit||3)*g.point}</td><td className={g.grade==='F'?'text-red-600 font-bold':''}>{g.remark}</td></tr>);})}
+              {firstSem.carry.length>0 && <tr><td colSpan={8} className="text-red-600 font-bold">⚠️ CARRY OVER FROM FIRST SEMESTER AUTO REFLECTS HERE: {firstSem.carry.map((c:any)=>`${c.courseCode} - Score ${c.score} - F`).join(', ')} - Student must retake</td></tr>}
               {secondSem.courses.length===0 && <tr><td colSpan={8} className="text-center text-slate-400">No courses for Second Semester</td></tr>}
             </tbody>
           </table>
         </div>
 
-        <div className="stamp">
-          <h3 className="font-black">FINAL CGPA & CLASSIFICATION - ND/HND NURSING - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria</h3>
-          <p>Total Credit Units: {cgpaData.totalCU} | Total Grade Points: {cgpaData.totalGP} | CGPA: {cgpaData.cgpa.toFixed(2)} / 4.00</p>
+        <div className="border-2 border-dashed border-emerald-900 p-3 text-center bg-green-50">
+          <h3 className="font-black text-sm">FINAL CGPA & CLASSIFICATION - ND/HND NURSING - Labe College of Nursing Sciences - Catholic Diocese of Gboko</h3>
+          <p className="text-xs">Total Credit Units: {cgpaData.totalCU} | Total Grade Points: {cgpaData.totalGP} | CGPA: {cgpaData.cgpa.toFixed(2)} / 4.00</p>
           <p style={{ background: cgpaData.classification.class.includes('DISTINCTION')?'#166534': cgpaData.classification.class.includes('UPPER')?'#1e40af': cgpaData.classification.class.includes('LOWER')?'#854d0e':'#000', color:'#fff', padding:'8px', fontWeight:'bold', marginTop:'5px' }}>CLASS OF DIPLOMA: {cgpaData.classification.class} - {cgpaData.classification.desc}</p>
-          <p className="text-[10px] mt-2">Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria | Distinction 3.50-4.00, Upper Credit 3.00-3.49, Lower Credit 2.50-2.99 (Qualified for HND), Pass 2.00-2.49</p>
+          <p className="text-[10px] mt-2">Distinction 3.50-4.00, Upper Credit 3.00-3.49, Lower Credit 2.50-2.99 (Qualified for HND), Pass 2.00-2.49</p>
         </div>
 
-        <div className="footer">
+        <div className="flex justify-between mt-8 text-center text-[10px]">
           <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>Exam Officer</b><br/><span>Dr. Emmanuel Agada</span><br/><span style={{ fontSize:'8px' }}>Compiled Broadsheet - GPA Calculated</span></div></div>
           <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>HOD</b><br/><span>Head of Department</span><br/><span style={{ fontSize:'8px' }}>Moderated Result</span></div></div>
           <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>Registrar</b><br/><span>College Registrar</span><br/><span style={{ fontSize:'8px' }}>Verified & Forwarded to Senate</span></div></div>
           <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>Provost - Final Approval</b><br/><span>{senateProvost||'Mrs Terna Fiase'}</span><br/><span style={{ fontSize:'8px' }}>{senateApproved?`Senate Approved on ${senateDate?new Date(senateDate).toLocaleDateString():''}`:'Awaiting Senate Ratification'}</span></div></div>
         </div>
 
-        <p className="text-[9px] text-center text-slate-500 mt-4">This individual result slip with school name Labe College of Nursing Sciences - Catholic Diocese of Gboko - Gboko, Benue State • Nigeria and logo appears is officially printed by {currentUserRole} ({currentUserName}) - Matric: {matricNo} - {fullName} - CGPA {cgpaData.cgpa.toFixed(2)} - {cgpaData.classification.class} - Printed on {new Date().toLocaleString()} - Valid only when Senate Approved by Provost</p>
+        <p className="text-[9px] text-center text-slate-500 mt-4">Printed by {currentUserRole} ({currentUserName}) - {matricNo} - {fullName} - CGPA {cgpaData.cgpa.toFixed(2)} - {new Date().toLocaleString()} - Valid only when Senate Approved</p>
       </div>
     </div>
   );
 };
 
+export { PrintableResultWithLogo as PrintableResult };
 export default PrintableResultWithLogo;
