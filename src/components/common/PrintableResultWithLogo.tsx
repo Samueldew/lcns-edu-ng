@@ -17,7 +17,7 @@ export const PrintableResultWithLogo: React.FC<Props> = ({ student, results = []
   const name = student?.fullName || student?.full_name || 'Student';
   const matric = student?.matricNumber || student?.matric_no || student?.email || '-';
   const level = student?.level || 'ND1';
-  const sex = student?.sex || '-';
+  const sex = student?.sex || student?.gender || '-';
   const dept = student?.department || 'Nursing';
 
   return (
@@ -26,7 +26,6 @@ export const PrintableResultWithLogo: React.FC<Props> = ({ student, results = []
         <CollegeLogo size="lg" />
         <div className="text-center flex-1">
           <h1 className="text-xl font-black uppercase text-[#0a4d2e]">Labe College of Nursing Sciences</h1>
-          <p className="text-[11px] font-bold">Catholic Diocese of Gboko</p>
           <p className="text-[11px] font-black mt-1">RESULT - {academicYear} - {semester}</p>
         </div>
         <CollegeLogo size="lg" />
