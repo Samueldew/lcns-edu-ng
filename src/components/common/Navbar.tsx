@@ -31,10 +31,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [title, setTitle] = useState(''); const [message, setMessage] = useState(''); const [annType, setAnnType] = useState('announcement');
   
   const [admissionSettings, setAdmissionSettings] = useState<AdmissionSettings>({
-    isOpen: true, session: '2026/2027', closedMessage: 'Admission is currently closed. Please check back later.', updatedAt: new Date().toISOString()
+    isOpen: false, session: '2026/2027', closedMessage: 'Admission is CLOSED for 2026/2027 Academic Session. School resumes November, 2026 for first and new academic year. Contact: info@lcns.edu.ng | ict.lcns@lcns.edu.ng - portal.lcns.edu.ng', updatedAt: new Date().toISOString()
   });
   const [newSession, setNewSession] = useState('2026/2027');
-  const [closedMsg, setClosedMsg] = useState('');
+  const [closedMsg, setClosedMsg] = useState('Admission is CLOSED for 2026/2027 Academic Session. School resumes November, 2026 for first and new academic year. Contact: info@lcns.edu.ng | ict.lcns@lcns.edu.ng');
 
   const ANN_KEY = 'lcns_announcements'; const ADM_KEY = 'lcns_admission_settings';
 
@@ -43,6 +43,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     try {
       const adm = JSON.parse(localStorage.getItem(ADM_KEY) || 'null');
       if(adm){ setAdmissionSettings(adm); setNewSession(adm.session); setClosedMsg(adm.closedMessage); }
+      else {
+        const defaultClosed: AdmissionSettings = {
+          isOpen: false, session: '2026/2027',
+          closedMessage: 'Admission is CLOSED for 2026/2027 Academic Session. School resumes November, 2026. Contact: info@lcns.edu.ng | ict.lcns@lcns.edu.ng',
+          updatedAt: new Date().toISOString()
+        };
+        localStorage.setItem(ADM_KEY, JSON.stringify(defaultClosed));
+        setAdmissionSettings(defaultClosed);
+      }
     } catch {}
   };
   useEffect(() => { loadAll(); const h=()=>loadAll(); window.addEventListener('announcements-updated', h); window.addEventListener('storage', h); window.addEventListener('admission-updated', h); return ()=>{ window.removeEventListener('announcements-updated', h); window.removeEventListener('storage', h); window.removeEventListener('admission-updated', h); }; }, []);
@@ -61,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleToggleAdmission = () => {
     const updated: AdmissionSettings = { ...admissionSettings, isOpen: !admissionSettings.isOpen, session: newSession, closedMessage: closedMsg || admissionSettings.closedMessage, updatedAt: new Date().toISOString() };
     saveAdmission(updated);
-    alert(updated.isOpen ? `Admission OPENED for ${updated.session}` : `Admission CLOSED for ${updated.session}`);
+    alert(updated.isOpen ? `Admission OPENED for ${updated.session}` : `Admission CLOSED for ${updated.session} - Resumption Nov 2026`);
   };
   const handleUpdateSession = () => {
     if(!newSession.trim()) return alert('Enter session e.g. 2026/2027');
@@ -69,8 +78,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     saveAdmission(updated); alert(`Session updated to ${updated.session}`);
   };
 
+  // BUILD MODE: APPLY BUTTON ALWAYS OPENS - FOR YOU TO CONTINUE BUILDING PORTAL
   const handleApplyClick = () => {
-    if(!admissionSettings.isOpen){ alert(`🚫 ${admissionSettings.closedMessage}\n\nSession: ${admissionSettings.session}`); return; }
     onOpenApplication();
   };
 
@@ -80,7 +89,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleRoleQuickSwitch = (role: UserRole) => { const users = StorageService.getUsers(); const target = users.find(u=>u.role===role); if(target){ const {password:_,...safe}=target; StorageService.setCurrentUser(safe as User); setActiveView('portal'); setShowRoleMenu(false); setMobileOpen(false);} };
   const handleLogout = () => { StorageService.setCurrentUser(null); setActiveView('website'); window.history.pushState({}, '', '/'); };
   
-  // FIXED - Now links to correct IDs in LCNSWebsite
   const scrollToId = (id: string) => { 
     setMobileOpen(false); 
     setActiveView('website'); 
@@ -105,9 +113,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="sticky top-0 z-50 bg-[#0a4d2e] text-white shadow-md border-b border-[#06321e] no-print">
       <div className="bg-[#06321e] text-emerald-100 text-xs px-4 py-1.5 flex flex-wrap items-center justify-between border-b">
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="flex items-center gap-1.5 font-medium"><Mail className="w-3.5 h-3.5 text-[#22c55e]" /><a href="mailto:info@lcns.edu.ng" className="hover:text-emerald-200">{COLLEGE_CONFIG.OFFICIAL_EMAIL}</a></span>
+          <span className="flex items-center gap-1.5 font-medium"><Mail className="w-3.5 h-3.5 text-[#22c55e]" /><a href="mailto:info@lcns.edu.ng" className="hover:text-emerald-200">info@lcns.edu.ng</a></span>
           <span className="hidden sm:inline text-emerald-400/50">&bull;</span>
-          <span className="flex items-center gap-1.5 font-medium"><Phone className="w-3.5 h-3.5 text-[#22c55e]" />Support: {COLLEGE_CONFIG.SUPPORT_PHONE}</span>
+          <span className="flex items-center gap-1.5 font-medium"><Phone className="w-3.5 h-3.5 text-[#22c55e]" />Support: 08126799565 ICT | ict.lcns@lcns.edu.ng</span>
           <span className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black ${admissionSettings.isOpen?'bg-green-500 text-black':'bg-red-500 text-white'}`}><span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>{admissionSettings.isOpen?`ADMISSION OPEN ${admissionSettings.session}`:`ADMISSION CLOSED ${admissionSettings.session}`}</span>
         </div>
         <div className="relative ml-auto flex items-center gap-2">
@@ -129,9 +137,9 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       <div className="bg-[#ca8a04] py-1.5 overflow-hidden whitespace-nowrap border-b-2 border-black">
         <div className="animate-marquee-fast flex items-center gap-12">
-          {!admissionSettings.isOpen && <><span className="font-black text-red-900 bg-white px-2 rounded text-[13px]">🚫 ADMISSION CLOSED FOR {admissionSettings.session} 🚫</span><span className="font-black text-black text-[13px]">•</span></>}
+          {!admissionSettings.isOpen && <><span className="font-black text-red-900 bg-white px-2 rounded text-[13px]">🚫 ADMISSION CLOSED FOR {admissionSettings.session} - RESUMPTION NOVEMBER 2026 🚫</span><span className="font-black text-black text-[13px]">•</span></>}
           {admissionSettings.isOpen && <><span className="font-black text-black bg-green-200 px-2 rounded text-[13px]">✅ ADMISSION OPEN {admissionSettings.session} - APPLY NOW ✅</span><span className="font-black text-black text-[13px]">•</span></>}
-          {activeMarquee.length>0 ? activeMarquee.map(a=>(<React.Fragment key={a.id}><span className="font-black text-black text-[13px]">🔔 {a.title.toUpperCase()}: {a.message.toUpperCase()}</span><span className="font-black text-black text-[13px]">•</span></React.Fragment>)) : (<><span className="font-black text-black text-[13px]">🔔 Labe College of Nursing Sciences, Catholic Diocese of Gboko, Benue State</span><span className="font-black text-black text-[13px]">•</span><span className="font-black text-black text-[13px]">ADMISSION {admissionSettings.isOpen?'OPEN':'CLOSED'} FOR {admissionSettings.session} ND/HND NURSING</span><span className="font-black text-black text-[13px]">•</span><span className="font-black text-black text-[13px]">NMCN APPROVED • NBTE ACCREDITED</span></>)}
+          {activeMarquee.length>0 ? activeMarquee.map(a=>(<React.Fragment key={a.id}><span className="font-black text-black text-[13px]">🔔 {a.title.toUpperCase()}: {a.message.toUpperCase()}</span><span className="font-black text-black text-[13px]">•</span></React.Fragment>)) : (<><span className="font-black text-black text-[13px]">🔔 Labe College of Nursing Sciences, Catholic Diocese of Gboko, Benue State</span><span className="font-black text-black text-[13px]">•</span><span className="font-black text-black text-[13px]">ADMISSION CLOSED FOR {admissionSettings.session} - RESUMPTION NOV 2026</span><span className="font-black text-black text-[13px]">•</span><span className="font-black text-black text-[13px]">CONTACT: INFO@LCNS.EDU.NG | ICT.LCNS@LCNS.EDU.NG</span><span className="font-black text-black text-[13px]">•</span><span className="font-black text-black text-[13px]">NMCN APPROVED • NBTE ACCREDITED</span></>)}
         </div>
       </div>
 
@@ -139,7 +147,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); window.history.pushState({},'','/'); setMobileOpen(false);}} className="flex items-center gap-3 text-left group"><CollegeLogo size="md"/><div className="hidden sm:block"><span className="block font-black text-white text-[13px] sm:text-[15px] leading-tight uppercase tracking-tight group-hover:text-amber-300">Labe College of Nursing Sciences</span><span className="block text-[10px] sm:text-[11px] font-bold text-amber-300 uppercase">Catholic Diocese of Gboko, Benue State</span><span className="block text-[9px] font-semibold text-emerald-200 uppercase">Gboko • Learn, Serve & Save • {admissionSettings.session}</span></div></button>
+          <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); window.history.pushState({},'','/'); setMobileOpen(false);}} className="flex items-center gap-3 text-left group"><CollegeLogo size="md"/><div className="hidden sm:block"><span className="block font-black text-white text-[13px] sm:text-[15px] leading-tight uppercase tracking-tight group-hover:text-amber-300">Labe College of Nursing Sciences</span><span className="block text-[10px] sm:text-[11px] font-bold text-amber-300 uppercase">Catholic Diocese of Gboko, Benue State</span><span className="block text-[9px] font-semibold text-emerald-200 uppercase">Gboko • Learn, Serve & Save • {admissionSettings.session} • Resumption Nov 2026</span></div></button>
           <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-white/90">
             <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'});}} className="hover:text-amber-300">Home</button>
             <button onClick={()=>scrollToId('about-college')} className="hover:text-amber-300 font-bold">About</button>
@@ -149,8 +157,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={onOpenAdmissionChecker} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 border border-white/20 rounded-lg"><FileText className="w-3.5 h-3.5 text-amber-300"/><span>Check Admission</span></button>
-            <button onClick={handleApplyClick} className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm ${admissionSettings.isOpen?'bg-[#F59E0B] text-slate-950 hover:bg-amber-400':'bg-gray-400 text-gray-700 cursor-not-allowed'}`} title={admissionSettings.isOpen?`Apply for ${admissionSettings.session}`:admissionSettings.closedMessage}>
-              {admissionSettings.isOpen?<GraduationCap className="w-4 h-4"/>:<Lock className="w-4 h-4"/>}<span>{admissionSettings.isOpen?`Apply ${admissionSettings.session}`:'Admission Closed'}</span>
+            <button onClick={handleApplyClick} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm bg-[#F59E0B] text-slate-950 hover:bg-amber-400" title={`Apply for ${admissionSettings.session} - BUILD MODE`}>
+              <GraduationCap className="w-4 h-4"/><span>Apply {admissionSettings.session}</span>
             </button>
             {currentUser ? (<div className="flex items-center gap-2"><button onClick={()=>setActiveView('portal')} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl bg-white text-[#0a4d2e]"><LayoutDashboard className="w-3 h-3"/><span className="hidden md:inline">Portal</span></button><button onClick={handleLogout} className="p-2 text-white/70 hover:text-red-300"><LogOut className="w-4 h-4"/></button></div>) : (<button onClick={onOpenLogin} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 rounded-lg"><LogIn className="w-3.5 h-3.5"/><span>Login</span></button>)}
             <button onClick={()=>setMobileOpen(!mobileOpen)} className="lg:hidden p-2 bg-white/10 rounded-lg">{mobileOpen?<X className="w-5 h-5"/>:<Menu className="w-5 h-5"/>}</button>
@@ -160,14 +168,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {mobileOpen && (
         <div className="lg:hidden bg-[#06321e] border-t px-4 py-4 space-y-1">
-          <div className={`p-2 rounded-lg text-center text-xs font-black ${admissionSettings.isOpen?'bg-green-500 text-black':'bg-red-500 text-white'}`}>{admissionSettings.isOpen?`✅ ADMISSION OPEN ${admissionSettings.session}`:`🚫 ADMISSION CLOSED ${admissionSettings.session}`}</div>
+          <div className={`p-2 rounded-lg text-center text-xs font-black ${admissionSettings.isOpen?'bg-green-500 text-black':'bg-red-500 text-white'}`}>{admissionSettings.isOpen?`✅ ADMISSION OPEN ${admissionSettings.session}`:`🚫 ADMISSION CLOSED ${admissionSettings.session} - RESUMPTION NOV 2026`}</div>
           <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); setMobileOpen(false);}} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Home</button>
           <button onClick={()=>scrollToId('about-college')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg bg-[#0a4d2e] border border-[#22c55e]/20">About - Who We Are</button>
           <button onClick={()=>scrollToId('programmes')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Programmes</button>
           <button onClick={()=>scrollToId('facilities')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Facilities</button>
           <button onClick={()=>scrollToId('gallery')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase bg-amber-500/20 text-amber-300 rounded-lg">Gallery</button>
           <div className="pt-3 border-t border-white/10 space-y-2">
-            <button onClick={handleApplyClick} className={`w-full py-3 text-xs font-black uppercase rounded-lg ${admissionSettings.isOpen?'bg-amber-400 text-black':'bg-gray-500 text-white'}`}>{admissionSettings.isOpen?`Apply ${admissionSettings.session}`:'Admission Closed'}</button>
+            <button onClick={handleApplyClick} className="w-full py-3 text-xs font-black uppercase rounded-lg bg-amber-400 text-black">Apply {admissionSettings.session} (Build Mode)</button>
             <button onClick={()=>{setMobileOpen(false); onOpenAdmissionChecker();}} className="w-full py-3 text-xs font-bold uppercase bg-white/10 rounded-lg">Check Admission</button>
           </div>
         </div>
@@ -187,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {activeTab==='admission' ? (
               <div className="p-5 space-y-5">
                 <div className={`p-4 rounded-xl border-2 flex items-center justify-between ${admissionSettings.isOpen?'bg-green-50 border-green-300':'bg-red-50 border-red-300'}`}>
-                  <div><p className="text-xs text-slate-500">Current Status</p><p className={`font-black text-lg ${admissionSettings.isOpen?'text-green-700':'text-red-700'}`}>{admissionSettings.isOpen?'✅ ADMISSION OPEN':'🚫 ADMISSION CLOSED'}</p><p className="text-sm font-bold">Session: {admissionSettings.session}</p></div>
+                  <div><p className="text-xs text-slate-500">Current Status</p><p className={`font-black text-lg ${admissionSettings.isOpen?'text-green-700':'text-red-700'}`}>{admissionSettings.isOpen?'✅ ADMISSION OPEN':'🚫 ADMISSION CLOSED'}</p><p className="text-sm font-bold">Session: {admissionSettings.session} - Resumption Nov 2026</p><p className="text-[10px] text-slate-500 mt-1">BUILD MODE: Apply button still opens for building portal</p></div>
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center ${admissionSettings.isOpen?'bg-green-500':'bg-red-500'}`}>{admissionSettings.isOpen?<Unlock className="w-6 h-6 text-white"/>:<Lock className="w-6 h-6 text-white"/>}</div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-xl border space-y-3">
