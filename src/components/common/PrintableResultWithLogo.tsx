@@ -1,174 +1,110 @@
-import React from 'react';
-import { CollegeLogo } from './CollegeLogo';
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { supabase } from "../../lib/supabase";
+import { CollegeLogo } from "../common/CollegeLogo";
 
-export const gradeSystem = (score: number) => {
-  if (score >= 70) return { grade: 'A', point: 4, remark: 'Excellent' };
-  if (score >= 60) return { grade: 'B', point: 3, remark: 'Very Good' };
-  if (score >= 50) return { grade: 'C', point: 2, remark: 'Good' };
-  if (score >= 40) return { grade: 'D', point: 1, remark: 'Pass' };
-  return { grade: 'F', point: 0, remark: 'Fail - Carry Over' };
-};
+export function ApplicantPrintoutPage() {
+  const { id } = useParams();
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-export const getClassOfDiploma = (cgpa: number) => {
-  if (cgpa >= 3.5) return { class: 'DISTINCTION', desc: 'Distinction 3.50-4.00' };
-  if (cgpa >= 3.0) return { class: 'UPPER CREDIT', desc: 'Upper Credit 3.00-3.49' };
-  if (cgpa >= 2.5) return { class: 'LOWER CREDIT', desc: 'Lower Credit 2.50-2.99 - Qualified for HND' };
-  if (cgpa >= 2.0) return { class: 'PASS', desc: 'Pass 2.00-2.49' };
-  return { class: 'FAIL - SPILL OVER', desc: 'Fail Below 2.00 - Spill Over' };
-};
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
+      const { data: applicant, error } = await supabase
+        .from("lcns_applicants")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (!error) setData(applicant);
+      else {
+        const { data: byAppNo } = await supabase.from("lcns_applicants").select("*").eq("application_number", id).single();
+        if (byAppNo) setData(byAppNo);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [id]);
 
-export const PrintableResultWithLogo: React.FC<{
-  matricNo: string;
-  fullName: string;
-  level: string;
-  program?: string;
-  results: any[];
-  currentUserRole?: string;
-  currentUserName?: string;
-  senateApproved?: boolean;
-  senateDate?: string;
-  senateProvost?: string;
-}> = ({ matricNo, fullName, level, program = 'Nursing Sciences', results, currentUserRole = 'EXAM_OFFICER', currentUserName = 'Staff', senateApproved = false, senateDate, senateProvost }) => {
+  if (loading) return <div style={{ padding: 20, textAlign: "center" }}>Loading printout...</div>;
+  if (!data) return <div style={{ padding: 20, textAlign: "center" }}>Applicant not found: {id}</div>;
 
-  const calcCGPA = () => {
-    let totalCU = 0, totalGP = 0;
-    results.forEach((r:any) => {
-      const g = gradeSystem(r.score || 0);
-      totalCU += r.creditUnit || 3;
-      totalGP += (r.creditUnit || 3) * g.point;
-    });
-    const cgpa = totalCU ? totalGP / totalCU : 0;
-    return { cgpa, totalCU, totalGP, classification: getClassOfDiploma(cgpa) };
-  };
-
-  const calcSemester = (sem: 'FIRST' | 'SECOND') => {
-    const filtered = results.filter((r:any) => (r.semester === sem || r.semester === sem.slice(0,5) || (sem==='FIRST' && r.semester==='First') || (sem==='SECOND' && r.semester==='Second')));
-    let cu = 0, gp = 0, carry: any[] = [];
-    filtered.forEach((r:any) => {
-      const g = gradeSystem(r.score || 0);
-      if (g.grade === 'F') carry.push(r);
-      cu += r.creditUnit || 3;
-      gp += (r.creditUnit || 3) * g.point;
-    });
-    return { gpa: cu ? gp/cu : 0, cu, gp, carry, courses: filtered };
-  };
-
-  const cgpaData = calcCGPA();
-  const firstSem = calcSemester('FIRST');
-  const secondSem = calcSemester('SECOND');
-
-  const printResult = () => {
-    const printContent = document.getElementById(`printable-${matricNo}`)?.innerHTML;
-    if (!printContent) return;
-    const win = window.open('', '_blank');
-    if (!win) { alert('Allow popups'); return; }
-    win.document.write(`
-      <html><head><title>Result - ${matricNo} - ${fullName}</title>
-      <style>
-        @page { size: A4 portrait; margin: 10mm; }
-        body{font-family:Arial; font-size:11px; color:#000; margin:0;}
-        table{width:100%; border-collapse:collapse; margin-bottom:10px;}
-        th,td{border:1px solid #000; padding:5px; text-align:left;}
-        th{background:#0a4d2e; color:#fff; text-align:center;}
-        .header{text-align:center; border-bottom:3px double #0a4d2e; padding-bottom:10px; margin-bottom:10px;}
-        .logo{display:flex; align-items:center; justify-content:center; gap:20px;}
-        .carry{color:red; font-weight:bold;}
-        .badge{padding:4px 8px; border-radius:12px; font-weight:bold; font-size:10px;}
-        .footer{display:flex; justify-content:space-between; margin-top:30px; text-align:center; font-size:10px;}
-        .stamp{border:2px dashed #0a4d2e; padding:10px; text-align:center; background:#f0faf0;}
-        #print-full{width:210mm; min-height:297mm; margin:0 auto; border:3px solid black; padding:10mm; box-sizing:border-box;}
-      </style>
-      </head><body><div id="print-full">${printContent}</div></body></html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(()=>win.print(), 600);
-  };
+  const ssce = data.ssce_data;
+  const sitting1 = ssce?.sitting1;
+  const sitting2 = ssce?.sitting2;
+  const passportSrc = data.photo_url || data.passport_url || data.avatar_url || "";
 
   return (
-    <div className="space-y-3">
-      <style>{`@media print { .no-print{display:none !important;} }`}</style>
-      <div className="flex gap-2 no-print">
-        <button onClick={printResult} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 cursor-pointer">
-          🖨️ Print Individual Result - {currentUserRole} - {matricNo} - Labe College of Nursing Sciences - Catholic Diocese of Gboko - Logo
-        </button>
-        <span className="px-3 py-2 bg-emerald-50 border rounded-xl text-[10px] font-bold">
-          {currentUserRole} can print - {fullName} - CGPA {cgpaData.cgpa.toFixed(2)} - {cgpaData.classification.class}
-        </span>
-      </div>
+    <>
+      <style>{`
+        @page { size: A4; margin: 10mm; }
+        @media print {
+          .no-print { display: none !important; }
+          #print-full-a4 { width: 210mm !important; min-height: 297mm !important; margin: 0 !important; padding: 10mm !important; border: 3px solid black !important; box-sizing: border-box !important; }
+        }
+      `}</style>
+      <div style={{ background: "#f1f5f9", minHeight: "100vh", padding: 10 }}>
+        <div className="no-print" style={{ maxWidth: 800, margin: "0 auto 15px auto", display: "flex", justifyContent: "center", gap: 10 }}>
+          <button onClick={()=>window.print()} style={{ padding: "12px 30px", background: "#0a4d2e", color: "white", border: "none", borderRadius: 8, fontWeight: 900, cursor: "pointer" }}>🖨️ PRINT A4</button>
+          <button onClick={()=>window.history.back()} style={{ padding: "12px 20px", background: "#64748b", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>Back</button>
+        </div>
 
-      <div id={`printable-${matricNo}`} className="bg-white border-4 border-double border-emerald-900 rounded-2xl p-6 space-y-4">
-        <div className="header">
-          <div className="logo">
+        <div id="print-full-a4" style={{ maxWidth: 800, width: "100%", minHeight: "297mm", margin: "0 auto", background: "white", padding: 20, fontFamily: "Arial", border: "3px solid black", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: "3px double #0a4d2e", paddingBottom: 10, marginBottom: 15 }}>
             <CollegeLogo size="lg" />
-            <div className="text-center">
-              <h1 className="text-[20px] font-black uppercase text-emerald-950 leading-none">Labe College of Nursing Sciences</h1>
-              <h2 className="text-[14px] font-bold uppercase text-emerald-800 leading-tight mt-1">Catholic Diocese of Gboko</h2>
-              <p className="text-[12px] font-black text-slate-800 mt-1">Gboko, Benue State • Nigeria</p>
-              <p className="text-[10px] font-bold text-slate-600 mt-1">P.M.B 102, Gboko | Motto: "Learn, Serve & Save" | Email: info@lcns.edu.ng | Website: www.lcns.edu.ng</p>
-              <p className="text-[9px] font-semibold text-slate-500">Accredited by Nursing and Midwifery Council of Nigeria & NBTE - ND/HND Nursing Sciences (Non-Terminal)</p>
+            <div style={{ flex: 1, textAlign: "center" }}>
+              <h2 style={{ margin: 0, color: "#0a4d2e", fontSize: 18, fontWeight: 900, textTransform: "uppercase" }}>Labe College of Nursing Sciences</h2>
+              <p style={{ margin: "2px 0", fontSize: 11, fontWeight: 700 }}>Catholic Diocese of Gboko, Benue State</p>
+              <p style={{ margin: 0, fontSize: 10 }}>Application Printout - 2026/2027 - APP NO: {data.application_number}</p>
             </div>
-            <CollegeLogo size="lg" />
           </div>
-          <div className="mt-3 flex justify-center gap-2 flex-wrap">
-            <span className="bg-emerald-900 text-white px-4 py-1 rounded-full text-xs font-black">STUDENT ACADEMIC RESULT - INDIVIDUAL</span>
-            <span className="bg-amber-400 text-black px-3 py-1 rounded-full text-xs font-black">Matric: {matricNo}</span>
-            <span className={`px-3 py-1 rounded-full text-xs font-black ${cgpaData.classification.class.includes('DISTINCTION')?'bg-green-600 text-white': cgpaData.classification.class.includes('UPPER')?'bg-blue-600 text-white': cgpaData.classification.class.includes('LOWER')?'bg-yellow-500 text-black':'bg-slate-800 text-white'}`}>{cgpaData.classification.class} - CGPA {cgpaData.cgpa.toFixed(2)}</span>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold ${senateApproved?'bg-emerald-100 text-emerald-800 border-2 border-emerald-600':'bg-red-50 text-red-700 border-2 border-red-300'}`}>{senateApproved?`✅ Senate Approved by ${senateProvost||'Provost'} on ${senateDate?new Date(senateDate).toLocaleDateString():''}`:'🔒 Awaiting Senate Ratification'}</span>
+
+          <div style={{ display: "flex", gap: 20, marginBottom: 15 }}>
+            <div style={{ flex: 1 }}>
+              <p><strong>Full Name:</strong> {data.full_name}</p>
+              <p><strong>DOB:</strong> {data.dob} | <strong>Gender:</strong> {data.gender}</p>
+              <p><strong>Phone:</strong> {data.phone}</p>
+              <p><strong>Email:</strong> {data.email}</p>
+              <p><strong>State/LGA:</strong> {data.state} / {data.lga}</p>
+              <p><strong>JAMB:</strong> {data.jamb_reg} - {data.jamb_score}</p>
+              <p><strong>Course:</strong> {data.course}</p>
+            </div>
+            <div>
+              <div style={{ width: 120, height: 140, border: "2px solid #0a4d2e", overflow: "hidden", background: "#fff" }}>
+                {passportSrc && <img src={passportSrc} alt="passport" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ border: "1px solid #0a4d2e", padding: 10, marginBottom: 15 }}>
+            <h4 style={{ margin: "0 0 10px 0", color: "#0a4d2e" }}>O'LEVEL RESULTS ({data.ssce_sitting_count} Sitting{data.ssce_sitting_count > 1 ? 's' : ''}) - {sitting1?.exam} {sitting1?.year}</h4>
+            {sitting1 && (
+              <div style={{ marginBottom: 12 }}>
+                <strong>SITTING 1: {sitting1.exam} {sitting1.year} - {sitting1.no}</strong>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 5, marginTop: 5, background: "#f8fafc", padding: 8 }}>
+                  {sitting1.subjects?.filter((s:any)=>s.subject).map((s:any, i:number)=>(
+                    <div key={i} style={{ display: "contents" }}><span>{i+1}. {s.subject}</span><span style={{ fontWeight: 700 }}>{s.grade}</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {sitting2 && (
+              <div>
+                <strong>SITTING 2: {sitting2.exam} {sitting2.year} - {sitting2.no}</strong>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 5, marginTop: 5, background: "#fef9c3", padding: 8 }}>
+                  {sitting2.subjects?.filter((s:any)=>s.subject).map((s:any, i:number)=>(
+                    <div key={i} style={{ display: "contents" }}><span>{i+1}. {s.subject}</span><span style={{ fontWeight: 700 }}>{s.grade}</span></div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border text-xs">
-          <div><span className="text-[10px] text-slate-500 block">Student Name:</span><strong className="uppercase text-sm">{fullName}</strong></div>
-          <div><span className="text-[10px] text-slate-500 block">Matric No:</span><strong className="font-mono text-emerald-800">{matricNo}</strong></div>
-          <div><span className="text-[10px] text-slate-500 block">Level / Program:</span><strong>{level} - {program}</strong></div>
-          <div><span className="text-[10px] text-slate-500 block">Printed By Role:</span><strong className="uppercase">{currentUserRole} - {currentUserName}</strong></div>
-          <div><span className="text-[10px] text-slate-500 block">First Sem GPA:</span><strong>{firstSem.gpa.toFixed(2)} - CU: {firstSem.cu}</strong></div>
-          <div><span className="text-[10px] text-slate-500 block">Second Sem GPA:</span><strong>{secondSem.gpa.toFixed(2)} - CU: {secondSem.cu}</strong></div>
-          <div><span className="text-[10px] text-slate-500 block">CGPA:</span><strong className="text-emerald-800 text-sm">{cgpaData.cgpa.toFixed(2)} / 4.00</strong></div>
-          <div><span className="text-[10px] text-slate-500 block">Class of Diploma:</span><strong className={cgpaData.classification.class.includes('FAIL')?'text-red-600':'text-emerald-800'}>{cgpaData.classification.class}</strong></div>
-        </div>
-
-        <div>
-          <h4 className="font-black text-sm bg-emerald-900 text-white px-3 py-1 rounded">FIRST SEMESTER - GPA {firstSem.gpa.toFixed(2)} - Carry Overs: {firstSem.carry.length || 'None'}</h4>
-          <table><thead><tr><th>Course Code</th><th>Course Title</th><th>CU</th><th>Score</th><th>Grade</th><th>Point</th><th>GP</th><th>Remark</th></tr></thead>
-            <tbody>
-              {firstSem.courses.map((r:any)=>{const g=gradeSystem(r.score||0); return (<tr key={r.id||r.courseCode}><td className="font-mono font-bold">{r.courseCode}</td><td>{r.courseTitle||r.title||''}</td><td className="text-center">{r.creditUnit||3}</td><td className="text-center font-bold">{r.score||0}</td><td className="text-center font-black">{g.grade}</td><td className="text-center">{g.point}</td><td className="text-center font-bold">{(r.creditUnit||3)*g.point}</td><td className={g.grade==='F'?'text-red-600 font-bold':''}>{g.remark}</td></tr>);})}
-              {firstSem.courses.length===0 && <tr><td colSpan={8} className="text-center text-slate-400">No courses for First Semester</td></tr>}
-            </tbody>
-          </table>
-        </div>
-
-        <div>
-          <h4 className="font-black text-sm bg-blue-900 text-white px-3 py-1 rounded">SECOND SEMESTER - GPA {secondSem.gpa.toFixed(2)} - Carry Over from First Auto Reflects</h4>
-          <table><thead><tr><th>Course Code</th><th>Course Title</th><th>CU</th><th>Score</th><th>Grade</th><th>Point</th><th>GP</th><th>Remark</th></tr></thead>
-            <tbody>
-              {secondSem.courses.map((r:any)=>{const g=gradeSystem(r.score||0); return (<tr key={r.id||r.courseCode}><td className="font-mono font-bold">{r.courseCode}</td><td>{r.courseTitle||r.title||''}</td><td className="text-center">{r.creditUnit||3}</td><td className="text-center font-bold">{r.score||0}</td><td className="text-center font-black">{g.grade}</td><td className="text-center">{g.point}</td><td className="text-center font-bold">{(r.creditUnit||3)*g.point}</td><td className={g.grade==='F'?'text-red-600 font-bold':''}>{g.remark}</td></tr>);})}
-              {firstSem.carry.length>0 && <tr><td colSpan={8} className="text-red-600 font-bold">⚠️ CARRY OVER FROM FIRST SEMESTER AUTO REFLECTS HERE: {firstSem.carry.map((c:any)=>`${c.courseCode} - Score ${c.score} - F`).join(', ')} - Student must retake</td></tr>}
-              {secondSem.courses.length===0 && <tr><td colSpan={8} className="text-center text-slate-400">No courses for Second Semester</td></tr>}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="border-2 border-dashed border-emerald-900 p-3 text-center bg-green-50">
-          <h3 className="font-black text-sm">FINAL CGPA & CLASSIFICATION - ND/HND NURSING - Labe College of Nursing Sciences - Catholic Diocese of Gboko</h3>
-          <p className="text-xs">Total Credit Units: {cgpaData.totalCU} | Total Grade Points: {cgpaData.totalGP} | CGPA: {cgpaData.cgpa.toFixed(2)} / 4.00</p>
-          <p style={{ background: cgpaData.classification.class.includes('DISTINCTION')?'#166534': cgpaData.classification.class.includes('UPPER')?'#1e40af': cgpaData.classification.class.includes('LOWER')?'#854d0e':'#000', color:'#fff', padding:'8px', fontWeight:'bold', marginTop:'5px' }}>CLASS OF DIPLOMA: {cgpaData.classification.class} - {cgpaData.classification.desc}</p>
-          <p className="text-[10px] mt-2">Distinction 3.50-4.00, Upper Credit 3.00-3.49, Lower Credit 2.50-2.99 (Qualified for HND), Pass 2.00-2.49</p>
-        </div>
-
-        <div className="flex justify-between mt-8 text-center text-[10px]">
-          <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>Exam Officer</b><br/><span>Dr. Emmanuel Agada</span><br/><span style={{ fontSize:'8px' }}>Compiled Broadsheet - GPA Calculated</span></div></div>
-          <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>HOD</b><br/><span>Head of Department</span><br/><span style={{ fontSize:'8px' }}>Moderated Result</span></div></div>
-          <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>Registrar</b><br/><span>College Registrar</span><br/><span style={{ fontSize:'8px' }}>Verified & Forwarded to Senate</span></div></div>
-          <div><div style={{ borderTop:'1px solid #000', width:'150px', paddingTop:'5px' }}><b>Provost - Final Approval</b><br/><span>{senateProvost||'Mrs Terna Fiase'}</span><br/><span style={{ fontSize:'8px' }}>{senateApproved?`Senate Approved on ${senateDate?new Date(senateDate).toLocaleDateString():''}`:'Awaiting Senate Ratification'}</span></div></div>
-        </div>
-
-        <p className="text-[9px] text-center text-slate-500 mt-4">Printed by {currentUserRole} ({currentUserName}) - {matricNo} - {fullName} - CGPA {cgpaData.cgpa.toFixed(2)} - {new Date().toLocaleString()} - Valid only when Senate Approved</p>
       </div>
-    </div>
+    </>
   );
-};
+}
 
-export { PrintableResultWithLogo as PrintableResult };
-export default PrintableResultWithLogo;
+// ✅ THIS FIXES YOUR BUILD ERROR - BOTH EXPORTS!
+export { ApplicantPrintoutPage as ApplicantPrintoutPageNamed };
+export default ApplicantPrintoutPage;
