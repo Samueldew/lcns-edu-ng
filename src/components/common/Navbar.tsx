@@ -78,9 +78,24 @@ export const Navbar: React.FC<NavbarProps> = ({
     saveAdmission(updated); alert(`Session updated to ${updated.session}`);
   };
 
-  // BUILD MODE: APPLY BUTTON ALWAYS OPENS - FOR YOU TO CONTINUE BUILDING PORTAL
-  const handleApplyClick = () => {
-    onOpenApplication();
+  // ✅ FIXED: APPLY BUTTON ALWAYS OPENS - BULLETPROOF VERSION
+  const handleApplyClick = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    console.log("✅ Apply clicked - opening application for", admissionSettings.session);
+    setMobileOpen(false);
+    setShowRoleMenu(false);
+    try {
+      if (typeof onOpenApplication === 'function') {
+        onOpenApplication();
+      } else {
+        console.error("onOpenApplication is not a function!", onOpenApplication);
+        alert("Application handler not connected. Please check App.tsx - onOpenApplication prop is missing!");
+      }
+    } catch (err) {
+      console.error("Failed to open application", err);
+      alert("Error opening application form. Check console (F12).");
+    }
   };
 
   const activeMarquee = announcements.filter(a => a.isActive && a.showInMarquee);
@@ -120,16 +135,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
         <div className="relative ml-auto flex items-center gap-2">
           {canManage && (
-            <button onClick={()=>{setShowAnnounceModal(true); setActiveTab('admission');}} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black ${admissionSettings.isOpen?'bg-green-400 text-black':'bg-red-400 text-black'}`}>
+            <button type="button" onClick={()=>{setShowAnnounceModal(true); setActiveTab('admission');}} className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black ${admissionSettings.isOpen?'bg-green-400 text-black':'bg-red-400 text-black'}`}>
               {admissionSettings.isOpen?<Unlock className="w-3 h-3"/>:<Lock className="w-3 h-3"/>} {admissionSettings.isOpen?'OPEN':'CLOSED'}: {admissionSettings.session}
             </button>
           )}
-          {canManage && <button onClick={()=>{setShowAnnounceModal(true); setActiveTab('announce');}} className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black px-3 py-1 rounded-full text-[11px] font-black"><Megaphone className="w-3 h-3"/> Announce ({announcements.length})</button>}
-          <button onClick={() => setShowRoleMenu(!showRoleMenu)} className="flex items-center gap-1.5 bg-[#06321e] hover:bg-[#042114] text-white px-2.5 py-0.5 rounded text-[11px] font-semibold border border-[#22c55e]/30"><Sparkles className="w-3 h-3 text-[#ca8a04] animate-pulse"/>Switch Role<ChevronDown className="w-3 h-3 opacity-75"/></button>
+          {canManage && <button type="button" onClick={()=>{setShowAnnounceModal(true); setActiveTab('announce');}} className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-black px-3 py-1 rounded-full text-[11px] font-black"><Megaphone className="w-3 h-3"/> Announce ({announcements.length})</button>}
+          <button type="button" onClick={() => setShowRoleMenu(!showRoleMenu)} className="flex items-center gap-1.5 bg-[#06321e] hover:bg-[#042114] text-white px-2.5 py-0.5 rounded text-[11px] font-semibold border border-[#22c55e]/30"><Sparkles className="w-3 h-3 text-[#ca8a04] animate-pulse"/>Switch Role<ChevronDown className="w-3 h-3 opacity-75"/></button>
           {showRoleMenu && (
             <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border p-2 text-slate-800 z-50">
               <div className="p-2 text-xs font-bold text-emerald-900 uppercase">Select Role</div>
-              <div className="max-h-80 overflow-y-auto py-1">{rolesList.map(r=>(<button key={r.role} onClick={()=>handleRoleQuickSwitch(r.role)} className={`w-full text-left px-3 py-2 text-xs rounded-lg flex justify-between ${currentUser?.role===r.role?'bg-emerald-50 font-bold':'hover:bg-slate-50'}`}><div><div className="font-semibold">{r.label}</div><div className="text-[10px] text-slate-500">{r.desc}</div></div>{currentUser?.role===r.role&&<CheckCircle2 className="w-4 h-4 text-emerald-600"/>}</button>))}</div>
+              <div className="max-h-80 overflow-y-auto py-1">{rolesList.map(r=>(<button key={r.role} type="button" onClick={()=>handleRoleQuickSwitch(r.role)} className={`w-full text-left px-3 py-2 text-xs rounded-lg flex justify-between ${currentUser?.role===r.role?'bg-emerald-50 font-bold':'hover:bg-slate-50'}`}><div><div className="font-semibold">{r.label}</div><div className="text-[10px] text-slate-500">{r.desc}</div></div>{currentUser?.role===r.role&&<CheckCircle2 className="w-4 h-4 text-emerald-600"/>}</button>))}</div>
             </div>
           )}
         </div>
@@ -147,21 +162,21 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); window.history.pushState({},'','/'); setMobileOpen(false);}} className="flex items-center gap-3 text-left group"><CollegeLogo size="md"/><div className="hidden sm:block"><span className="block font-black text-white text-[13px] sm:text-[15px] leading-tight uppercase tracking-tight group-hover:text-amber-300">Labe College of Nursing Sciences</span><span className="block text-[10px] sm:text-[11px] font-bold text-amber-300 uppercase">Catholic Diocese of Gboko, Benue State</span><span className="block text-[9px] font-semibold text-emerald-200 uppercase">Gboko • Learn, Serve & Save • {admissionSettings.session} • Resumption Nov 2026</span></div></button>
+          <button type="button" onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); window.history.pushState({},'','/'); setMobileOpen(false);}} className="flex items-center gap-3 text-left group"><CollegeLogo size="md"/><div className="hidden sm:block"><span className="block font-black text-white text-[13px] sm:text-[15px] leading-tight uppercase tracking-tight group-hover:text-amber-300">Labe College of Nursing Sciences</span><span className="block text-[10px] sm:text-[11px] font-bold text-amber-300 uppercase">Catholic Diocese of Gboko, Benue State</span><span className="block text-[9px] font-semibold text-emerald-200 uppercase">Gboko • Learn, Serve & Save • {admissionSettings.session} • Resumption Nov 2026</span></div></button>
           <nav className="hidden lg:flex items-center gap-5 text-sm font-semibold text-white/90">
-            <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'});}} className="hover:text-amber-300">Home</button>
-            <button onClick={()=>scrollToId('about-college')} className="hover:text-amber-300 font-bold">About</button>
-            <button onClick={()=>scrollToId('programmes')} className="hover:text-amber-300">Programmes</button>
-            <button onClick={()=>scrollToId('gallery')} className="hover:text-amber-300 font-bold text-amber-300">Gallery</button>
-            <button onClick={()=>scrollToId('facilities')} className="hover:text-amber-300">Facilities</button>
+            <button type="button" onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'});}} className="hover:text-amber-300">Home</button>
+            <button type="button" onClick={()=>scrollToId('about-college')} className="hover:text-amber-300 font-bold">About</button>
+            <button type="button" onClick={()=>scrollToId('programmes')} className="hover:text-amber-300">Programmes</button>
+            <button type="button" onClick={()=>scrollToId('gallery')} className="hover:text-amber-300 font-bold text-amber-300">Gallery</button>
+            <button type="button" onClick={()=>scrollToId('facilities')} className="hover:text-amber-300">Facilities</button>
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
-            <button onClick={onOpenAdmissionChecker} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 border border-white/20 rounded-lg"><FileText className="w-3.5 h-3.5 text-amber-300"/><span>Check Admission</span></button>
-            <button onClick={handleApplyClick} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm bg-[#F59E0B] text-slate-950 hover:bg-amber-400" title={`Apply for ${admissionSettings.session} - BUILD MODE`}>
+            <button type="button" onClick={onOpenAdmissionChecker} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 border border-white/20 rounded-lg"><FileText className="w-3.5 h-3.5 text-amber-300"/><span>Check Admission</span></button>
+            <button type="button" onClick={handleApplyClick} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm bg-[#F59E0B] text-slate-950 hover:bg-amber-400 cursor-pointer" title={`Apply for ${admissionSettings.session} - BUILD MODE - ALWAYS OPENS`}>
               <GraduationCap className="w-4 h-4"/><span>Apply {admissionSettings.session}</span>
             </button>
-            {currentUser ? (<div className="flex items-center gap-2"><button onClick={()=>setActiveView('portal')} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl bg-white text-[#0a4d2e]"><LayoutDashboard className="w-3 h-3"/><span className="hidden md:inline">Portal</span></button><button onClick={handleLogout} className="p-2 text-white/70 hover:text-red-300"><LogOut className="w-4 h-4"/></button></div>) : (<button onClick={onOpenLogin} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 rounded-lg"><LogIn className="w-3.5 h-3.5"/><span>Login</span></button>)}
-            <button onClick={()=>setMobileOpen(!mobileOpen)} className="lg:hidden p-2 bg-white/10 rounded-lg">{mobileOpen?<X className="w-5 h-5"/>:<Menu className="w-5 h-5"/>}</button>
+            {currentUser ? (<div className="flex items-center gap-2"><button type="button" onClick={()=>setActiveView('portal')} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl bg-white text-[#0a4d2e]"><LayoutDashboard className="w-3 h-3"/><span className="hidden md:inline">Portal</span></button><button type="button" onClick={handleLogout} className="p-2 text-white/70 hover:text-red-300"><LogOut className="w-4 h-4"/></button></div>) : (<button type="button" onClick={onOpenLogin} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 rounded-lg"><LogIn className="w-3.5 h-3.5"/><span>Login</span></button>)}
+            <button type="button" onClick={()=>setMobileOpen(!mobileOpen)} className="lg:hidden p-2 bg-white/10 rounded-lg">{mobileOpen?<X className="w-5 h-5"/>:<Menu className="w-5 h-5"/>}</button>
           </div>
         </div>
       </div>
@@ -169,14 +184,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       {mobileOpen && (
         <div className="lg:hidden bg-[#06321e] border-t px-4 py-4 space-y-1">
           <div className={`p-2 rounded-lg text-center text-xs font-black ${admissionSettings.isOpen?'bg-green-500 text-black':'bg-red-500 text-white'}`}>{admissionSettings.isOpen?`✅ ADMISSION OPEN ${admissionSettings.session}`:`🚫 ADMISSION CLOSED ${admissionSettings.session} - RESUMPTION NOV 2026`}</div>
-          <button onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); setMobileOpen(false);}} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Home</button>
-          <button onClick={()=>scrollToId('about-college')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg bg-[#0a4d2e] border border-[#22c55e]/20">About - Who We Are</button>
-          <button onClick={()=>scrollToId('programmes')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Programmes</button>
-          <button onClick={()=>scrollToId('facilities')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Facilities</button>
-          <button onClick={()=>scrollToId('gallery')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase bg-amber-500/20 text-amber-300 rounded-lg">Gallery</button>
+          <button type="button" onClick={()=>{setActiveView('website'); window.scrollTo({top:0,behavior:'smooth'}); setMobileOpen(false);}} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Home</button>
+          <button type="button" onClick={()=>scrollToId('about-college')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg bg-[#0a4d2e] border border-[#22c55e]/20">About - Who We Are</button>
+          <button type="button" onClick={()=>scrollToId('programmes')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Programmes</button>
+          <button type="button" onClick={()=>scrollToId('facilities')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Facilities</button>
+          <button type="button" onClick={()=>scrollToId('gallery')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase bg-amber-500/20 text-amber-300 rounded-lg">Gallery</button>
           <div className="pt-3 border-t border-white/10 space-y-2">
-            <button onClick={handleApplyClick} className="w-full py-3 text-xs font-black uppercase rounded-lg bg-amber-400 text-black">Apply {admissionSettings.session} (Build Mode)</button>
-            <button onClick={()=>{setMobileOpen(false); onOpenAdmissionChecker();}} className="w-full py-3 text-xs font-bold uppercase bg-white/10 rounded-lg">Check Admission</button>
+            <button type="button" onClick={handleApplyClick} className="w-full py-3 text-xs font-black uppercase rounded-lg bg-amber-400 text-black cursor-pointer">Apply {admissionSettings.session} (Build Mode - ALWAYS OPENS)</button>
+            <button type="button" onClick={()=>{setMobileOpen(false); onOpenAdmissionChecker();}} className="w-full py-3 text-xs font-bold uppercase bg-white/10 rounded-lg">Check Admission</button>
           </div>
         </div>
       )}
@@ -186,11 +201,11 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="bg-white text-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex justify-between items-center bg-emerald-900 text-white rounded-t-xl">
               <h3 className="font-black flex items-center gap-2 text-sm"><Megaphone className="w-5 h-5"/> Admin Control Panel</h3>
-              <button onClick={()=>setShowAnnounceModal(false)} className="bg-white/20 p-1.5 rounded"><X className="w-4 h-4"/></button>
+              <button type="button" onClick={()=>setShowAnnounceModal(false)} className="bg-white/20 p-1.5 rounded"><X className="w-4 h-4"/></button>
             </div>
             <div className="flex border-b">
-              <button onClick={()=>setActiveTab('admission')} className={`flex-1 py-3 text-xs font-black uppercase flex items-center justify-center gap-1.5 ${activeTab==='admission'?'bg-amber-100 text-black border-b-2 border-amber-500':'bg-slate-50 text-slate-600'}`}><Calendar className="w-4 h-4"/> Admission Open/Close</button>
-              <button onClick={()=>setActiveTab('announce')} className={`flex-1 py-3 text-xs font-black uppercase flex items-center justify-center gap-1.5 ${activeTab==='announce'?'bg-emerald-100 text-black border-b-2 border-emerald-600':'bg-slate-50 text-slate-600'}`}><Megaphone className="w-4 h-4"/> Announcements</button>
+              <button type="button" onClick={()=>setActiveTab('admission')} className={`flex-1 py-3 text-xs font-black uppercase flex items-center justify-center gap-1.5 ${activeTab==='admission'?'bg-amber-100 text-black border-b-2 border-amber-500':'bg-slate-50 text-slate-600'}`}><Calendar className="w-4 h-4"/> Admission Open/Close</button>
+              <button type="button" onClick={()=>setActiveTab('announce')} className={`flex-1 py-3 text-xs font-black uppercase flex items-center justify-center gap-1.5 ${activeTab==='announce'?'bg-emerald-100 text-black border-b-2 border-emerald-600':'bg-slate-50 text-slate-600'}`}><Megaphone className="w-4 h-4"/> Announcements</button>
             </div>
             {activeTab==='admission' ? (
               <div className="p-5 space-y-5">
@@ -204,8 +219,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <label className="text-xs font-black uppercase">Message When Closed</label>
                   <textarea value={closedMsg} onChange={e=>setClosedMsg(e.target.value)} placeholder="Admission is currently closed..." rows={2} className="w-full px-3 py-2 border rounded-lg text-sm text-black"/>
                   <div className="flex gap-2">
-                    <button onClick={handleUpdateSession} className="flex-1 bg-slate-800 text-white py-2.5 rounded-lg text-xs font-black uppercase">Update Session Year</button>
-                    <button onClick={handleToggleAdmission} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase ${admissionSettings.isOpen?'bg-red-600 text-white':'bg-green-600 text-white'}`}>{admissionSettings.isOpen?`🔒 CLOSE ${newSession}`:`🔓 OPEN ${newSession}`}</button>
+                    <button type="button" onClick={handleUpdateSession} className="flex-1 bg-slate-800 text-white py-2.5 rounded-lg text-xs font-black uppercase">Update Session Year</button>
+                    <button type="button" onClick={handleToggleAdmission} className={`flex-1 py-2.5 rounded-lg text-xs font-black uppercase ${admissionSettings.isOpen?'bg-red-600 text-white':'bg-green-600 text-white'}`}>{admissionSettings.isOpen?`🔒 CLOSE ${newSession}`:`🔓 OPEN ${newSession}`}</button>
                   </div>
                 </div>
               </div>
@@ -216,12 +231,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Message..." rows={2} className="px-3 py-2 border rounded-lg text-sm text-black"/>
                   <div className="flex gap-2 flex-wrap items-center">
                     <select value={annType} onChange={e=>setAnnType(e.target.value)} className="px-3 py-2 border rounded-lg text-sm text-black font-bold"><option value="announcement">📢 Announcement</option><option value="event">📅 Event</option><option value="admission">🎓 Admission</option><option value="urgent">🚨 Urgent</option></select>
-                    <button onClick={handleCreateAnn} className="ml-auto bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-black flex items-center gap-1"><Plus className="w-4 h-4"/> Publish</button>
+                    <button type="button" onClick={handleCreateAnn} className="ml-auto bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-black flex items-center gap-1"><Plus className="w-4 h-4"/> Publish</button>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <h4 className="font-black text-sm">Published ({announcements.length})</h4>
-                  {announcements.map(a=>(<div key={a.id} className="p-3 rounded-lg border bg-white flex justify-between gap-3"><div className="flex-1"><div className="flex gap-2 flex-wrap"><span className="text-[10px] font-black uppercase bg-black text-white px-1.5 rounded">{a.type}</span><span className="font-bold text-sm text-black">{a.title}</span></div><p className="text-xs text-slate-700 mt-1">{a.message}</p></div><div className="flex flex-col gap-1"><button onClick={()=>handleToggle(a.id)} className="p-2 bg-slate-100 rounded">{a.isActive?<Eye className="w-4 h-4"/>:<EyeOff className="w-4 h-4"/>}</button><button onClick={()=>handleDelete(a.id)} className="p-2 bg-red-100 text-red-600 rounded"><Trash2 className="w-4 h-4"/></button></div></div>))}
+                  {announcements.map(a=>(<div key={a.id} className="p-3 rounded-lg border bg-white flex justify-between gap-3"><div className="flex-1"><div className="flex gap-2 flex-wrap"><span className="text-[10px] font-black uppercase bg-black text-white px-1.5 rounded">{a.type}</span><span className="font-bold text-sm text-black">{a.title}</span></div><p className="text-xs text-slate-700 mt-1">{a.message}</p></div><div className="flex flex-col gap-1"><button type="button" onClick={()=>handleToggle(a.id)} className="p-2 bg-slate-100 rounded">{a.isActive?<Eye className="w-4 h-4"/>:<EyeOff className="w-4 h-4"/>}</button><button type="button" onClick={()=>handleDelete(a.id)} className="p-2 bg-red-100 text-red-600 rounded"><Trash2 className="w-4 h-4"/></button></div></div>))}
                 </div>
               </div>
             )}
