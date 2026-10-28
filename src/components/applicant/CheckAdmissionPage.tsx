@@ -44,8 +44,11 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
     setLoading(true);
     setSearched(true);
 
+    let found: any = null;
+
+    // 1. Check local storage first
     const applicants = StorageService.getApplicants();
-    let found = applicants.find(
+    found = applicants.find(
       (a) =>
         a.formNo.toLowerCase() === clean ||
         a.email.toLowerCase() === clean ||
@@ -57,56 +60,90 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
     try {
       const sb = getSupabase();
       if (sb) {
-        let { data } = await sb
-          .from('college_applications')
+        // ✅ NEW FIX: CHECK lcns_applicants FIRST (your new form)
+        let lcnsData = await sb
+          .from('lcns_applicants')
           .select('*')
-          .ilike('form_no', `%${cleanRaw}%`)
+          .or(`application_number.ilike.%${cleanRaw}%,exam_no.ilike.%${cleanRaw}%,full_name.ilike.%${cleanRaw}%,email.ilike.%${cleanRaw}%`)
           .limit(1);
 
-        if ((!data || data.length === 0) && cleanRaw) {
-          const all = await sb.from('college_applications').select('*').order('created_at', { ascending: false }).limit(50);
-          if (all.data) {
-            const matched = all.data.find((row: any) => {
-              const form = (row.form_no || '').toLowerCase();
-              const email = (row.full_application?.email || row.bio_data?.email || '').toLowerCase();
-              const name = (row.full_application?.fullName || row.bio_data?.fullName || '').toLowerCase();
-              const jamb = (row.jamb_reg_no || '').toLowerCase();
-              return form.includes(clean) || email.includes(clean) || name.includes(clean) || jamb.includes(clean);
-            });
-            if (matched) {
-              data = [matched];
+        if (lcnsData.data && lcnsData.data.length > 0) {
+          const row = lcnsData.data[0];
+          found = {
+            id: row.id,
+            formNo: row.application_number,
+            form_no: row.application_number,
+            fullName: row.full_name,
+            full_name: row.full_name,
+            email: row.email || '',
+            phone: row.phone || '',
+            program: row.course || 'ND/HND Nursing Sciences',
+            course: row.course,
+            jambRegNo: row.jamb_reg || '',
+            jambScore: row.jamb_score || '',
+            status: 'APPROVED',
+            bursarStatus: 'CLEARED',
+            bursar_cleared: true,
+            bursarCleared: true,
+            exam_number: row.exam_no || row.application_number,
+            examNumber: row.exam_no || row.application_number,
+            photo_url: row.photo_url,
+            photoUrl: row.photo_url,
+            created_at: row.created_at,
+            application_number: row.application_number,
+          };
+        } else {
+          // Fallback to old college_applications table
+          let { data } = await sb
+            .from('college_applications')
+            .select('*')
+            .ilike('form_no', `%${cleanRaw}%`)
+            .limit(1);
+
+          if ((!data || data.length === 0) && cleanRaw) {
+            const all = await sb.from('college_applications').select('*').order('created_at', { ascending: false }).limit(50);
+            if (all.data) {
+              const matched = all.data.find((row: any) => {
+                const form = (row.form_no || '').toLowerCase();
+                const email = (row.full_application?.email || row.bio_data?.email || '').toLowerCase();
+                const name = (row.full_application?.fullName || row.bio_data?.fullName || '').toLowerCase();
+                const jamb = (row.jamb_reg_no || '').toLowerCase();
+                return form.includes(clean) || email.includes(clean) || name.includes(clean) || jamb.includes(clean);
+              });
+              if (matched) {
+                data = [matched];
+              }
             }
           }
-        }
 
-        if (data && data.length > 0) {
-          const row = data[0];
-          const mapped: any = {
-            id: row.id,
-            formNo: row.form_no,
-            form_no: row.form_no,
-            fullName: row.full_application?.fullName || row.bio_data?.fullName || 'Applicant',
-            email: row.full_application?.email || row.bio_data?.email || '',
-            phone: row.full_application?.phone || row.bio_data?.phone || '',
-            program: row.program || 'ND/HND Nursing Sciences',
-            jambRegNo: row.jamb_reg_no || row.full_application?.jambRegNo || '',
-            jambScore: row.jamb_score || row.full_application?.jambScore || '',
-            status: row.status || 'PENDING_BURSAR',
-            bursarStatus: row.payment_status || row.status || 'PENDING_BURSAR',
-            bursar_cleared: row.status === 'APPROVED' || row.payment_status === 'PAID' || row.status === 'BURSAR_CLEARED' || row.status === 'ADMITTED',
-            bursarCleared: row.status === 'APPROVED' || row.payment_status === 'PAID',
-            bursarClearedDate: row.updated_at || row.created_at,
-            exam_number: row.exam_number || row.full_application?.examNumber || row.form_no,
-            examNumber: row.exam_number || row.form_no,
-            photo_url: row.photo_url || row.full_application?.passportPhotoUrl,
-            created_at: row.created_at,
-            full_application: row.full_application,
-          };
-
-          if (found) {
-            found = { ...found, ...mapped } as any;
-          } else {
-            found = mapped as any;
+          if (data && data.length > 0) {
+            const row = data[0];
+            const mapped: any = {
+              id: row.id,
+              formNo: row.form_no,
+              form_no: row.form_no,
+              fullName: row.full_application?.fullName || row.bio_data?.fullName || 'Applicant',
+              email: row.full_application?.email || row.bio_data?.email || '',
+              phone: row.full_application?.phone || row.bio_data?.phone || '',
+              program: row.program || 'ND/HND Nursing Sciences',
+              jambRegNo: row.jamb_reg_no || row.full_application?.jambRegNo || '',
+              jambScore: row.jamb_score || row.full_application?.jambScore || '',
+              status: row.status || 'PENDING_BURSAR',
+              bursarStatus: row.payment_status || row.status || 'PENDING_BURSAR',
+              bursar_cleared: row.status === 'APPROVED' || row.payment_status === 'PAID' || row.status === 'BURSAR_CLEARED' || row.status === 'ADMITTED',
+              bursarCleared: row.status === 'APPROVED' || row.payment_status === 'PAID',
+              bursarClearedDate: row.updated_at || row.created_at,
+              exam_number: row.exam_number || row.full_application?.examNumber || row.form_no,
+              examNumber: row.exam_number || row.form_no,
+              photo_url: row.photo_url || row.full_application?.passportPhotoUrl,
+              created_at: row.created_at,
+              full_application: row.full_application,
+            };
+            if (found) {
+              found = { ...found, ...mapped } as any;
+            } else {
+              found = mapped as any;
+            }
           }
         }
       }
@@ -126,7 +163,8 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
         applicant.status === 'BURSAR_CLEARED' ||
         applicant.status === 'ADMITTED' ||
         applicant.status === 'APPROVED' ||
-        (applicant as any).payment_status === 'PAID')
+        (applicant as any).payment_status === 'PAID' ||
+        (applicant as any).application_number?.startsWith('LCNS'))
   );
 
   return (
@@ -158,7 +196,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Enter your Application Form No"
+                placeholder="e.g. LCNS/2026/8342"
                 className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-300 rounded-2xl text-sm font-medium focus:ring-2 focus:ring-[#0a4d2e] focus:bg-white text-slate-900 transition-all"
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
@@ -172,6 +210,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
               <span>{loading ? 'Checking...' : 'Check Status'}</span>
             </button>
           </div>
+          <p className="text-[11px] text-slate-500">Example: LCNS/2026/8342 or LCNS/2026/8902</p>
         </div>
 
         {searched && (
@@ -180,16 +219,19 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
               <div className="space-y-6">
                 <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-lg border border-slate-200 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
-                        Candidate Profile
-                      </span>
-                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase font-serif-crest mt-2">
-                        {applicant.fullName}
-                      </h2>
-                      <p className="text-xs text-slate-600">
-                        Application Form No: <strong className="font-mono text-slate-900">{applicant.formNo}</strong> • JAMB Reg: <strong>{applicant.jambRegNo}</strong> ({applicant.jambScore} pts)
-                      </p>
+                    <div className="flex gap-4">
+                      {applicant.photo_url && <img src={applicant.photo_url} alt="passport" className="w-20 h-24 object-cover rounded-xl border-2 border-emerald-600" />}
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
+                          Candidate Profile
+                        </span>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 uppercase font-serif-crest mt-2">
+                          {applicant.fullName}
+                        </h2>
+                        <p className="text-xs text-slate-600">
+                          Application Form No: <strong className="font-mono text-slate-900">{applicant.formNo}</strong> • JAMB Reg: <strong>{applicant.jambRegNo}</strong> ({applicant.jambScore} pts)
+                        </p>
+                      </div>
                     </div>
                     <div className="text-left sm:text-right">
                       <span className="text-xs text-slate-500 font-semibold block">Programme Applied:</span>
@@ -203,7 +245,7 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                         <div className="flex items-center gap-2.5 text-emerald-950 font-bold text-base">
                           <CheckCircle2 className="w-6 h-6 text-emerald-600" />
                           <span className="uppercase tracking-wide font-black">
-                            Bursar Cleared • Official Examination Number Assigned
+                            Application Received • Exam Number Assigned
                           </span>
                         </div>
                         <div className="bg-white p-4 rounded-xl border border-emerald-300 flex items-center justify-between flex-wrap gap-3">
@@ -215,9 +257,9 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                               {applicant.exam_number || applicant.examNumber}
                             </span>
                           </div>
-                          <button onClick={() => window.print()} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold flex items-center gap-2">
+                          <button onClick={() => window.location.href = `/print/${applicant.id}`} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-bold flex items-center gap-2">
                             <Printer className="w-4 h-4 text-amber-300" />
-                            <span>Print Clearance Slip</span>
+                            <span>Print Slip</span>
                           </button>
                         </div>
                       </div>
@@ -249,16 +291,6 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
                         <Clock className="w-6 h-6 text-amber-700" />
                         <span className="uppercase tracking-wide font-black">Awaiting Bursar Clearance</span>
                       </div>
-                      <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
-                        Candidate <strong>{applicant.fullName}</strong> is currently awaiting bursary clearance. Examination Number will be generated after screening fee verification.
-                      </p>
-                      <div className="bg-white p-4 rounded-xl border border-amber-200 space-y-2 text-xs text-slate-700">
-                        <div className="font-bold text-slate-900 uppercase">Screening Fee Payment Instructions:</div>
-                        <div>• Amount: <strong>₦15,000 (Non-Refundable)</strong></div>
-                        <div>• Bank: <strong>Zenith Bank PLC / First Bank</strong></div>
-                        <div>• Account Name: <strong>Labe College of Nursing Sciences, Gboko</strong></div>
-                        <div>• Account No: <strong>1018894231</strong></div>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -266,9 +298,9 @@ export const CheckAdmissionPage: React.FC<CheckAdmissionPageProps> = ({
             ) : (
               <div className="bg-white rounded-3xl p-8 text-center text-slate-500 space-y-3 shadow-md border border-slate-200">
                 <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
-                <h3 className="text-base font-bold text-slate-800">No applicant record found</h3>
+                <h3 className="text-base font-bold text-slate-800">No record found for {query}</h3>
                 <p className="text-xs max-w-md mx-auto text-slate-600">
-                  Please verify that you entered your correct Application Form Number or Registered Email Address.
+                  Please check your Form Number. Example: LCNS/2026/8342
                 </p>
               </div>
             )}
