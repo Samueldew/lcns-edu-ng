@@ -24,6 +24,7 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
   });
   const [subjects1, setSubjects1] = useState<SubjectRow[]>(() => makeSubjects());
   const [subjects2, setSubjects2] = useState<SubjectRow[]>(() => makeSubjects());
+  
   const autoFillAll = (sitting: 1 | 2) => {
     const filled = DEFAULT_SUBJECTS.map(s => ({ subject: s, grade: "" }));
     if (sitting === 1) setSubjects1(filled); else setSubjects2(filled);
@@ -33,6 +34,7 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
     const setter = sitting === 1 ? setSubjects1 : setSubjects2;
     const copy = [...list]; copy[idx] = { ...copy[idx], [field]: value }; setter(copy);
   };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passportFile) { alert("Please upload passport"); return; }
@@ -45,27 +47,60 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
         reader.onerror = reject;
         reader.readAsDataURL(passportFile);
       });
+      
       const { count } = await supabase.from("lcns_applicants").select("*", { count: "exact", head: true });
       const num = (count || 0) + 8341 + 1;
       const appNo = `LCNS/2026/${num}`;
       const examNo = `LCNS/2026/EXM/${num}`;
+
+      // ✅ FIXED - ADDED ID TO STOP NULL ERROR
       const payload = {
-        full_name: form.full_name, application_number: appNo, exam_no: examNo,
-        dob: form.dob, gender: form.gender, phone: form.phone, email: form.email,
-        state: form.state, lga: form.lga, address: form.address,
-        jamb_reg: form.jamb_reg, jamb_score: form.jamb_score, jamb_year: form.jamb_year, course: form.course,
-        sponsor_name: form.sponsor_name, sponsor_phone: form.sponsor_phone, sponsor_address: form.sponsor_address, sponsor_relationship: form.sponsor_relationship,
-        photo_url: photoUrl, passport_url: photoUrl,
-        ssce_exam: form.ssce_exam1, ssce_year: form.ssce_year1, ssce_no: form.ssce_no1, ssce_sitting_count: sittingCount,
-        ssce_data: { sitting1: { exam: form.ssce_exam1, year: form.ssce_year1, no: form.ssce_no1, subjects: subjects1 }, sitting2: sittingCount === 2 ? { exam: form.ssce_exam2, year: form.ssce_year2, no: form.ssce_no2, subjects: subjects2 } : null }
+        id: crypto.randomUUID(), // THIS FIXES THE ID ERROR
+        full_name: form.full_name, 
+        application_number: appNo, 
+        exam_no: examNo,
+        dob: form.dob, 
+        gender: form.gender, 
+        phone: form.phone, 
+        email: form.email,
+        state: form.state, 
+        lga: form.lga, 
+        address: form.address,
+        jamb_reg: form.jamb_reg, 
+        jamb_score: form.jamb_score, 
+        jamb_year: form.jamb_year, 
+        course: form.course,
+        sponsor_name: form.sponsor_name, 
+        sponsor_phone: form.sponsor_phone, 
+        sponsor_address: form.sponsor_address, 
+        sponsor_relationship: form.sponsor_relationship,
+        photo_url: photoUrl, 
+        passport_url: photoUrl,
+        ssce_exam: form.ssce_exam1, 
+        ssce_year: form.ssce_year1, 
+        ssce_no: form.ssce_no1, 
+        ssce_sitting_count: sittingCount,
+        ssce_data: { 
+          sitting1: { exam: form.ssce_exam1, year: form.ssce_year1, no: form.ssce_no1, subjects: subjects1 }, 
+          sitting2: sittingCount === 2 ? { exam: form.ssce_exam2, year: form.ssce_year2, no: form.ssce_no2, subjects: subjects2 } : null 
+        }
       };
+      
       const { data, error } = await supabase.from("lcns_applicants").insert([payload]).select().single();
       if (error) throw error;
+      
       alert("Registered! Form No: " + appNo);
       onClose?.();
-      if (onOpenAdmissionChecker) onOpenAdmissionChecker(appNo); else window.location.href = `/print/${data.id}`;
-    } catch (err: any) { alert("Error: " + (err?.message || "Unknown")); } finally { setLoading(false); }
+      if (onOpenAdmissionChecker) onOpenAdmissionChecker(appNo); 
+      else window.location.href = `/print/${data.id}`;
+      
+    } catch (err: any) { 
+      alert("Error: " + (err?.message || "Unknown")); 
+    } finally { 
+      setLoading(false); 
+    }
   };
+
   if (!isModalOpen) return null;
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, overflowY: "auto", padding: 16, background: "linear-gradient(135deg, #022c22, #065f46, #10b981)" }}>
