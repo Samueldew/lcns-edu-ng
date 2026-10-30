@@ -11,7 +11,7 @@ import { PortalShell } from './components/portals/PortalShell';
 import { CollegeLogo } from './components/common/CollegeLogo';
 import { ApiService } from './services/api';
 import { Lock, Mail, UserCheck, AlertCircle } from 'lucide-react';
-import { CheckAdmissionPage } from './components/applicant/CheckAdmissionPage';
+import CheckAdmissionPage from './components/applicant/CheckAdmissionPage';
 import { ApplicantDashboard } from './components/applicant/ApplicantDashboard';
 import { ApplicantCBTPage } from './components/applicant/ApplicantCBTPage';
 import { AdmissionProcessingView } from './components/portals/AdmissionProcessingView';
