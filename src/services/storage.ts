@@ -22,7 +22,6 @@ const STORAGE_KEYS = {
   CBT_RESULTS: 'lcns_erp_cbt_results', SCREENING_SCORES: 'lcns_erp_screening_scores',
 };
 
-// FIXED: Use UUID for Supabase, but keep display id as LCNS for UI
 const INITIAL_USERS: (User & { password?: string; pin?: string })[] = [
   { id: '00000000-0000-0000-0000-000000000001', email: 'samuel@lcns.edu.ng', password: 'Lcns@2026', pin: '999999', role: 'ADMIN' as any, fullName: 'Avule Samuel - Chief Admin & Director ICT', status: 'ACTIVE', phone: '08126799565', department: 'Director of ICT', createdAt: '2026-01-01' },
 ];
@@ -113,6 +112,7 @@ export const StorageService = {
     return valid ? user : null;
   },
 
+  // FIXED: Save with correct DB column names Lcns@33
   saveUsers: (users: (User & { password?: string; pin?: string })[]) => {
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const deletedSet = new Set(deletedIds.map(d => d.toLowerCase()));
@@ -122,17 +122,22 @@ export const StorageService = {
       if (supabase) {
         cleanUsers.forEach(async (u: any) => {
           try {
-            if (!isUUID(u.id)) return; // Skip LCNS/ IDs
+            if (!isUUID(u.id)) return;
             await supabase.from('users').upsert([{
               id: u.id,
-              email: u.email,
-              password: u.password || u.pin || '123456',
+              email: (u.email || '').toLowerCase(),
+              password: u.password || u.pin || 'Lcns@33',
               role: u.role,
-              full_name: u.fullName,
+              full_name: u.fullName || u.full_name || '',
               status: u.status || 'ACTIVE',
               phone: u.phone || '',
-              department: u.department || '',
-              level: (u as any).level || 'N/A'
+              department: u.department || 'Department of Nursing Sciences',
+              level: (u as any).level || 'N/A',
+              sex: (u as any).sex || null,
+              age: (u as any).age || null,
+              address: (u as any).address || null,
+              matric_no: (u as any).matricNo || (u as any).matric_no || `LCNS/${(u as any).level || 'ND1'}/2026/${Math.floor(1000+Math.random()*9000)}`,
+              photo_url: (u as any).photo_url || (u as any).photoUrl || null,
             }], { onConflict: 'id' });
           } catch {}
         });
@@ -151,17 +156,37 @@ export const StorageService = {
     }
   },
 
-  deleteUser: (userId: string) => {
+  // FIXED: Delete from backend FOR REAL - both id and email
+  deleteUser: async (userId: string) => {
     if (userId.toLowerCase().includes('samuel') || userId === 'LCNS/2026/AD/CHIEF' || userId.toLowerCase() === 'samuel@lcns.edu.ng' || userId === '00000000-0000-0000-0000-000000000001') {
       alert('Cannot delete Chief Admin samuel@lcns.edu.ng - Protected!');
       return StorageService.getUsers();
     }
     const users = getStorage(STORAGE_KEYS.USERS, INITIAL_USERS);
-    const targetUser = users.find((u) => u.id === userId || u.email === userId || u.email.toLowerCase() === userId.toLowerCase());
+    const targetUser = users.find((u) => u.id === userId || u.email === userId || u.email.toLowerCase() === userId.toLowerCase()) as any;
     if (targetUser?.email.toLowerCase() === 'samuel@lcns.edu.ng') {
       alert('Cannot delete samuel@lcns.edu.ng - Protected!');
       return StorageService.getUsers();
     }
+    // 1. BACKEND DELETE - AWAIT FOR REAL
+    try {
+      if (supabase && targetUser) {
+        const idToDel = targetUser.id;
+        const emailToDel = targetUser.email;
+        if (isUUID(idToDel)) {
+          const { error } = await supabase.from('users').delete().eq('id', idToDel);
+          if (error) {
+            console.error('Delete by id failed, trying email:', error);
+            await supabase.from('users').delete().eq('email', emailToDel);
+          }
+        } else {
+          await supabase.from('users').delete().eq('email', emailToDel.toLowerCase());
+        }
+      }
+    } catch (e) {
+      console.error('Backend delete error', e);
+    }
+    // 2. LOCAL DELETE
     const deletedIds: string[] = getStorage('lcns_deleted_user_ids', []);
     const newDeleted = [...deletedIds, userId, userId.toLowerCase()];
     if (targetUser?.id) newDeleted.push(targetUser.id, targetUser.id.toLowerCase());
@@ -171,12 +196,7 @@ export const StorageService = {
     localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
     const current = StorageService.getCurrentUser();
     if (current && (current.id === userId || current.email === userId)) StorageService.setCurrentUser(null);
-    StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted: ${targetUser?.fullName || userId}`);
-    try {
-      if (supabase && targetUser && isUUID(targetUser.id)) {
-        supabase.from('users').delete().eq('id', targetUser.id).then(()=>{});
-      }
-    } catch {}
+    StorageService.logAction('samuel@lcns.edu.ng','ADMIN','DELETE_USER',`Deleted: ${targetUser?.fullName || userId} from backend + local`);
     return StorageService.getUsers();
   },
 
