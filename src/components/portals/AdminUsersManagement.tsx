@@ -36,6 +36,7 @@ export const AdminUsersManagement: React.FC = () => {
   const [formPicture, setFormPicture] = useState<string | null>(null);
   const [formPictureFile, setFormPictureFile] = useState<File | null>(null);
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [passError, setPassError] = useState('');
 
   // EDIT STATE - NEW
   const [showEditModal, setShowEditModal] = useState(false);
@@ -51,6 +52,7 @@ export const AdminUsersManagement: React.FC = () => {
   const [editAddress, setEditAddress] = useState('');
   const [editPicture, setEditPicture] = useState<string | null>(null);
   const [editPictureFile, setEditPictureFile] = useState<File | null>(null);
+  const [editPass, setEditPass] = useState('');
 
   const roles: { value: UserRole; label: string }[] = [
     { value: 'PROVOST', label: 'Provost' },
@@ -64,6 +66,26 @@ export const AdminUsersManagement: React.FC = () => {
     { value: 'ADMIN', label: 'Admin' },
     { value: 'ADMIN_OFFICER', label: 'Admin Officer' },
   ];
+
+  // === PASSWORD VALIDATION FOR Lcns@33 FORMAT ===
+  const validateLcnsPassword = (pwd: string): boolean => {
+    if (!pwd || pwd.length < 6) return false;
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasLower = /[a-z]/.test(pwd);
+    const hasAt = pwd.includes('@');
+    const hasDigit = /\d/.test(pwd);
+    return hasUpper && hasLower && hasAt && hasDigit;
+  };
+
+  const getPasswordHint = (pwd: string) => {
+    if (!pwd) return '';
+    if (pwd.length < 6) return 'Too short - min 6 chars e.g. Lcns@33';
+    if (!/[A-Z]/.test(pwd)) return 'Need uppercase e.g. L in Lcns@33';
+    if (!/[a-z]/.test(pwd)) return 'Need lowercase e.g. cns in Lcns@33';
+    if (!pwd.includes('@')) return 'Need @ symbol e.g. Lcns@33';
+    if (!/\d/.test(pwd)) return 'Need number e.g. 33 in Lcns@33';
+    return '✅ Strong - Lcns@33 format OK';
+  };
 
   const loadUsers = async () => {
     const sb = getSupabase();
@@ -143,12 +165,17 @@ export const AdminUsersManagement: React.FC = () => {
     setEditAddress(u.address || '');
     setEditPicture(u.photoUrl || null);
     setEditPictureFile(null);
+    setEditPass(u.password || '');
     setShowEditModal(true);
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+    if (editPass && !validateLcnsPassword(editPass)) {
+      alert(`❌ Password must be Lcns@33 format:\n- Min 6 chars\n- Uppercase + lowercase\n- Must contain @\n- Must contain number\n\nExample: Lcns@33, Lcns@2026, Lcns@Queen33`);
+      return;
+    }
     try {
       setUploadingPic(true);
       let pictureUrl = editPicture || '';
@@ -162,7 +189,7 @@ export const AdminUsersManagement: React.FC = () => {
         }
       }
       if (sb) {
-        await sb.from('users').update({
+        const updateData: any = {
           full_name: editFullName.trim(),
           email: editEmail.trim().toLowerCase(),
           phone: editPhone.trim(),
@@ -173,9 +200,10 @@ export const AdminUsersManagement: React.FC = () => {
           age: editAge.trim(),
           address: editAddress.trim(),
           photo_url: pictureUrl,
-        }).eq('id', editingUser.id);
+        };
+        if (editPass.trim()) updateData.password = editPass.trim();
+        await sb.from('users').update(updateData).eq('id', editingUser.id);
       }
-      // Update local storage
       const localUsers = StorageService.getUsers();
       const updatedLocal = localUsers.map((u:any) => u.id === editingUser.id ? {
         ...u,
@@ -190,18 +218,13 @@ export const AdminUsersManagement: React.FC = () => {
         address: editAddress.trim(),
         photoUrl: pictureUrl,
         photo_url: pictureUrl,
+        password: editPass.trim() || u.password,
       } : u);
       localStorage.setItem('lcns_users', JSON.stringify(updatedLocal));
-      // Also update lcns_users key used by dashboards
-      try {
-        const allLcnsUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
-        // already done
-      } catch {}
-
       await loadUsers();
       setShowEditModal(false);
       setEditingUser(null);
-      alert(`✅ Edited ${editFullName} - New Role: ${editRole} - Photo ${pictureUrl ? 'Updated' : 'Kept'}`);
+      alert(`✅ Edited ${editFullName} - Role: ${editRole} - Password: ${editPass ? 'Updated to '+editPass : 'Kept'}`);
     } catch (err: any) {
       alert('Edit failed: ' + err.message);
     } finally {
@@ -210,10 +233,26 @@ export const AdminUsersManagement: React.FC = () => {
   };
 
   const handleCreateUserSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!formFullName || !formEmail) return;
-    const finalPassword = formCustomPass.trim() || `Lcns@${Math.floor(1000+Math.random()*9000)}`;
+    e.preventDefault(); 
+    if (!formFullName || !formEmail) return;
+    
+    let finalPassword = formCustomPass.trim();
+    if (!finalPassword) {
+      finalPassword = `Lcns@${Math.floor(1000+Math.random()*9000)}`;
+    }
+
+    // VALIDATE Lcns@33 FORMAT
+    if (!validateLcnsPassword(finalPassword)) {
+      setPassError(`❌ Must be Lcns@33 format: Min 6, Uppercase, lowercase, @, number. Eg: Lcns@33, Lcns@2026`);
+      alert(`❌ Password "${finalPassword}" invalid!\n\nRequired format Lcns@33:\n- At least 6 characters\n- 1 Uppercase letter (L)\n- 1 Lowercase (cns)\n- 1 Special char @\n- 1 Number (33)\n\nExamples:\nLcns@33\nLcns@2026\nLcns@Queen33\nLcns@Admin123`);
+      return;
+    }
+    setPassError('');
+
     try {
-      setUploadingPic(true); let pictureUrl = ''; const sb = getSupabase();
+      setUploadingPic(true); 
+      let pictureUrl = ''; 
+      const sb = getSupabase();
       if (sb && formPictureFile) {
         const fileName = `students/${Date.now()}_${formPictureFile.name.replace(/\s/g, '_')}`;
         const { error } = await sb.storage.from('college-gallery').upload(fileName, formPictureFile);
@@ -234,11 +273,11 @@ export const AdminUsersManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border p-6 flex justify-between"><div><h2 className="text-xl font-black uppercase">User Accounts Directory - Role Assign + Edit + Photo Upload</h2><p className="text-xs text-slate-500">Staff {staffCount} | Students {studentCount} | Manual Sex Entry + Picture + Edit Role Anytime</p></div><button onClick={() => setShowCreateModal(true)} className="px-4 py-2.5 bg-[#0a4d2e] text-white text-xs font-bold rounded-2xl"><UserPlus className="w-4 h-4 inline mr-1" />Create New User + Assign Role + Photo</button></div>
+      <div className="bg-white rounded-3xl border p-6 flex justify-between"><div><h2 className="text-xl font-black uppercase">User Accounts - Lcns@33 Password Format Enforced</h2><p className="text-xs text-slate-500">Staff {staffCount} | Students {studentCount} | Password must be like Lcns@33</p></div><button onClick={() => setShowCreateModal(true)} className="px-4 py-2.5 bg-[#0a4d2e] text-white text-xs font-bold rounded-2xl"><UserPlus className="w-4 h-4 inline mr-1" />Create User - Lcns@33 Format</button></div>
 
       {createdCredentials && (
         <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 flex justify-between items-center">
-          <div><p className="font-black text-sm">✅ Created {createdCredentials.fullName} as {createdCredentials.role}</p><p className="text-xs">Email: {createdCredentials.id} | Password: {createdCredentials.password}</p></div>
+          <div><p className="font-black text-sm">✅ Created {createdCredentials.fullName} as {createdCredentials.role}</p><p className="text-xs">Email: {createdCredentials.id} | Password: <b className="text-green-700 text-sm">{createdCredentials.password}</b> (Lcns@33 format)</p></div>
           <button onClick={()=>setCreatedCredentials(null)} className="px-3 py-1 bg-white border rounded-full"><X size={14}/></button>
         </div>
       )}
@@ -255,25 +294,23 @@ export const AdminUsersManagement: React.FC = () => {
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75">
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border">
-            <div className="bg-[#0a4d2e] text-white p-6 flex justify-between sticky top-0 z-10"><h3 className="font-bold uppercase">Create User - Assign Role + Manual Sex + Picture Upload</h3><button onClick={() => setShowCreateModal(false)}><X className="w-5 h-5" /></button></div>
+            <div className="bg-[#0a4d2e] text-white p-6 flex justify-between sticky top-0 z-10"><h3 className="font-bold uppercase">Create User - Password MUST be Lcns@33 Format</h3><button onClick={() => setShowCreateModal(false)}><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleCreateUserSubmit} className="p-6 space-y-4 text-xs">
               <div className="bg-[#f0faf0] border-2 border-dashed border-green-300 rounded-2xl p-4 text-center">
-                <label className="block font-black mb-2 text-[#0a4d2e]">Student Photo Upload (Max 2MB) - For ID Card, Biodata, Result Slip</label>
-                {formPicture ? (<div className="flex flex-col items-center gap-2"><img src={formPicture} className="w-28 h-28 rounded-2xl object-cover border-4 border-yellow-400"/><button type="button" onClick={()=>{setFormPicture(null); setFormPictureFile(null);}} className="text-[11px] bg-red-100 text-red-700 px-3 py-1 rounded-full">Remove Photo</button></div>) : (<div className="py-2"><p className="text-3xl">📸</p><p className="text-[10px] text-slate-500">Student must upload photo during creation - Used for ID card</p></div>)}
+                <label className="block font-black mb-2 text-[#0a4d2e]">Student Photo Upload (Max 2MB)</label>
+                {formPicture ? (<div className="flex flex-col items-center gap-2"><img src={formPicture} className="w-28 h-28 rounded-2xl object-cover border-4 border-yellow-400"/><button type="button" onClick={()=>{setFormPicture(null); setFormPictureFile(null);}} className="text-[11px] bg-red-100 text-red-700 px-3 py-1 rounded-full">Remove Photo</button></div>) : (<div className="py-2"><p className="text-3xl">📸</p><p className="text-[10px] text-slate-500">Photo for ID Card</p></div>)}
                 <input type="file" accept="image/*" onChange={handlePictureChange} className="mt-3 block w-full text-[11px] file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:bg-[#0a4d2e] file:text-white" />
               </div>
 
-              {/* ROLE ASSIGN - NEW */}
               <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4">
-                <label className="block font-black mb-2 text-blue-900">Assign Role * - Admin Selects Role When Creating User</label>
+                <label className="block font-black mb-2 text-blue-900">Assign Role *</label>
                 <select value={formRole} onChange={e=>setFormRole(e.target.value as UserRole)} className="w-full p-3 bg-white border-2 border-blue-400 rounded-xl font-black text-sm">
                   {roles.map(r=><option key={r.value} value={r.value}>{r.label} - {r.value}</option>)}
                 </select>
-                <p className="text-[10px] text-blue-700 mt-1">Provost sees Senate approval, Registrar sees CBT manager, HOD sees course reg, Bursar sees fees, Student sees results after Provost publishes.</p>
                 {formRole==='STUDENT' && (
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div><label className="block font-bold mb-1">Student Level *</label><select value={formLevel} onChange={e=>setFormLevel(e.target.value as any)} className="w-full p-2.5 bg-white border rounded-xl font-bold"><option value="ND1">ND1</option><option value="ND2">ND2</option><option value="HND1">HND1</option><option value="HND2">HND2</option><option value="N1">N1</option></select></div>
-                    <div className="bg-amber-100 border border-amber-300 rounded-xl p-2 text-[10px]">Photo required for Student - ID Card, Biodata</div>
+                    <div className="bg-amber-100 border border-amber-300 rounded-xl p-2 text-[10px]">Photo required for ID Card</div>
                   </div>
                 )}
               </div>
@@ -286,46 +323,61 @@ export const AdminUsersManagement: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold mb-1">Sex * (Type Manually)</label>
-                  <input type="text" value={formSex} onChange={(e) => setFormSex(e.target.value)} placeholder="Type Male or Female" className="w-full p-2.5 bg-slate-50 border-2 border-green-200 rounded-xl font-black" required />
-                  <p className="text-[10px] text-green-700 mt-1 font-bold">No select — You type yourself: Male / Female</p>
+                  <input type="text" value={formSex} onChange={(e) => setFormSex(e.target.value)} placeholder="Male or Female" className="w-full p-2.5 bg-slate-50 border-2 border-green-200 rounded-xl font-black" required />
                 </div>
-                <div><label className="block font-bold mb-1">Age (Type Manually)</label><input type="text" value={formAge} onChange={(e) => setFormAge(e.target.value)} placeholder="Type age e.g. 22" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" /></div>
+                <div><label className="block font-bold mb-1">Age</label><input type="text" value={formAge} onChange={(e) => setFormAge(e.target.value)} placeholder="e.g. 22" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" /></div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block font-bold mb-1">Phone</label><input type="text" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="Type phone" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
-                <div><label className="block font-bold mb-1">Password (Type)</label><input type="text" value={formCustomPass} onChange={(e) => setFormCustomPass(e.target.value)} placeholder="Type password or auto" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+                <div><label className="block font-bold mb-1">Phone</label><input type="text" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="Phone" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+                <div>
+                  <label className="block font-bold mb-1">Password - MUST be Lcns@33 Format *</label>
+                  <input 
+                    type="text" 
+                    value={formCustomPass} 
+                    onChange={(e) => {
+                      setFormCustomPass(e.target.value);
+                      setPassError(getPasswordHint(e.target.value));
+                    }} 
+                    placeholder="e.g. Lcns@33 or Lcns@2026" 
+                    className={`w-full p-2.5 bg-slate-50 border-2 rounded-xl font-black ${formCustomPass && !validateLcnsPassword(formCustomPass) ? 'border-red-400 bg-red-50' : 'border-green-400 bg-green-50'}`} 
+                    required 
+                  />
+                  <p className={`text-[10px] mt-1 font-bold ${formCustomPass && validateLcnsPassword(formCustomPass) ? 'text-green-700' : 'text-red-600'}`}>
+                    {formCustomPass ? getPasswordHint(formCustomPass) : 'Example: Lcns@33, Lcns@2026, Lcns@Queen33'}
+                  </p>
+                  <p className="text-[9px] text-slate-500 mt-1">Must contain: Uppercase (L), lowercase (cns), @, number (33) - Min 6 chars</p>
+                  {passError && <p className="text-[10px] text-red-600 font-bold mt-1">{passError}</p>}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block font-bold mb-1">Department (Type Manually)</label><input type="text" value={formDept} onChange={(e) => setFormDept(e.target.value)} placeholder="Type department" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
-                <div><label className="block font-bold mb-1">Address (Type Manually)</label><input type="text" value={formAddress} onChange={(e) => setFormAddress(e.target.value)} placeholder="Type address" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+                <div><label className="block font-bold mb-1">Department</label><input type="text" value={formDept} onChange={(e) => setFormDept(e.target.value)} placeholder="Department" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
+                <div><label className="block font-bold mb-1">Address</label><input type="text" value={formAddress} onChange={(e) => setFormAddress(e.target.value)} placeholder="Address" className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2.5 border rounded-xl font-bold">Cancel</button><button type="submit" disabled={uploadingPic} className="px-5 py-2.5 bg-[#0a4d2e] text-white rounded-xl font-bold">{uploadingPic ? 'Uploading...' : 'Create User with Role + Photo'}</button></div>
+              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2.5 border rounded-xl font-bold">Cancel</button><button type="submit" disabled={uploadingPic} className="px-5 py-2.5 bg-[#0a4d2e] text-white rounded-xl font-bold disabled:bg-slate-300">{uploadingPic ? 'Uploading...' : 'Create User - Lcns@33'}</button></div>
             </form>
           </div>
         </div>
       )}
 
-      {/* EDIT MODAL - NEW FEATURE */}
       {showEditModal && editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75">
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border">
-            <div className="bg-blue-700 text-white p-6 flex justify-between sticky top-0 z-10"><h3 className="font-bold uppercase">Edit User - Change Role, Info, Photo - {editingUser.fullName}</h3><button onClick={() => setShowEditModal(false)}><X className="w-5 h-5" /></button></div>
+            <div className="bg-blue-700 text-white p-6 flex justify-between sticky top-0 z-10"><h3 className="font-bold uppercase">Edit User - {editingUser.fullName} - Lcns@33 Password</h3><button onClick={() => setShowEditModal(false)}><X className="w-5 h-5" /></button></div>
             <form onSubmit={handleEditSubmit} className="p-6 space-y-4 text-xs">
               <div className="bg-[#f0faf0] border-2 border-dashed border-green-300 rounded-2xl p-4 text-center">
-                <label className="block font-black mb-2 text-[#0a4d2e]">Edit Photo - Student / Staff Photo Update</label>
+                <label className="block font-black mb-2 text-[#0a4d2e]">Edit Photo</label>
                 {editPicture ? (<div className="flex flex-col items-center gap-2"><img src={editPicture} className="w-28 h-28 rounded-2xl object-cover border-4 border-blue-400"/><button type="button" onClick={()=>{setEditPicture(null); setEditPictureFile(null);}} className="text-[11px] bg-red-100 text-red-700 px-3 py-1 rounded-full">Remove</button></div>) : (<div className="py-2"><p className="text-3xl">📸</p></div>)}
                 <input type="file" accept="image/*" onChange={handleEditPictureChange} className="mt-3 block w-full text-[11px] file:mr-3 file:py-2 file:px-3 file:rounded-full file:border-0 file:bg-blue-700 file:text-white" />
               </div>
 
               <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4">
-                <label className="block font-black mb-2 text-amber-900">Edit Role - Admin Can Change Role Anytime</label>
+                <label className="block font-black mb-2 text-amber-900">Edit Role</label>
                 <select value={editRole} onChange={e=>setEditRole(e.target.value as UserRole)} className="w-full p-3 bg-white border-2 border-amber-400 rounded-xl font-black text-sm">
                   {roles.map(r=><option key={r.value} value={r.value}>{r.label} - {r.value}</option>)}
                 </select>
-                <p className="text-[10px] text-amber-800 mt-1">Changing role will change dashboard access. Student role requires photo for ID card.</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -333,7 +385,7 @@ export const AdminUsersManagement: React.FC = () => {
                 <div><label className="block font-bold mb-1">Email *</label><input type="email" value={editEmail} onChange={e=>setEditEmail(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" required /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="block font-bold mb-1">Sex * (Type Manually)</label><input type="text" value={editSex} onChange={e=>setEditSex(e.target.value)} className="w-full p-2.5 bg-slate-50 border-2 border-green-200 rounded-xl font-black" required /></div>
+                <div><label className="block font-bold mb-1">Sex *</label><input type="text" value={editSex} onChange={e=>setEditSex(e.target.value)} className="w-full p-2.5 bg-slate-50 border-2 border-green-200 rounded-xl font-black" required /></div>
                 <div><label className="block font-bold mb-1">Age</label><input type="text" value={editAge} onChange={e=>setEditAge(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -344,14 +396,21 @@ export const AdminUsersManagement: React.FC = () => {
                 <div><label className="block font-bold mb-1">Department</label><input type="text" value={editDept} onChange={e=>setEditDept(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
                 <div><label className="block font-bold mb-1">Address</label><input type="text" value={editAddress} onChange={e=>setEditAddress(e.target.value)} className="w-full p-2.5 bg-slate-50 border rounded-xl" /></div>
               </div>
-              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2.5 border rounded-xl font-bold">Cancel</button><button type="submit" disabled={uploadingPic} className="px-5 py-2.5 bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2"><Save size={16}/>{uploadingPic ? 'Uploading...' : 'Save Edited Info + Role + Photo'}</button></div>
+              <div>
+                <label className="block font-bold mb-1">Password - Lcns@33 Format (leave blank to keep old)</label>
+                <input type="text" value={editPass} onChange={e=>setEditPass(e.target.value)} placeholder="e.g. Lcns@33 - must have Uppercase, lowercase, @, number" className={`w-full p-2.5 border-2 rounded-xl font-black ${editPass && !validateLcnsPassword(editPass) ? 'border-red-400 bg-red-50' : 'border-green-200 bg-slate-50'}`} />
+                <p className={`text-[10px] mt-1 font-bold ${editPass && validateLcnsPassword(editPass) ? 'text-green-700' : editPass ? 'text-red-600' : 'text-slate-500'}`}>
+                  {editPass ? getPasswordHint(editPass) : 'Current: ' + (editingUser.password || 'hidden') + ' - Type new like Lcns@33 to change'}
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2.5 border rounded-xl font-bold">Cancel</button><button type="submit" disabled={uploadingPic} className="px-5 py-2.5 bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2"><Save size={16}/>{uploadingPic ? 'Uploading...' : 'Save - Lcns@33'}</button></div>
             </form>
           </div>
         </div>
       )}
 
       {viewingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75"><div className="bg-white rounded-2xl max-w-md w-full p-6"><div className="flex justify-between"><h3 className="font-black">{viewingUser.fullName} - {viewingUser.role}</h3><button onClick={()=>setViewingUser(null)}><X size={16}/></button></div><div className="mt-4 space-y-2 text-xs"><p>Email: {viewingUser.email}</p><p>Role: {viewingUser.role} - Can be edited via Edit button</p><p>Sex: {(viewingUser as any).sex || '-'}</p><p>Photo: {(viewingUser as any).photoUrl ? 'Uploaded - Shows on ID Card' : 'No photo - Student should upload'}</p></div></div></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75"><div className="bg-white rounded-2xl max-w-md w-full p-6"><div className="flex justify-between"><h3 className="font-black">{viewingUser.fullName} - {viewingUser.role}</h3><button onClick={()=>setViewingUser(null)}><X size={16}/></button></div><div className="mt-4 space-y-2 text-xs"><p>Email: {viewingUser.email}</p><p>Password: {(viewingUser as any).password} { (viewingUser as any).password && !validateLcnsPassword((viewingUser as any).password) ? '❌ Weak - Change to Lcns@33' : '✅ Lcns@33 format' }</p><p>Role: {viewingUser.role}</p><p>Sex: {(viewingUser as any).sex || '-'}</p></div></div></div>
       )}
 
       {userToDelete && (
