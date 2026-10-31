@@ -26,7 +26,6 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
     try {
       let data = null;
 
-      // 1. Try lcns_applicants - both columns
       const q1 = await supabase
         .from("lcns_applicants")
         .select("*")
@@ -36,7 +35,6 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
       if (q1.data) {
         data = q1.data;
       } else {
-        // 2. Try college_applications
         const q2 = await supabase
           .from("college_applications")
           .select("*")
@@ -46,7 +44,6 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
         if (q2.data) data = q2.data;
       }
 
-      // 3. Fallback ilike search with last part 8342
       if (!data) {
         const shortNo = clean.split("/").pop() || clean;
         const q3 = await supabase
@@ -81,11 +78,15 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
 
   const handlePrint = () => {
     if (!result) return;
-    // Opens your PrintApplication.tsx page you just fixed
     window.open(`/print/${result.id}`, "_blank");
   };
 
   if (!isOpen) return null;
+
+  const biodata = result?.full_application || result?.application_data || {};
+  const jamb = biodata?.jamb || {};
+  const jambRegNo = jamb.regNo || biodata.jambRegNo || result?.jamb_reg_no || "N/A";
+  const jambScore = jamb.score || biodata.jambScore || result?.jamb_score || "N/A";
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 12 }}>
@@ -119,11 +120,12 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
                 <h3 style={{ margin: "0 0 8px", color: "#052e16" }}>✅ Found: {result.full_name}</h3>
                 <p style={{ margin: "4px 0", fontSize: 12 }}><b>App No:</b> {result.application_number || result.form_no}</p>
                 <p style={{ margin: "4px 0", fontSize: 12 }}><b>Exam No:</b> {result.exam_no || "Not assigned"}</p>
+                <p style={{ margin: "4px 0", fontSize: 12 }}><b>JAMB No:</b> {jambRegNo} | <b>Score:</b> {jambScore}</p>
                 <p style={{ margin: "4px 0", fontSize: 12 }}><b>Program:</b> {result.course || result.program || "Nursing"}</p>
                 <p style={{ margin: "4px 0", fontSize: 12 }}><b>Status:</b> <span style={{ background: "#dcfce7", padding: "2px 8px", borderRadius: 99 }}>{result.status || "Submitted"}</span></p>
                 
                 <div style={{ marginTop: 10, background: "#fffbeb", border: "2px solid #f59e0b", borderRadius: 8, padding: 10 }}>
-                  <p style={{ margin: 0, fontWeight: 900, fontSize: 11, color: "#92400e" }}>EXAMINATION DETAILS</p>
+                  <p style={{ margin: 0, fontWeight: 900, fontSize: 11, color: "#92400e" }}>EXAMINATION DETAILS - CBT</p>
                   <p style={{ margin: "4px 0", fontSize: 12 }}><b>Date:</b> {result.exam_date || "To be set by Provost/Registrar"}</p>
                   <p style={{ margin: "4px 0", fontSize: 12 }}><b>Batch:</b> {result.exam_batch || "Not batched - 35/hr"}</p>
                   <p style={{ margin: "4px 0", fontSize: 12 }}><b>Time:</b> {result.exam_time_slot || "Pending"}</p>
@@ -146,3 +148,6 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
     </div>
   );
 }
+
+// Add default export to prevent Vercel MISSING_EXPORT error if someone imports as default
+export default AdmissionCheckerModal;
