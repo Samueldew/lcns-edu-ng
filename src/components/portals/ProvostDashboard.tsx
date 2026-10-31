@@ -30,6 +30,7 @@ import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { AdminExamSettings } from './AdminExamSettings';
 import { InterviewScoresEntryView } from '../admin/InterviewScoresEntryView';
 import { supabase } from '@/lib/supabase';
+import { ProvostCBTManager } from "./ProvostCBTManager";
 
 export const ProvostDashboard: React.FC = () => {
   const safeCurrentUser = (() => {
@@ -40,7 +41,7 @@ export const ProvostDashboard: React.FC = () => {
   const displayEmail = currentUser?.email || 'provost@lcns.edu.ng';
   const displayRole = currentUser?.role || 'PROVOST';
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'students_biodata' | 'individual_result' | 'result_publish' | 'entrance_exam' | 'provost_vet' | 'semester_print' | 'interview_scores' | 'users'>('provost_vet');
+  const [activeTab, setActiveTab] = useState<'overview' | 'admissions' | 'admissions_all' | 'cbt' | 'cbt_batched' | 'students_biodata' | 'individual_result' | 'result_publish' | 'entrance_exam' | 'provost_vet' | 'semester_print' | 'interview_scores' | 'users'>('provost_vet');
   const students = StorageService.getStudents();
   const applicants = StorageService.getApplicants();
   const payments = StorageService.getPayments();
@@ -91,7 +92,6 @@ export const ProvostDashboard: React.FC = () => {
   const [showPasswords, setShowPasswords] = useState<{[k:string]:boolean}>({});
   const [userSearch, setUserSearch] = useState('');
 
-  // ADDED ONLY - Helper to get current level after promotion from backend users table
   const getCurrentLevel = (matricNo: string, fallbackLevel: string = '') => {
     try {
       const found = users.find((u: any) => (u.matricNumber || u.matric_no || '').toUpperCase() === matricNo.toUpperCase() || (u.matric_no && u.matric_no.toUpperCase() === matricNo.toUpperCase()));
@@ -239,6 +239,8 @@ export const ProvostDashboard: React.FC = () => {
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs no-print">
         <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='users'?'bg-slate-900 text-white shadow ring-2 ring-amber-300':'bg-slate-50 border-2 border-amber-400 text-slate-800'}`}><Users className="w-4 h-4"/><span>👤 Users - {users.length} Backend NEW</span></button>
         <button onClick={() => setActiveTab('provost_vet')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='provost_vet'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-400 text-emerald-900'}`}><FileCheck className="w-4 h-4"/><span>🔍 PROVOST VET - PUBLISH FINAL - Current Level</span><span className="px-2 py-0.5 rounded-full bg-red-600 text-white text-[10px]">{registrarVetted.length}</span></button>
+        {/* ADDED ONLY - NEW BATCHED CBT FOR APPLICANTS - 35 per hour - No email/sms */}
+        <button onClick={() => setActiveTab('cbt_batched')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='cbt_batched'?'bg-purple-900 text-white shadow ring-2 ring-purple-300':'bg-purple-50 border-2 border-purple-500 text-purple-900'}`}><Award className="w-4 h-4"/><span>📝 CBT Applicant - Batch 35/hr NEW</span></button>
         <button onClick={() => setActiveTab('interview_scores')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='interview_scores'?'bg-amber-600 text-white shadow ring-2 ring-amber-300':'bg-amber-50 border-2 border-amber-500 text-amber-900'}`}><Award className="w-4 h-4"/><span>📝 Interview Score</span></button>
         <button onClick={() => setActiveTab('semester_print')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='semester_print'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-900'}`}><BookOpen className="w-4 h-4"/><span>🖨️ PRINT SEMESTER - Current Level</span></button>
         <button onClick={() => setActiveTab('students_biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='students_biodata'?'bg-emerald-700 text-white shadow-md':'bg-emerald-50 text-emerald-800 border-2 border-emerald-300'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Biodata - Current Level</span></button>
@@ -247,6 +249,15 @@ export const ProvostDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('entrance_exam')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='entrance_exam'?'bg-amber-500 text-black shadow ring-2 ring-amber-300':'bg-amber-50 text-amber-900 border-2 border-amber-400'}`}><Send className="w-4 h-4"/><span>📝 Entrance Exam</span></button>
         <button onClick={() => setActiveTab('overview')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='overview'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Building className="w-4 h-4"/><span>Overview</span></button>
       </div>
+
+      {activeTab==='cbt_batched' && (
+        <div className="space-y-4">
+          <div className="bg-purple-50 border-2 border-purple-400 p-3 rounded-xl text-xs font-bold">
+            Provost CBT for Applicants - 35 per batch per hour to protect free Supabase - Batch A 9-10am, B 10-11am etc. If miss, can join next batch, not earlier.
+          </div>
+          <ProvostCBTManager />
+        </div>
+      )}
 
       {activeTab==='users' && (
         <div className="bg-white rounded-3xl border-4 border-amber-400 p-6 space-y-4">
@@ -343,7 +354,7 @@ export const ProvostDashboard: React.FC = () => {
           <div className="grid md:grid-cols-3 gap-4"><div className="bg-slate-900 text-white rounded-2xl p-4 text-center"><p className="text-[10px] text-slate-400">TOTAL RESULTS - Current Level</p><p className="text-3xl font-black text-amber-400">{computationResults.length}</p></div><div className={`rounded-2xl p-4 text-center border-2 ${senateApproved?'bg-green-600 text-white border-green-700':'bg-red-600 text-white border-red-700'}`}><p className="text-[10px]">PUBLISH STATUS - Current Level</p><p className="text-lg font-black">{senateApproved?'✅ PUBLISHED - Current Level':'🔒 NOT PUBLISHED'}</p></div><div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 text-center"><p className="text-[10px] font-bold">PROVOST - Current Level</p><p className="text-sm font-black">{displayName}</p></div></div>
           <div className="flex flex-wrap gap-3"><button onClick={handleProvostPublishAll} className="px-8 py-4 bg-red-700 hover:bg-red-800 text-white rounded-full font-black text-sm flex items-center gap-2 shadow-lg"><FileCheck className="w-5 h-5"/> 🎓 Provost Publish ALL - Current Level</button><button onClick={handleSenateApproval} disabled={senateApproved} className={`px-6 py-4 rounded-full font-black text-sm flex items-center gap-2 ${senateApproved?'bg-emerald-100 text-emerald-800 border':'bg-emerald-700 text-white'}`}><CheckCircle2 className="w-5 h-5"/> {senateApproved?'✅ Senate Ratified - Current Level':'Grant Senate Approval - Current Level'}</button>{senateApproved && <button onClick={handleRevokeApproval} className="px-6 py-4 bg-slate-200 text-slate-800 rounded-full font-black text-sm">⏸️ Revoke - Current Level</button>}</div>
         </div>
-      ) : activeTab!=='users' && activeTab!=='provost_vet' && activeTab!=='semester_print' && activeTab!=='interview_scores' ? (
+      ) : activeTab!=='users' && activeTab!=='provost_vet' && activeTab!=='semester_print' && activeTab!=='interview_scores' && activeTab!=='cbt_batched' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"><div className="p-5 bg-white rounded-3xl border"><p className="text-xs font-bold uppercase">Total Enrolled - Current Level</p><p className="text-2xl font-black">{students.length + 415}</p></div><div className="p-5 bg-white rounded-3xl border"><p className="text-xs font-bold uppercase">Applicants</p><p className="text-2xl font-black">{applicants.length + 185}</p></div><div className="p-5 bg-white rounded-3xl border"><p className="text-xs font-bold uppercase">Pass Rate - Current Level</p><p className="text-2xl font-black text-emerald-800">94.8%</p></div><div className="p-5 bg-white rounded-3xl border"><p className="text-xs font-bold uppercase">Revenue - Current Level</p><p className="text-2xl font-black">₦{(totalRevenue + 72400000).toLocaleString()}</p></div></div>
       ) : null}
     </div>
