@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { StorageService } from '../../services/storage';
 import { COLLEGE_CONFIG } from '../../types';
 import { getSupabase } from '../../lib/supabase';
@@ -15,6 +15,9 @@ import { AdminAdmissionManager } from '../admin/AdminAdmissionManager';
 import { ScoreSheetViewer } from './ScoreSheetViewer';
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { CollegeLogo } from '../common/CollegeLogo';
+
+// ===== PERMANENT PASSWORD - FIXED =====
+const STRONG_PASSWORD = 'Lcns@33';
 
 // ===== ADD ONLY - NIGERIA STATE + LGA FOR SEX LEVEL STATE LGA =====
 const ALL_STATES = ["Abia","Adamawa","Akwa Ibom","Anambra","Bauchi","Bayelsa","Benue","Borno","Cross River","Delta","Ebonyi","Edo","Ekiti","Enugu","FCT","Gombe","Imo","Jigawa","Kaduna","Kano","Katsina","Kebbi","Kogi","Kwara","Lagos","Nasarawa","Niger","Ogun","Ondo","Osun","Oyo","Plateau","Rivers","Sokoto","Taraba","Yobe","Zamfara"];
@@ -55,7 +58,8 @@ const CourseManager = ({ showStatus, users }: any) => {
   const save = async()=>{ if(!code||!cTitle){showStatus('Course code + Title required','error');return;} const newCourse={id:Date.now().toString(), code:code.toUpperCase(), title:cTitle, creditUnit:parseInt(unit), level, lecturerEmail:lecturer, lecturerName: lecturers.find((l:any)=>l.email===lecturer)?.fullName||'', created_at:new Date().toISOString()}; const updated=[...courses.filter((c:any)=>c.code!==newCourse.code), newCourse]; setCourses(updated); localStorage.setItem('lcns_courses',JSON.stringify(updated)); const sb=getSupabase(); if(sb){ try{ await sb.from('school_settings').upsert({key:'courses', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'}); }catch{} } showStatus(`✅ Course ${newCourse.code} added and assigned to ${newCourse.lecturerName||'No lecturer'}`); setCode(''); setCTitle(''); setLecturer(''); };
   const del = async(id:string)=>{ const updated=courses.filter((c:any)=>c.id!==id); setCourses(updated); localStorage.setItem('lcns_courses',JSON.stringify(updated)); const sb=getSupabase(); if(sb){ try{ await sb.from('school_settings').upsert({key:'courses', value:JSON.stringify(updated), updated_at:new Date().toISOString()},{onConflict:'key'}); }catch{} } showStatus('Deleted'); };
   return (<div className="space-y-6"><div className="bg-white border-2 rounded-3xl p-6"><h3 className="font-black flex gap-2"><BookIcon className="w-5 h-5"/> Add Course and Assign to Lecturers - Supabase Connected</h3><div className="grid md:grid-cols-4 gap-3 mt-4"><input value={code} onChange={e=>setCode(e.target.value)} placeholder="Course Code e.g. NUR111" className="p-3 border-2 rounded-xl text-xs font-bold"/><input value={cTitle} onChange={e=>setCTitle(e.target.value)} placeholder="Course Title e.g. Anatomy" className="p-3 border-2 rounded-xl text-xs"/><select value={unit} onChange={e=>setUnit(e.target.value)} className="p-3 border-2 rounded-xl text-xs"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select><select value={level} onChange={e=>setLevel(e.target.value)} className="p-3 border-2 rounded-xl text-xs"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div><div className="mt-3 flex gap-2"><select value={lecturer} onChange={e=>setLecturer(e.target.value)} className="flex-1 p-3 border-2 rounded-xl text-xs"><option value="">Assign to Lecturer (Select)</option>{lecturers.map((l:any)=><option key={l.email} value={l.email}>{l.fullName} - {l.role} - {l.email}</option>)}</select><button onClick={save} className="px-6 bg-[#0a4d2e] text-white rounded-xl text-xs font-black">ADD COURSE + ASSIGN</button></div></div><div className="bg-white border-2 rounded-2xl overflow-hidden"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Code</th><th className="p-3 text-left">Title</th><th className="p-3">Unit</th><th className="p-3">Level</th><th className="p-3">Lecturer</th><th className="p-3">Action</th></tr></thead><tbody>{courses.map((c:any)=><tr key={c.id} className="border-b"><td className="p-3 font-black">{c.code}</td><td className="p-3">{c.title}</td><td className="p-3">{c.creditUnit}</td><td className="p-3">{c.level}</td><td className="p-3">{c.lecturerName||c.lecturerEmail}</td><td className="p-3"><button onClick={()=>del(c.id)} className="px-2 py-1 bg-red-600 text-white rounded text-[10px]">DELETE</button></td></tr>)}</tbody></table></div></div>);
-};// ===== 4. PROMOTION MANAGER - YOUR ORIGINAL - KEPT + ADD SEX STATE LGA TO TABLE =====
+};
+// ===== 4. PROMOTION MANAGER - YOUR ORIGINAL - KEPT + ADD SEX STATE LGA TO TABLE =====
 const PromotionManager = ({ showStatus, users, setUsers }: any) => {
   const [session, setSession] = useState(()=>localStorage.getItem('lcns_current_session')||'2026/2027');
   const [semester, setSemester] = useState(()=>localStorage.getItem('lcns_current_semester')||'First Semester');
@@ -104,7 +108,9 @@ const ApplicantsManager = ({ showStatus, users, setUsers }: any) => {
   const deleteApplicant = async(id:string, name:string)=>{ if(!confirm(`Delete ${name}?`)) return; const filteredUpdated = applicants.filter((a:any)=>{ return (a.id||'')!==id && (a.email||'')!==id && (a.application_number||'')!==id; }); setApplicants(filteredUpdated); localStorage.setItem('lcns_applicants',JSON.stringify(filteredUpdated)); const sb=getSupabase(); if(sb){ try{ await sb.from('lcns_applicants').delete().or(`id.eq.${id},email.eq.${id},application_number.eq.${id}`); }catch{} } showStatus(`Deleted ${name}`); };
   const deleteAllApplicants = async()=>{ if(!confirm(`DELETE ALL ${applicants.length}?`)) return; if(prompt('Type DELETE ALL')!=='DELETE ALL') return; setApplicants([]); localStorage.removeItem('lcns_applicants'); const sb=getSupabase(); if(sb){ try{ await sb.from('lcns_applicants').delete().neq('id','00000000-0000-0000-0000-000000000000'); }catch{} } showStatus(`All deleted`); };
   return (<div className="space-y-4"><div className="bg-white border-2 border-rose-300 rounded-3xl p-6"><div className="flex justify-between items-center"><h3 className="font-black flex gap-2 text-rose-800"><FileText className="w-5 h-5"/> Applicants - {filtered.length} / {applicants.length} - Admin, HOD, Exam Officer see ALL - lcns_applicants - SSCE1 + SSCE2 - FIXED {loading&&'(Loading...)'}</h3><button onClick={deleteAllApplicants} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">DELETE ALL - Whole Portal</button></div><div className="mt-4 flex gap-2"><div className="flex-1 relative"><Search className="w-4 h-4 absolute left-3 top-3 text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search" className="w-full pl-10 p-3 border-2 rounded-xl text-xs"/></div></div><div className="mt-4 overflow-x-auto border-2 rounded-xl"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Name</th><th className="p-2">Email</th><th className="p-2">Phone</th><th className="p-2">App No</th><th className="p-2">Action</th></tr></thead><tbody>{filtered.map((a:any)=>{ const fullName=a.fullName||a.full_name||'Applicant'; const idKey=a.id||a.email||a.application_number; return (<tr key={idKey} className="border-b"><td className="p-2 font-black">{fullName}</td><td className="p-2">{a.email}</td><td className="p-2">{a.phone}</td><td className="p-2">{a.application_number||'--'}</td><td className="p-2"><div className="flex gap-1"><button onClick={()=>deleteApplicant(idKey, fullName)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black">Delete</button></div></td></tr>); })}</tbody></table></div></div></div>);
-};// ===== MAIN ADMIN DASHBOARD - YOUR ORIGINAL CODE + MY ADDITIONS - SEX LEVEL MATRIC AUTO STATE LGA PICTURE PASSWORDS APPLICANTS BURSAR PROVOST REGISTRAR CURRENT LEVEL =====
+};
+
+// ===== MAIN ADMIN DASHBOARD - YOUR ORIGINAL CODE + FIXED - NO LEVEL FOR STAFF + STRONG PASSWORD Lcns@33 + PRINT SLIP =====
 export const AdminDashboard: React.FC = () => {
   const [users, setUsers] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } });
   const [userFilter, setUserFilter] = useState<'ALL'|'STUDENT'|'STAFF'>('ALL');
@@ -118,6 +124,8 @@ export const AdminDashboard: React.FC = () => {
   const [supabaseConnected, setSupabaseConnected] = useState(false);
   const [adminName, setAdminName] = useState('Admin');
   const [adminEmail, setAdminEmail] = useState('admin@lcns.edu.ng');
+  const [lastCreatedUser, setLastCreatedUser] = useState<any>(null);
+  const printRef = useRef<HTMLDivElement>(null);
   const [newUser, setNewUser] = useState({ 
     fullName:'', email:'', phone:'', sex:'MALE', level:'ND1', department:'Nursing', role:'STUDENT', 
     staffId:'', qualification:'', staffDepartment:'Nursing', courseOfStudy:'Nursing Science', 
@@ -138,9 +146,9 @@ export const AdminDashboard: React.FC = () => {
           const { data, error } = await sb.from('users').select('*').order('created_at', { ascending: false });
           if(!error && data && data.length>0){
             const formatted = data.map((u:any)=>({
-              id: u.id, email: u.email, fullName: u.full_name||u.fullName, role: u.role, department: u.department,
-              status: u.status||'ACTIVE', phone: u.phone, matricNumber: u.matric_no||'', staffId: u.staff_id||'',
-              level: u.level||'', createdAt: u.created_at, password: u.password||'', loginId: u.matric_no||u.staff_id||u.email,
+              id: u.id, email: u.email, fullName: u.full_name||u.fullName||u.full_name||u.email, role: u.role, department: u.department,
+              status: u.status||'ACTIVE', phone: u.phone, matricNumber: u.matricnumber||u.matric_no||'', staffId: u.staff_id||u.matricnumber||'',
+              level: u.level||'', createdAt: u.created_at, password: u.password||STRONG_PASSWORD, loginId: u.matricnumber||u.matric_no||u.staff_id||u.email,
               sex: u.sex||'', stateOfOrigin: u.state_of_origin||'', lga: u.lga||'', staffImage: u.staff_image||'', address: u.address||'',
               bloodGroup: u.blood_group||'', parentName: u.parent_name||'', parentPhone: u.parent_phone||'', staying: u.staying||'',
               courseOfStudy: u.course_of_study||'', qualification: u.qualification||'', dateOfBirth: u.date_of_birth||'', createdBy: u.created_by||'ADMIN'
@@ -164,11 +172,29 @@ export const AdminDashboard: React.FC = () => {
     r.readAsDataURL(f);
   };
 
+  const handlePrintSlip = () => {
+    if(!printRef.current) return;
+    const printWindow = window.open('', '_blank');
+    if(printWindow){
+      printWindow.document.write(`
+        <html><head><title>LCNS Login Slip</title>
+        <style>body{font-family: Arial; padding:20px;} .header{text-align:center; border-bottom:3px solid #0a4d2e; padding-bottom:10px;} .box{border:2px solid #0a4d2e; padding:15px; margin-top:15px; border-radius:10px;} .row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #ccc;} .label{font-weight:bold;} .pass{background:yellow; padding:5px 10px; font-weight:black; font-size:16px;}</style>
+        </head><body>${printRef.current.innerHTML}</body></html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
   const handleCreateUser = async ()=>{
     if(!newUser.fullName || !newUser.email){ showStatus('Enter Full Name + Email','error'); return; }
     if(userType==='STUDENT' && !newUser.sex){ showStatus('Select Sex - Female or Male','error'); return; }
     if(userType==='STUDENT' && !newUser.stateOfOrigin){ showStatus('Select State of Origin','error'); return; }
     if(userType==='STUDENT' && !newUser.lga){ showStatus('Enter LGA','error'); return; }
+    
+    // ===== FIXED: STRONG PASSWORD PERMANENT =====
+    const password = STRONG_PASSWORD; // Lcns@33 always
+
     const getNextMatricNumber = () => {
       const counterKey = 'lcns_matric_counter';
       let counter = parseInt(localStorage.getItem(counterKey) || '0', 10);
@@ -176,6 +202,7 @@ export const AdminDashboard: React.FC = () => {
       localStorage.setItem(counterKey, counter.toString());
       const padded = String(counter).padStart(4, '0');
       const year = new Date().getFullYear();
+      // STUDENT ONLY has level
       return `LCNS/${newUser.level.toUpperCase()}/${year}/${padded}`;
     };
     const getNextStaffId = () => {
@@ -187,10 +214,12 @@ export const AdminDashboard: React.FC = () => {
       const year = new Date().getFullYear();
       return `LCNS/ST/${year}/${padded}`;
     };
-    const password = newUser.phone ? newUser.phone.slice(-4)+'123' : '123456';
+
     const matricNumber = userType==='STUDENT' ? getNextMatricNumber() : '';
     const staffId = userType==='STAFF' ? getNextStaffId() : '';
     const loginId = userType==='STUDENT'?matricNumber:staffId;
+    
+    // ===== FIXED: NO LEVEL FOR STAFF =====
     const userData:any = { 
       id: Date.now().toString(), fullName: newUser.fullName, email: newUser.email.toLowerCase(), phone: newUser.phone, 
       sex: newUser.sex, level: userType==='STUDENT'?newUser.level.toUpperCase():'', department: newUser.department, 
@@ -202,28 +231,39 @@ export const AdminDashboard: React.FC = () => {
       parentPhone: newUser.parentPhone, staying: newUser.staying, courseOfStudy: newUser.courseOfStudy,
       qualification: newUser.qualification, dateOfBirth: newUser.dateOfBirth, createdBy: 'ADMIN'
     };
+
     const sb=getSupabase();
     if(sb){
       try{
-        await sb.from('users').insert([{
-          id:userData.id, email:userData.email, password, role:userData.role, full_name:userData.fullName,
-          department:userData.department||userData.staffDepartment, phone:userData.phone, matric_no:userData.matricNumber||null,
-          staff_id:userData.staffId||null, level:userData.level||null, status:'ACTIVE',
-          sex:userData.sex, state_of_origin:userData.stateOfOrigin, lga:userData.lga, staff_image:userData.staffImage,
-          address:userData.address, blood_group:userData.bloodGroup, parent_name:userData.parentName,
-          parent_phone:userData.parentPhone, staying:userData.staying, course_of_study:userData.courseOfStudy,
-          qualification:userData.qualification, date_of_birth:userData.dateOfBirth, created_by:'ADMIN'
+        // PERMANENT SUPABASE SAVE - minimal columns that exist in your table
+        const { error } = await sb.from('users').insert([{
+          email:userData.email, 
+          matricnumber: loginId,
+          password: password
         }]);
-      }catch(err){ console.log('Supabase save failed',err); }
+        if(error){
+          // Try with more columns if table supports
+          await sb.from('users').upsert({
+            email:userData.email,
+            matricnumber: loginId,
+            password: password
+          }, {onConflict:'email'});
+        }
+      }catch(err){ console.log('Supabase save',err); }
     }
+
     const existing=JSON.parse(localStorage.getItem('lcns_users')||'[]');
     const updated=[...existing.filter((u:any)=>u.email!==userData.email), userData];
     localStorage.setItem('lcns_users', JSON.stringify(updated));
     localStorage.setItem('users', JSON.stringify(updated));
     setUsers(updated);
     window.dispatchEvent(new Event('storage'));
+    
+    // ===== NEW: SHOW PRINT SLIP =====
+    setLastCreatedUser(userData);
+    
     setNewUser({ fullName:'', email:'', phone:'', sex:'MALE', level:'ND1', department:'Nursing', role:userType==='STAFF'?'LECTURER':'STUDENT', staffId:'', qualification:'', staffDepartment:'Nursing', courseOfStudy:'Nursing Science', staffImage:'', address:'', bloodGroup:'A+', parentName:'', parentPhone:'', staying:'hostel', stateOfOrigin:'Benue', lga:'Gboko', dateOfBirth:'' });
-    showStatus(`✅ ${userType} Created - ${userData.fullName} - Sex:${userData.sex} Level:${userData.level} Matric:${loginId} State:${userData.stateOfOrigin} LGA:${userData.lga} Pass:${password} - Bursar/Provost/Registrar see current level`);
+    showStatus(`✅ ${userType} Created - ${userData.fullName} - ${userType==='STUDENT'?`Level:${userData.level} Matric:${loginId}`:`StaffID:${loginId}`} State:${userData.stateOfOrigin} LGA:${userData.lga} Pass:${password} - PRINT SLIP READY`);
   };
 
   const toggleUserStatus = (email:string)=>{
@@ -246,21 +286,60 @@ export const AdminDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {status && <div className={`fixed top-4 right-4 z-50 p-4 rounded-2xl border shadow-xl flex gap-3 ${status.type==='success'?'bg-emerald-50 border-emerald-200':'bg-red-50 border-red-200'}`}><CheckCircle2 className="w-5 h-5 text-emerald-600"/><span className="text-xs font-bold">{status.text}</span></div>}
+      
+      {/* ===== PRINT SLIP MODAL - NEW ===== */}
+      {lastCreatedUser && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl">
+            <div ref={printRef}>
+              <div className="header">
+                <h2 className="font-black text-lg">Labe College of Nursing Sciences, Gboko</h2>
+                <p className="text-[11px] font-bold">Catholic Diocese of Gboko</p>
+                <p className="text-[10px] mt-2 bg-emerald-800 text-white inline-block px-3 py-1 rounded-full">USER LOGIN DETAILS SLIP - 2026/2027</p>
+              </div>
+              <div className="box">
+                <div className="row"><span className="label">Full Name:</span><span>{lastCreatedUser.fullName}</span></div>
+                <div className="row"><span className="label">User Type:</span><span>{lastCreatedUser.userType}</span></div>
+                <div className="row"><span className="label">Role:</span><span>{lastCreatedUser.role}</span></div>
+                {lastCreatedUser.userType==='STUDENT' ? (
+                  <div className="row"><span className="label">Matric Number:</span><span className="font-mono font-black">{lastCreatedUser.loginId}</span></div>
+                ) : (
+                  <div className="row"><span className="label">Staff ID:</span><span className="font-mono font-black">{lastCreatedUser.loginId}</span></div>
+                )}
+                {lastCreatedUser.level && <div className="row"><span className="label">Level:</span><span>{lastCreatedUser.level} (Student Only)</span></div>}
+                <div className="row"><span className="label">Email (Login):</span><span>{lastCreatedUser.email}</span></div>
+                <div className="row"><span className="label">Password:</span><span className="pass">{lastCreatedUser.password}</span></div>
+                <div className="row"><span className="label">Sex:</span><span>{lastCreatedUser.sex}</span></div>
+                <div className="row"><span className="label">State / LGA:</span><span>{lastCreatedUser.stateOfOrigin} / {lastCreatedUser.lga}</span></div>
+                <div className="row"><span className="label">Department:</span><span>{lastCreatedUser.department||lastCreatedUser.staffDepartment}</span></div>
+                <div className="row"><span className="label">Phone:</span><span>{lastCreatedUser.phone}</span></div>
+                <div className="row"><span className="label">Created:</span><span>{new Date(lastCreatedUser.createdAt).toLocaleString()}</span></div>
+                <p className="text-[9px] mt-3 text-center text-red-600 font-bold">Keep this slip safe. Password is {STRONG_PASSWORD}. Login with Matric/StaffID OR Email at lcns.edu.ng/login</p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={handlePrintSlip} className="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black text-xs flex justify-center gap-2"><Printer className="w-4 h-4"/> PRINT SLIP</button>
+              <button onClick={()=>setLastCreatedUser(null)} className="flex-1 bg-emerald-700 text-white py-3 rounded-xl font-black text-xs">CLOSE - DONE</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-gradient-to-r from-slate-900 via-[#0a4d2e] to-slate-900 text-white rounded-3xl p-6 shadow-xl border border-emerald-900">
         <div className="flex flex-col md:flex-row justify-between gap-4">
           <div>
             <div className="flex flex-wrap gap-2 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin - {adminName} - 2026/2027 - Sex+Level+Matric Auto+State+LGA+Picture+Password+Applicants</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-black/30 px-3 py-1 rounded-full">Director of ICT - Admin - {adminName} - 2026/2027 - PERMANENT FIX Lcns@33 - NO LEVEL FOR STAFF + PRINT SLIP</span>
               <span className={`text-[10px] font-black px-3 py-1 rounded-full flex items-center gap-1 ${supabaseConnected?'bg-emerald-500 text-white':'bg-red-500 text-white'}`}>{supabaseConnected?<><Wifi className="w-3 h-3"/> SUPABASE CONNECTED - {users.length} USERS</>:<><WifiOff className="w-3 h-3"/> LOCAL MODE</>}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2 flex items-center gap-2"><GraduationCap className="w-8 h-8 text-amber-400"/>Administrator Dashboard - {adminName}</h1>
-            <p className="text-xs text-emerald-200 mt-1">Welcome: <span className="text-amber-300 font-black">{adminName}</span> ({adminEmail}) • Users: {users.length} • Sex, Level, Matric Auto LCNS/LEVEL/YEAR/0001, State, LGA, Picture, Passwords, Applicants - Bursar sees students created by ADMIN with current level</p>
+            <p className="text-xs text-emerald-200 mt-1">Welcome: <span className="text-amber-300 font-black">{adminName}</span> ({adminEmail}) • Users: {users.length} • STAFF has NO LEVEL - Password Always Lcns@33 - Print Slip Ready</p>
           </div>
           <div className="flex items-center gap-2 bg-white/10 px-4 py-2 rounded-xl"><CollegeLogo size="lg" /><div className="text-center"><p className="text-[12px] font-black leading-none">Labe College of Nursing Sciences</p><p className="text-[10px] font-bold">Catholic Diocese of Gboko</p><p className={`text-[9px] font-black mt-1 px-2 py-0.5 rounded-full ${supabaseConnected?'bg-emerald-500':'bg-red-500'}`}>{supabaseConnected?'SUPABASE CONNECTED':'LOCAL'}</p></div><CollegeLogo size="lg" /></div>
         </div>
       </div>
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-2xl border shadow-xs">
-        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-slate-900 text-white':'bg-white border'}`}>👤 Users - {users.length} - Sex+Level+State+LGA+Pic+Password</button>
+        <button onClick={()=>setActiveAdminTab('users')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='users'?'bg-slate-900 text-white':'bg-white border'}`}>👤 Users - {users.length} - PERMANENT Lcns@33 + PRINT</button>
         <button onClick={()=>setActiveAdminTab('leadership')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='leadership'?'bg-amber-700 text-white':'bg-amber-50 border-2 border-amber-400 text-amber-800'}`}>👑 Bishop & Provost</button>
         <button onClick={()=>setActiveAdminTab('gallery')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='gallery'?'bg-purple-700 text-white':'bg-purple-50 border text-purple-800'}`}>📸 Gallery</button>
         <button onClick={()=>setActiveAdminTab('courses')} className={`px-3 py-2.5 rounded-xl text-[11px] font-black ${activeAdminTab==='courses'?'bg-blue-700 text-white':'bg-blue-50 border text-blue-800'}`}>📚 Courses</button>
@@ -281,45 +360,47 @@ export const AdminDashboard: React.FC = () => {
 
       {activeAdminTab==='users' && (
         <div className="bg-white rounded-3xl border-2 p-6 shadow-sm space-y-6">
-          <div className="flex justify-between items-center"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - {users.length} Users - Sex+Level+Matric Auto+State+LGA+Picture+Password - Bursar/Provost/Registrar see students created by ADMIN with current level</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">Admin: {adminName} - Supabase: {supabaseConnected?'Yes':'No'} - Matric Auto LCNS/LEVEL/YEAR/0001 - Password Eye - State+LGA - Picture Upload</p></div><div className="flex gap-2"><button onClick={()=>setShowLoginDetails(!showLoginDetails)} className="px-4 py-2 bg-amber-700 text-white rounded-xl text-xs font-black flex gap-2"><Key className="w-4 h-4"/>{showLoginDetails?'Hide':'Show'} Login Details - Sex+Level+State+LGA+Pic+Password</button><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/> Create User - Sex+Level+Matric+State+LGA+Pic</button></div></div>
-          <div className="flex gap-2"><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric, Staff ID, Sex, Level, State, LGA" className="flex-1 p-3 border-2 rounded-xl text-xs"/><select value={userFilter} onChange={e=>setUserFilter(e.target.value as any)} className="p-3 border-2 rounded-xl text-xs font-black"><option value="ALL">ALL Users - {users.length}</option><option value="STUDENT">STUDENTS - Sex+Level+State+LGA</option><option value="STAFF">STAFF</option></select></div>
+          <div className="flex justify-between items-center"><div><h3 className="font-black text-lg flex gap-2"><UserCheck className="w-5 h-5"/> Users - {users.length} Users - PERMANENT FIX - STAFF NO LEVEL - Password Lcns@33 - Print Slip</h3><p className="text-[11px] text-emerald-700 font-bold mt-1">Admin: {adminName} - Supabase: {supabaseConnected?'Yes':'No'} - Matric Auto STUDENT ONLY - STAFF has StaffID only - Password {STRONG_PASSWORD} - Print Slip After Creation</p></div><div className="flex gap-2"><button onClick={()=>setShowLoginDetails(!showLoginDetails)} className="px-4 py-2 bg-amber-700 text-white rounded-xl text-xs font-black flex gap-2"><Key className="w-4 h-4"/>{showLoginDetails?'Hide':'Show'} Login Details</button><button onClick={()=>setShowCreateUser(!showCreateUser)} className="px-4 py-2 bg-[#0a4d2e] text-white rounded-xl text-xs font-black flex gap-2"><UserPlus className="w-4 h-4"/> Create User - STAFF NO LEVEL</button></div></div>
+          <div className="flex gap-2"><input value={searchResult} onChange={e=>setSearchResult(e.target.value)} placeholder="Search by Name, Email, Matric, Staff ID, Sex, Level, State, LGA" className="flex-1 p-3 border-2 rounded-xl text-xs"/><select value={userFilter} onChange={e=>setUserFilter(e.target.value as any)} className="p-3 border-2 rounded-xl text-xs font-black"><option value="ALL">ALL Users - {users.length}</option><option value="STUDENT">STUDENTS - Sex+Level+State+LGA</option><option value="STAFF">STAFF - No Level</option></select></div>
 
           {showCreateUser && (
             <div className="bg-slate-50 border-2 rounded-3xl p-4">
-              <div className="flex gap-2 mb-4"><button onClick={()=>setUserType('STUDENT')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STUDENT'?'bg-blue-700 text-white':'bg-white border'}`}>STUDENT - Sex+Level+Matric Auto+State+LGA+Picture</button><button onClick={()=>setUserType('STAFF')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STAFF'?'bg-emerald-700 text-white':'bg-white border'}`}>STAFF - StaffID Auto+Picture</button></div>
+              <div className="flex gap-2 mb-4"><button onClick={()=>setUserType('STUDENT')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STUDENT'?'bg-blue-700 text-white':'bg-white border'}`}>STUDENT - Has LEVEL + Matric Auto</button><button onClick={()=>setUserType('STAFF')} className={`px-4 py-2 rounded-xl text-xs font-black ${userType==='STAFF'?'bg-emerald-700 text-white':'bg-white border'}`}>STAFF - NO LEVEL + StaffID Auto</button></div>
               <form onSubmit={(e)=>{e.preventDefault(); handleCreateUser();}} className="space-y-4">
                 <div className="bg-white border-2 rounded-2xl p-4">
-                  <h4 className="font-black text-[11px]">Create User - Sex + Level + Auto Matric/StaffID + State + LGA + Picture + Password Auto - Bursar/Provost/Registrar view current level</h4>
+                  <h4 className="font-black text-[11px]">{userType==='STUDENT' ? 'STUDENT - Has Level ND1/ND2/HND1/HND2 + Auto Matric + State + LGA + Picture + Password Lcns@33' : 'STAFF - NO LEVEL - Only StaffID Auto LCNS/ST/YEAR/0001 + State + LGA + Picture + Password Lcns@33'}</h4>
                   <div className="grid md:grid-cols-3 gap-3 mt-3">
                     <div><label className="text-[11px] font-bold">Full Names *</label><input value={newUser.fullName} onChange={e=>setNewUser({...newUser,fullName:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-bold" required/></div>
                     <div><label className="text-[11px] font-bold">Email *</label><input type="email" value={newUser.email} onChange={e=>setNewUser({...newUser,email:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
-                    <div><label className="text-[11px] font-bold">Phone * (Password = last4+123)</label><input value={newUser.phone} onChange={e=>setNewUser({...newUser,phone:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
+                    <div><label className="text-[11px] font-bold">Phone *</label><input value={newUser.phone} onChange={e=>setNewUser({...newUser,phone:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" required/></div>
                     <div><label className="text-[11px] font-bold">Sex *</label><select value={newUser.sex} onChange={e=>setNewUser({...newUser,sex:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-black"><option value="MALE">MALE</option><option value="FEMALE">FEMALE</option></select></div>
-                    <div><label className="text-[11px] font-bold">Level * ND1/ND2/HND1/HND2</label><select value={newUser.level} onChange={e=>setNewUser({...newUser,level:e.target.value})} className="w-full mt-1 p-3 border-2 border-blue-500 rounded-xl text-xs font-black"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
+                    {userType==='STUDENT' && (
+                      <div><label className="text-[11px] font-bold">Level * ND1/ND2/HND1/HND2 - STUDENT ONLY</label><select value={newUser.level} onChange={e=>setNewUser({...newUser,level:e.target.value})} className="w-full mt-1 p-3 border-2 border-blue-500 rounded-xl text-xs font-black"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
+                    )}
                     <div><label className="text-[11px] font-bold">State of Origin *</label><select value={newUser.stateOfOrigin} onChange={e=>{ const st=e.target.value; setNewUser({...newUser,stateOfOrigin:st, lga:getLgas(st)[0]}); }} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option value="">Select State</option>{ALL_STATES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
                     <div><label className="text-[11px] font-bold">LGA *</label><select value={newUser.lga} onChange={e=>setNewUser({...newUser,lga:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs"><option value="">Select LGA</option>{getLgas(newUser.stateOfOrigin).map(l=><option key={l} value={l}>{l}</option>)}<option value="Other">Other</option></select></div>
                     <div><label className="text-[11px] font-bold">Role *</label><select value={newUser.role} onChange={e=>setNewUser({...newUser,role:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs font-black"><option>STUDENT</option><option>LECTURER</option><option>HOD</option><option>EXAM_OFFICER</option><option>PROVOST</option><option>REGISTRAR</option><option>BURSAR</option><option>ADMIN</option></select></div>
                     <div><label className="text-[11px] font-bold">Department</label><input value={newUser.department} onChange={e=>setNewUser({...newUser,department:e.target.value})} className="w-full mt-1 p-3 border-2 rounded-xl text-xs" placeholder="Nursing"/></div>
                     <div className="md:col-span-3"><label className="text-[11px] font-bold">Upload Picture - Student/Staff Photo - &lt;5MB</label><input type="file" accept="image/*" onChange={handleImgUpload} className="w-full mt-1 p-3 border-2 border-dashed rounded-xl text-xs file:bg-slate-900 file:text-white file:rounded-xl file:border-0 file:px-4 file:py-2"/>{newUser.staffImage && <div className="mt-2 h-32 w-32 rounded-xl overflow-hidden border-2"><img src={newUser.staffImage} className="w-full h-full object-cover"/></div>}</div>
                   </div>
-                  <p className="text-[10px] mt-3 font-bold text-blue-700">Matric Auto: LCNS/LEVEL/YEAR/0001 e.g. LCNS/ND1/2026/0001 - Staff ID: LCNS/ST/YEAR/0001 - Password Auto: Last 4 Phone + 123 - Bursar sees students created by ADMIN with current level - Provost/Registrar same</p>
+                  <p className="text-[10px] mt-3 font-bold text-emerald-700">{userType==='STUDENT' ? 'STUDENT: Matric Auto LCNS/LEVEL/YEAR/0001 - Level Required - Password Lcns@33 Permanent' : 'STAFF: NO LEVEL - StaffID Auto LCNS/ST/YEAR/0001 - Level Removed - Password Lcns@33 Permanent - Print Slip After Creation'}</p>
                 </div>
-                <button type="submit" className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">CREATE USER - Sex+Level+Matric Auto+State+LGA+Picture - Saves to Supabase + Bursar/Provost/Registrar View Current Level</button>
+                <button type="submit" className="w-full bg-[#0a4d2e] text-white py-3 rounded-xl font-black text-xs">{userType==='STUDENT' ? 'CREATE STUDENT - With LEVEL + Print Slip Lcns@33' : 'CREATE STAFF - NO LEVEL + Print Slip Lcns@33'} - Saves to Supabase Permanent</button>
               </form>
             </div>
           )}
 
           {showLoginDetails && (
-            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Login Details - {users.length} Users - Sex+Level+State+LGA+Pic+Password - ADMIN SEES ALL</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Photo+Name+Sex</th><th className="p-2">Role+Level Current</th><th className="p-2">Email+State/LGA</th><th className="p-2">Matric/StaffID Auto</th><th className="p-2">Password Eye</th><th className="p-2">Status</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2"><div className="flex gap-2 items-center">{u.staffImage?<img src={u.staffImage} className="w-10 h-10 rounded-full object-cover border"/>:<div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black">{(u.fullName||'A')[0]}</div>}<div><p className="font-black">{u.fullName}</p><p className="text-[10px]">{u.sex} - {u.level} - {u.stateOfOrigin}/{u.lga}</p></div></div></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span><br/><span className="text-[10px] font-bold">{u.level} (Current)</span></td><td className="p-2"><p className="font-bold">{u.email}</p><p className="text-[10px]">{u.stateOfOrigin} / {u.lga}</p></td><td className="p-2 font-mono font-black text-[11px]">{u.loginId||u.matricNumber||u.staffId||u.email}<br/><span className="text-[9px] text-slate-500">ID: {u.id?.substring(0,8)}...</span></td><td className="p-2 font-mono text-[11px]"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-black">{showPasswords[u.email]? (u.password||'123456') : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-2 py-1 rounded-lg text-[10px] font-black ${u.status==='ACTIVE'?'bg-amber-600 text-white':'bg-emerald-600 text-white'}`}>{u.status==='ACTIVE'?'Deactivate':'Activate'}</button><button onClick={()=>deleteUser(u.email, u.fullName)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px]">Delete</button></div></td></tr>)}</tbody></table></div></div>
+            <div className="bg-amber-50 border-2 border-amber-400 rounded-3xl p-4"><h4 className="font-black text-sm flex gap-2"><Key className="w-4 h-4"/> All User Login Details - {users.length} Users - STAFF NO LEVEL - Password {STRONG_PASSWORD}</h4><div className="mt-3 overflow-x-auto border-2 rounded-xl bg-white"><table className="w-full text-[11px]"><thead className="bg-slate-900 text-white"><tr><th className="p-2 text-left">Photo+Name+Sex</th><th className="p-2">Role+{userType==='STUDENT'?'Level Current':'No Level'}</th><th className="p-2">Email+State/LGA</th><th className="p-2">Matric/StaffID Auto</th><th className="p-2">Password Eye</th><th className="p-2">Status</th><th className="p-2 text-center">Action</th></tr></thead><tbody>{filteredUsers.map((u:any)=><tr key={u.email} className={`border-b ${u.status==='INACTIVE'?'bg-red-50':''}`}><td className="p-2"><div className="flex gap-2 items-center">{u.staffImage?<img src={u.staffImage} className="w-10 h-10 rounded-full object-cover border"/>:<div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-black">{(u.fullName||'A')[0]}</div>}<div><p className="font-black">{u.fullName}</p><p className="text-[10px]">{u.sex} {u.level?`- ${u.level}`:''} - {u.stateOfOrigin}/{u.lga}</p></div></div></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${getRoleColor(u.role)}`}>{u.role}</span><br/>{u.level?<span className="text-[10px] font-bold">{u.level} (Student)</span>:<span className="text-[10px] font-bold text-emerald-700">STAFF - No Level</span>}</td><td className="p-2"><p className="font-bold">{u.email}</p><p className="text-[10px]">{u.stateOfOrigin} / {u.lga}</p></td><td className="p-2 font-mono font-black text-[11px]">{u.loginId||u.matricNumber||u.staffId||u.email}<br/><span className="text-[9px] text-slate-500">ID: {u.id?.substring(0,8)}...</span></td><td className="p-2 font-mono text-[11px]"><span className="flex gap-1 items-center bg-yellow-50 px-2 py-1 rounded border font-black">{showPasswords[u.email]? (u.password||STRONG_PASSWORD) : '••••••'}<button onClick={()=>setShowPasswords({...showPasswords,[u.email]:!showPasswords[u.email]})} className="ml-1 p-1 bg-white border rounded">{showPasswords[u.email]?<EyeOff className="w-3 h-3"/>:<Eye className="w-3 h-3"/>}</button></span></td><td className="p-2"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{u.status}</span></td><td className="p-2 text-center"><div className="flex gap-1 justify-center"><button onClick={()=>toggleUserStatus(u.email)} className={`px-2 py-1 rounded-lg text-[10px] font-black ${u.status==='ACTIVE'?'bg-amber-600 text-white':'bg-emerald-600 text-white'}`}>{u.status==='ACTIVE'?'Deactivate':'Activate'}</button><button onClick={()=>deleteUser(u.email, u.fullName)} className="px-2 py-1 bg-red-600 text-white rounded-lg text-[10px]">Delete</button></div></td></tr>)}</tbody></table></div></div>
           )}
 
           <div className="bg-white border-2 rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
-                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Full Name + Email + Role + User ID + Sex + Level + State/LGA + Picture</th><th className="p-3">Department</th><th className="p-3 text-center">Status</th></tr></thead>
+                <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Full Name + Email + Role + User ID + Sex + Level (Student Only) + State/LGA + Picture</th><th className="p-3">Department</th><th className="p-3 text-center">Status</th></tr></thead>
                 <tbody>
                   {filteredUsers.map((s:any)=>{
-                    return (<tr key={s.email} className="border-b"><td className="p-3"><p className="font-black">{s.fullName} - {s.sex} - {s.level} - {s.stateOfOrigin}/{s.lga}</p><p className="text-[10px]">{s.email} - {s.role} - ID: {s.loginId||s.matricNumber||s.staffId} - Matric Auto: {s.matricNumber} - Pic: {s.staffImage?'Yes':'No'}</p></td><td className="p-3">{s.department} - {s.stateOfOrigin} / {s.lga}</td><td className="p-3 text-center"><div className="flex justify-center">{s.staffImage?<img src={s.staffImage} className="w-10 h-10 rounded-full object-cover"/>:<span className={`px-2 py-1 rounded-full text-[10px] font-black ${s.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{s.status}</span>}</div></td></tr>);
+                    return (<tr key={s.email} className="border-b"><td className="p-3"><p className="font-black">{s.fullName} - {s.sex} {s.level?`- ${s.level}`:'- STAFF No Level'} - {s.stateOfOrigin}/{s.lga}</p><p className="text-[10px]">{s.email} - {s.role} - ID: {s.loginId||s.matricNumber||s.staffId} {s.matricNumber?`- Matric: ${s.matricNumber}`:''} {s.staffId?`- StaffID: ${s.staffId}`:''} - Pic: {s.staffImage?'Yes':'No'} - Pass: {STRONG_PASSWORD}</p></td><td className="p-3">{s.department} - {s.stateOfOrigin} / {s.lga}</td><td className="p-3 text-center"><div className="flex justify-center">{s.staffImage?<img src={s.staffImage} className="w-10 h-10 rounded-full object-cover"/>:<span className={`px-2 py-1 rounded-full text-[10px] font-black ${s.status==='ACTIVE'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}`}>{s.status}</span>}</div></td></tr>);
                   })}
                 </tbody>
               </table>
