@@ -21,51 +21,55 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
     setError("");
     setResult(null);
 
-    const clean = formNumber.trim().toUpperCase();
+    const clean = formNumber.trim();
+    const shortNo = clean.split("/").pop() || clean; // 8343
 
     try {
       let data = null;
 
+      // 1. Try lcns_applicants by application_number with ilike (fixes case issue)
       const q1 = await supabase
         .from("lcns_applicants")
         .select("*")
-        .or(`application_number.eq.${clean},form_no.eq.${clean}`)
+        .ilike("application_number", `%${shortNo}%`)
+        .limit(1)
         .maybeSingle();
 
       if (q1.data) {
         data = q1.data;
       } else {
+        // 2. Try form_no
+        const q1b = await supabase
+          .from("lcns_applicants")
+          .select("*")
+          .ilike("form_no", `%${shortNo}%`)
+          .limit(1)
+          .maybeSingle();
+        if (q1b.data) data = q1b.data;
+      }
+
+      // 3. Try college_applications table
+      if (!data) {
         const q2 = await supabase
           .from("college_applications")
           .select("*")
-          .or(`application_number.eq.${clean},form_no.eq.${clean}`)
-          .maybeSingle();
-        
-        if (q2.data) data = q2.data;
-      }
-
-      if (!data) {
-        const shortNo = clean.split("/").pop() || clean;
-        const q3 = await supabase
-          .from("lcns_applicants")
-          .select("*")
           .ilike("application_number", `%${shortNo}%`)
+          .limit(1)
           .maybeSingle();
-        
-        if (q3.data) {
-          data = q3.data;
-        } else {
-          const q4 = await supabase
+        if (q2.data) data = q2.data;
+        else {
+          const q2b = await supabase
             .from("college_applications")
             .select("*")
-            .ilike("application_number", `%${shortNo}%`)
+            .ilike("form_no", `%${shortNo}%`)
+            .limit(1)
             .maybeSingle();
-          if (q4.data) data = q4.data;
+          if (q2b.data) data = q2b.data;
         }
       }
 
       if (!data) {
-        setError(`No record found for ${formNumber}. Please check your Form Number. Example: LCNS/2026/8902`);
+        setError(`No record found for ${clean}. Please check your Form Number. Example: LCNS/2026/8902`);
       } else {
         setResult(data);
       }
@@ -103,7 +107,7 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
               <input
                 value={formNumber}
                 onChange={(e) => setFormNumber(e.target.value)}
-                placeholder="LCNS/2026/8342"
+                placeholder="LCNS/2026/8343"
                 style={{ width: "100%", padding: 14, borderRadius: 10, border: "2px solid #052e16", fontWeight: 700, fontSize: 15, textTransform: "uppercase" }}
               />
               <p style={{ fontSize: 11, color: "#666", marginTop: 6 }}>Example: LCNS/2026/8902</p>
@@ -135,7 +139,7 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
               </div>
 
               <button onClick={handlePrint} style={{ marginTop: 14, width: "100%", padding: 14, background: "#052e16", color: "white", border: "none", borderRadius: 10, fontWeight: 900, cursor: "pointer" }}>
-                🖨️ PRINT FULL APPLICATION FORM (with Passport + Logo + JAMB)
+                🖨️ PRINT FULL APPLICATION FORM
               </button>
 
               <button onClick={() => setResult(null)} style={{ marginTop: 8, width: "100%", padding: 12, background: "white", border: "2px solid #052e16", borderRadius: 10, fontWeight: 800, cursor: "pointer" }}>
@@ -149,5 +153,4 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
   );
 }
 
-// Add default export to prevent Vercel MISSING_EXPORT error if someone imports as default
 export default AdmissionCheckerModal;
