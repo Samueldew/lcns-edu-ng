@@ -78,10 +78,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     saveAdmission(updated); alert(`Session updated to ${updated.session}`);
   };
 
-  // ✅ FIXED: APPLY BUTTON ALWAYS OPENS - BULLETPROOF VERSION
+  // ✅ FIXED: NOW BLOCKS WHEN CLOSED
   const handleApplyClick = (e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
+    if (!admissionSettings.isOpen) {
+      alert(`⛔ ${admissionSettings.closedMessage}\n\nAdmission is CLOSED for ${admissionSettings.session} - Resumption November 2026.\n\nExisting applicants can still use Check Admission Status.\n\nContact: info@lcns.edu.ng | ict.lcns@lcns.edu.ng`);
+      return;
+    }
     console.log("✅ Apply clicked - opening application for", admissionSettings.session);
     setMobileOpen(false);
     setShowRoleMenu(false);
@@ -172,7 +176,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
             <button type="button" onClick={onOpenAdmissionChecker} className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-white/10 border border-white/20 rounded-lg"><FileText className="w-3.5 h-3.5 text-amber-300"/><span>Check Admission</span></button>
-            <button type="button" onClick={handleApplyClick} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm bg-[#F59E0B] text-slate-950 hover:bg-amber-400 cursor-pointer" title={`Apply for ${admissionSettings.session} - BUILD MODE - ALWAYS OPENS`}>
+            <button type="button" onClick={handleApplyClick} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-lg shadow-sm bg-[#F59E0B] text-slate-950 hover:bg-amber-400 cursor-pointer" title={`Apply for ${admissionSettings.session} - ${admissionSettings.isOpen ? 'OPEN' : 'CLOSED'}`}>
               <GraduationCap className="w-4 h-4"/><span>Apply {admissionSettings.session}</span>
             </button>
             {currentUser ? (<div className="flex items-center gap-2"><button type="button" onClick={()=>setActiveView('portal')} className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold rounded-xl bg-white text-[#0a4d2e]"><LayoutDashboard className="w-3 h-3"/><span className="hidden md:inline">Portal</span></button><button type="button" onClick={handleLogout} className="p-2 text-white/70 hover:text-red-300"><LogOut className="w-4 h-4"/></button></div>) : (<button type="button" onClick={onOpenLogin} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 rounded-lg"><LogIn className="w-3.5 h-3.5"/><span>Login</span></button>)}
@@ -190,7 +194,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button type="button" onClick={()=>scrollToId('facilities')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase hover:bg-white/10 rounded-lg">Facilities</button>
           <button type="button" onClick={()=>scrollToId('gallery')} className="w-full text-left px-3 py-3 text-sm font-bold uppercase bg-amber-500/20 text-amber-300 rounded-lg">Gallery</button>
           <div className="pt-3 border-t border-white/10 space-y-2">
-            <button type="button" onClick={handleApplyClick} className="w-full py-3 text-xs font-black uppercase rounded-lg bg-amber-400 text-black cursor-pointer">Apply {admissionSettings.session} (Build Mode - ALWAYS OPENS)</button>
+            <button type="button" onClick={handleApplyClick} className="w-full py-3 text-xs font-black uppercase rounded-lg bg-amber-400 text-black cursor-pointer">Apply {admissionSettings.session}</button>
             <button type="button" onClick={()=>{setMobileOpen(false); onOpenAdmissionChecker();}} className="w-full py-3 text-xs font-bold uppercase bg-white/10 rounded-lg">Check Admission</button>
           </div>
         </div>
