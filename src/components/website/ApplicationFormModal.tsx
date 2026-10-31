@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase, getPublicImageUrl } from "../../lib/supabase";
 
 const SCHOOL_LOGO = "https://liqwfikatnkndbdbdarx.supabase.co/storage/v1/object/public/school-assets/logo-main-1792311488006.jpg";
-const SUPABASE_BUCKET = "lcns-files"; // YOUR REAL BUCKET
+const SUPABASE_BUCKET = "lcns-files";
 const SUBJECTS = ["English Language","Mathematics","Biology","Chemistry","Physics","Civic Education","Economics","Geography","Government","Literature in English","Commerce","Financial Accounting","Agricultural Science","Further Mathematics","Christian Religious Studies","Islamic Religious Studies","History","Marketing","Computer Studies","Data Processing"];
 const GRADES = ["A1","B2","B3","C4","C5","C6","D7","E8","F9"] as const;
 type SubjectRow = { subject: string; grade: string; };
@@ -10,6 +10,28 @@ const makeSubjects = (): SubjectRow[] => Array.from({ length: 9 }, () => ({ subj
 
 export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChecker }: any) {
   const isModalOpen = open ?? isOpen;
+  const [admissionOpen, setAdmissionOpen] = useState(true);
+  const [admissionMsg, setAdmissionMsg] = useState("Admissions for 2026/2027 Academic Year is CLOSED");
+  const [deadline, setDeadline] = useState("");
+
+  // === CHECK ADMISSION STATUS FROM DB ===
+  useEffect(()=>{
+    const check = async () => {
+      try {
+        const { data } = await supabase.from('college_settings').select('*');
+        const openRow = data?.find((r:any)=>r.setting_key==='admission_open_2026_2027');
+        const msgRow = data?.find((r:any)=>r.setting_key==='admission_message');
+        const deadlineRow = data?.find((r:any)=>r.setting_key==='admission_deadline');
+        if (openRow && openRow.setting_value==='false') setAdmissionOpen(false);
+        if (msgRow) setAdmissionMsg(msgRow.setting_value);
+        if (deadlineRow) setDeadline(deadlineRow.setting_value);
+        // fast local check
+        if (localStorage.getItem('admission_open_2026_2027')==='false') setAdmissionOpen(false);
+      } catch {}
+    };
+    if (isModalOpen) check();
+  }, [isModalOpen]);
+
   const [step, setStep] = useState(1);
   const [passportFile, setPassportFile] = useState<File | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -56,20 +78,16 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!admissionOpen) { alert("⛔ Admission Closed - Cannot Submit"); return; }
     if (!agreed) { alert("Accept declaration"); return; }
-    // === HARD BLOCK: PASSPORT COMPULSORY ===
-    if (!passportFile) { alert("⛔ Passport photo is compulsory! Please go back to Step 5 and upload passport."); setStep(5); return; }
+    if (!passportFile) { alert("⛔ Passport photo is compulsory!"); setStep(5); return; }
     if (!proofFile) { alert("Upload payment proof"); setStep(5); return; }
     
     setLoading(true);
     try {
-      // Upload to Supabase storage - ALWAYS public URL
-      let photoUrl = "";
-      let proofUrl = "";
-      photoUrl = await uploadToSupabase(passportFile, "passports");
-      proofUrl = await uploadToSupabase(proofFile, "proofs");
+      let photoUrl = await uploadToSupabase(passportFile, "passports");
+      let proofUrl = await uploadToSupabase(proofFile, "proofs");
       
-      // Safe number generation - get max existing number
       const { data: lastApp } = await supabase.from("lcns_applicants").select("application_number").order("created_at", { ascending: false }).limit(1).maybeSingle();
       let lastNum = 8343;
       if (lastApp?.application_number) {
@@ -83,15 +101,10 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
 
       const payload = {
         id: crypto.randomUUID(),
-        full_name: form.full_name, 
-        application_number: appNo, 
-        exam_no: examNo,
-        exam_number: examNo,
-        form_no: appNo,
+        full_name: form.full_name, application_number: appNo, exam_no: examNo, exam_number: examNo, form_no: appNo,
         dob: form.dob, gender: form.gender, phone: form.phone, email: form.email,
         state: form.state, lga: form.lga, address: form.address,
         jamb_reg: form.jamb_reg, jamb_score: form.jamb_score, jamb_year: form.jamb_year, 
-        jamb_reg_no: form.jamb_reg, jamb_number: form.jamb_reg,
         course: form.course,
         sponsor_name: form.sponsor_name, sponsor_phone: form.sponsor_phone, sponsor_address: form.sponsor_address, sponsor_relationship: form.sponsor_relationship,
         photo_url: photoUrl, passport_url: photoUrl, proof_url: proofUrl, payment_proof_url: proofUrl,
@@ -102,9 +115,7 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
           stateOfOrigin: form.state, lga: form.lga, address: form.address,
           jamb: { regNo: form.jamb_reg, score: form.jamb_score, year: form.jamb_year },
           sponsor: { name: form.sponsor_name, phone: form.sponsor_phone, address: form.sponsor_address, relationship: form.sponsor_relationship },
-          sscResults: subjects1,
-          passportPhotoUrl: photoUrl,
-          photo_url: photoUrl
+          sscResults: subjects1, passportPhotoUrl: photoUrl, photo_url: photoUrl
         },
         ssce_data: { 
           sitting1: { exam: form.ssce_exam1, year: form.ssce_year1, no: form.ssce_no1, subjects: subjects1 }, 
@@ -116,26 +127,48 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
       const { error } = await supabase.from("lcns_applicants").insert([payload]);
       if (error) throw error;
       
-      alert(`SUCCESS! Your Application No is: ${appNo}\n\nPassport saved. Copy App No. Use it to Check Admission Status.`);
+      alert(`SUCCESS! Your Application No is: ${appNo}`);
       onClose?.();
       if (onOpenAdmissionChecker) onOpenAdmissionChecker(appNo); 
 
     } catch (err: any) { 
-      console.error(err);
-      alert("Error: " + (err?.message || "Upload failed. Check bucket lcns-files is public.")); 
+      alert("Error: " + (err?.message || "Upload failed")); 
     } finally { 
       setLoading(false); 
     }
   };
 
   if (!isModalOpen) return null;
+
+  // === IF ADMISSION CLOSED, SHOW CLOSED SCREEN ===
+  if (!admissionOpen) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 9999, overflowY: "auto", padding: 16, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ maxWidth: 500, width: "100%", background: "white", borderRadius: 20, overflow: "hidden", border: "4px solid #dc2626", textAlign: "center", padding: 30 }}>
+          <img src={SCHOOL_LOGO} alt="Logo" style={{ width: 90, height: 90, borderRadius: 50, background: "white", padding: 4, border: "3px solid #facc15", margin: "0 auto" }} />
+          <h1 style={{ color: "#dc2626", fontWeight: 900, fontSize: 26, marginTop: 15 }}>⛔ ADMISSION CLOSED</h1>
+          <p style={{ fontWeight: 800, fontSize: 16, marginTop: 10 }}>{admissionMsg}</p>
+          <p style={{ fontSize: 14, marginTop: 8, color: "#555" }}>2026/2027 Academic Session is now closed. Deadline was {deadline || "30th Nov 2026"}.</p>
+          <p style={{ fontSize: 13, marginTop: 15, background: "#fef2f2", padding: 10, borderRadius: 10, border: "1px solid #fecaca" }}>
+            Existing applicants can still <b>Check Admission Status</b> and print forms. New applications are not accepted.
+          </p>
+          <div style={{ marginTop: 20, display: "flex", gap: 10, justifyContent: "center" }}>
+            <button onClick={onClose} style={{ background: "black", color: "white", padding: "12px 24px", borderRadius: 12, fontWeight: 900, border: "none" }}>Close</button>
+            {onOpenAdmissionChecker && <button onClick={()=>{ onClose(); onOpenAdmissionChecker(""); }} style={{ background: "#0a4d2e", color: "white", padding: "12px 24px", borderRadius: 12, fontWeight: 900, border: "none" }}>Check Admission Status</button>}
+          </div>
+          <p style={{ fontSize: 10, marginTop: 15, color: "#999" }}>Labe College of Nursing Sciences, Gboko - Catholic Diocese of Gboko, Benue State</p>
+        </div>
+      </div>
+    );
+  }
+
   const progress = (step/6)*100;
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, overflowY: "auto", padding: 16, background: "linear-gradient(135deg, #022c22, #065f46, #10b981)" }}>
       <div style={{ maxWidth: 920, margin: "20px auto", background: "white", borderRadius: 16, overflow: "hidden", border: "4px solid #facc15" }}>
         <div style={{ background: "linear-gradient(90deg, #052e16, #16a34a)", padding: 16, display: "flex", alignItems: "center", gap: 14, color: "white" }}>
           <img src={SCHOOL_LOGO} alt="Logo" style={{ width: 60, height: 60, borderRadius: 50, background: "white", padding: 4, border: "3px solid #facc15" }} />
-          <div style={{ flex:1 }}><h2 style={{ margin: 0, fontWeight: 900, fontSize: 18 }}>LABE COLLEGE OF NURSING SCIENCES GBOKO</h2><p style={{ margin: 0, fontSize: 11 }}>Step {step} of 6</p><div style={{ background: "rgba(255,255,255,0.3)", height: 6, borderRadius: 10, marginTop: 6 }}><div style={{ width: `${progress}%`, height: 6, background: "#facc15", borderRadius: 10 }} /></div></div>
+          <div style={{ flex:1 }}><h2 style={{ margin: 0, fontWeight: 900, fontSize: 18 }}>LABE COLLEGE OF NURSING SCIENCES GBOKO</h2><p style={{ margin: 0, fontSize: 11 }}>Step {step} of 6 - CATHOLIC DIOCESE OF GBOKO, BENUE STATE</p><div style={{ background: "rgba(255,255,255,0.3)", height: 6, borderRadius: 10, marginTop: 6 }}><div style={{ width: `${progress}%`, height: 6, background: "#facc15", borderRadius: 10 }} /></div></div>
           <button onClick={onClose} style={{ background: "white", color: "#052e16", border: "none", padding: "6px 12px", borderRadius: 8, fontWeight: 900 }}>X</button>
         </div>
         <div style={{ padding: 20 }}>
@@ -183,7 +216,7 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
                 {preview && <img src={preview} alt="Passport" style={{ width: 130, height: 150, objectFit: "cover", marginTop: 10, border: "3px solid #16a34a", borderRadius: 8, display: "block", margin: "10px auto" }} />}
               </div>
               <div style={{ border: "2px dashed #f59e0b", padding: 14, textAlign: "center", borderRadius: 10, background: "#fffbeb" }}>
-                <p style={{ fontWeight: 800 }}>Proof of Payment * {proofFile ? '✅' : ''}</p>
+                <p style={{ fontWeight: 800 }}>Receipt from Bank * {proofFile ? '✅' : ''}</p>
                 <input type="file" accept="image/*,application/pdf" required onChange={e=>{ const f = e.target.files?.[0]; if(f){ setProofFile(f); if(f.type.includes("image")) setProofPreview(URL.createObjectURL(f)); } }} />
                 {proofPreview && <img src={proofPreview} alt="Proof" style={{ width: 200, objectFit: "contain", marginTop: 10, border: "3px solid #f59e0b", borderRadius: 8, display: "block", margin: "10px auto" }} />}
               </div>
@@ -191,21 +224,27 @@ export function ApplicationFormModal({ open, isOpen, onClose, onOpenAdmissionChe
           )}
           {step === 6 && (
             <div style={{ background: "#f0fdf4", border: "2px solid #16a34a", padding: 16, borderRadius: 12 }}>
-              <h3>REVIEW</h3>
+              <h3>REVIEW + DECLARATION</h3>
               <p><b>Name:</b> {form.full_name}</p><p><b>Phone:</b> {form.phone}</p>
+              <p style={{ marginTop: 10, fontSize: 13, background: "white", padding: 10, borderRadius: 8, border: "1px solid #ccc" }}>
+                I, <b>{form.full_name}</b> declare that all information provided belongs to me and is true.
+              </p>
               <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                 {preview && <img src={preview} alt="Passport" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '2px solid green' }} />}
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 800, color: passportFile ? 'green' : 'red' }}>{passportFile ? '✅ Passport Ready' : '⛔ No Passport!'}</p>
-                  <p style={{ fontSize: 12, fontWeight: 800, color: proofFile ? 'green' : 'red' }}>{proofFile ? '✅ Proof Ready' : '⛔ No Proof!'}</p>
+                  <p style={{ fontSize: 12, fontWeight: 800, color: proofFile ? 'green' : 'red' }}>{proofFile ? '✅ Receipt Ready' : '⛔ No Receipt!'}</p>
                 </div>
               </div>
               <label style={{ display: "flex", gap: 8, fontWeight: 800, marginTop: 14 }}><input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} /> I declare info is true and passport is mine</label>
+              <div style={{ marginTop: 10, background: "#fffbeb", border: "1px solid #fbbf24", padding: 10, borderRadius: 8, fontSize: 12 }}>
+                <b>Requirements for CBT:</b> Come with phone + Receipt from bank + All originals
+              </div>
             </div>
           )}
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
             {step > 1 ? <button type="button" onClick={prev} style={{ padding: "12px 20px", background: "#e5e7eb", border: "none", borderRadius: 10, fontWeight: 800 }}>PREVIOUS</button> : <div />}
-            {step < 6 ? <button type="button" onClick={next} style={{ padding: "12px 28px", background: "linear-gradient(90deg, #052e16, #16a34a)", color: "white", fontWeight: 900, border: "none", borderRadius: 10 }}>NEXT →</button> : <button disabled={loading} type="submit" style={{ padding: "12px 28px", background: loading ? "#9ca3af" : "linear-gradient(90deg, #052e16, #16a34a)", color: "white", fontWeight: 900, border: "none", borderRadius: 10 }}>{loading ? "UPLOADING PASSPORT..." : "SUBMIT & GET APP NO"}</button>}
+            {step < 6 ? <button type="button" onClick={next} style={{ padding: "12px 28px", background: "linear-gradient(90deg, #052e16, #16a34a)", color: "white", fontWeight: 900, border: "none", borderRadius: 10 }}>NEXT →</button> : <button disabled={loading} type="submit" style={{ padding: "12px 28px", background: loading ? "#9ca3af" : "linear-gradient(90deg, #052e16, #16a34a)", color: "white", fontWeight: 900, border: "none", borderRadius: 10 }}>{loading ? "UPLOADING..." : "SUBMIT & GET APP NO"}</button>}
           </div>
         </form>
         </div>
