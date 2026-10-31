@@ -10,31 +10,29 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
   const [error, setError] = useState("");
 
   const checkStatus = async () => {
-    if (!formNumber.trim()) {
+    const clean = formNumber.trim();
+    if (!clean) {
       setError("Enter your Form Number");
       return;
     }
     setLoading(true);
     setError("");
     setResult(null);
-
-    const clean = formNumber.trim();
     const shortNo = clean.split("/").pop() || clean;
 
     try {
-      // ONLY query real table + real column
-      const { data, error } = await supabase
-        .from("lcns_applicants")
-        .select("*")
-        .ilike("application_number", `%${shortNo}%`)
-        .limit(1);
+      // USES THE FUNCTION FROM YOUR SCREENSHOT - PROVEN TO WORK
+      const { data, error } = await supabase.rpc("get_applicant_by_number", {
+        search_text: shortNo,
+      });
 
       if (error) throw error;
 
       if (!data || data.length === 0) {
         setError(`No record found for ${clean}. Please check your Form Number. Example: LCNS/2026/8902`);
       } else {
-        setResult(data[0]);
+        const row = Array.isArray(data) ? data[0] : data;
+        setResult(row);
       }
     } catch (err: any) {
       console.error(err);
@@ -112,4 +110,5 @@ export function AdmissionCheckerModal({ isOpen, onClose }: Props) {
     </div>
   );
 }
+
 export default AdmissionCheckerModal;
