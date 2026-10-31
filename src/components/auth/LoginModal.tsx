@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import { ApiService } from '../../services/api';
 import { StorageService } from '../../services/storage';
+import { User } from '../../types';
 
-export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onLoginSuccess?: (user: User) => void;
+}
+
+export const LoginModal = ({ isOpen, onClose, onLoginSuccess }: Props) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,34 +29,26 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
         return;
       }
       const user = res.user;
-      setSuccess(`Welcome ${user.fullName || user.full_name}! Redirecting...`);
+      setSuccess(`Welcome ${user.fullName || user.full_name}!`);
 
       const userStr = JSON.stringify(user);
       localStorage.setItem('lcns_current_user', userStr);
-      localStorage.setItem('lcns_erp_current_user', userStr);
       localStorage.setItem('current_user', userStr);
       localStorage.setItem('lcns_user', userStr);
-      localStorage.setItem('lcns-current-user', userStr);
       localStorage.setItem('currentUser', userStr);
-      try { StorageService.setCurrentUser(user); } catch {}
+      StorageService.setCurrentUser(user);
 
-      // NO onClose() BEFORE REDIRECT - THIS WAS BLOCKING!
-      const role = (user.role || '').toUpperCase().trim();
-      
-      // FORCE HARD REDIRECT - CANNOT BE BLOCKED BY REACT ROUTER
+      window.dispatchEvent(new Event('lcns_auth_update'));
+      window.dispatchEvent(new Event('lcns_storage_update'));
+
       setTimeout(() => {
-        if (role === 'ADMIN') window.top!.location.href = '/admin';
-        else if (role === 'PROVOST') window.top!.location.href = '/provost';
-        else if (role === 'REGISTRAR') window.top!.location.href = '/registrar';
-        else if (role === 'HOD') window.top!.location.href = '/hod';
-        else if (role === 'LECTURER') window.top!.location.href = '/lecturer';
-        else if (role === 'BURSAR') window.top!.location.href = '/bursar';
-        else if (role === 'STUDENT') window.top!.location.href = '/student';
-        else window.top!.location.href = '/dashboard';
+        onClose();
+        if (onLoginSuccess) onLoginSuccess(user);
       }, 600);
 
     } catch (err: any) {
       setError(err.message);
+    } finally {
       setLoading(false);
     }
   };
@@ -59,20 +58,10 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 relative">
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-black text-xl">✕</button>
         
-        <div className="flex flex-col items-center mb-6">
-          <img 
-            src="/logo.png" 
-            alt="LCNS Logo" 
-            className="w-20 h-20 object-contain mb-2"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              if (target.src.includes('/logo.png')) target.src = '/lcns-logo.png';
-              else target.style.display = 'none';
-            }}
-          />
+        <div className="flex flex-col items-center mb-5">
+          <img src="/logo.png" alt="LCNS Logo" className="w-20 h-20 object-contain mb-2"
+            onError={(e) => { (e.target as HTMLImageElement).src = '/lcns-logo.png'; }} />
           <h2 className="text-2xl font-bold text-green-800 tracking-wider">LCNS</h2>
-          <p className="text-[11px] text-green-700 font-semibold uppercase tracking-wide mt-1 text-center">Under Catholic Diocese of Gboko</p>
-          <p className="text-[11px] text-green-700 font-semibold uppercase tracking-wide text-center">Benue State</p>
         </div>
 
         <h3 className="text-lg font-semibold text-center mb-6 text-gray-800">Staff / Student Login</h3>
@@ -86,8 +75,6 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
-        <div className="mt-6 text-center text-xs text-gray-400">LCNS Portal © 2026 | ICT Support: 08126799565</div>
       </div>
     </div>
   );
