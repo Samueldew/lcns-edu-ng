@@ -212,6 +212,44 @@ export const ApiService = {
     } catch {}
     return { registrations: [], users: [], count: 0 };
   },
+
+  // ===== STEP 1 - REGISTRAR ONLY - ADDED, NOTHING DELETED =====
+  getAllCourses: async () => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('courses').select('*').order('course_code', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  getAllLecturers: async () => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('users').select('*').eq('role', 'LECTURER').order('full_name', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  assignLecturer: async (courseId: string, lecturerId: string, lecturerName: string) => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('course_assignments')
+      .upsert([{ course_id: courseId, lecturer_id: lecturerId, lecturer_name: lecturerName, session: '2025/2026' }], { onConflict: 'course_id,lecturer_id' })
+      .select();
+    if (error) throw error;
+    return data;
+  },
+
+  unassignLecturer: async (assignmentId: string) => {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('course_assignments').delete().eq('id', assignmentId);
+    if (error) throw error;
+    return { success: true };
+  },
+
+  getAllAssignments: async () => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.from('course_assignments').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
 };
 
 export default ApiService;
