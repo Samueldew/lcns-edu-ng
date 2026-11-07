@@ -261,6 +261,40 @@ export const StudentPortal: React.FC = () => {
   const [currentSessionPortal, setCurrentSessionPortal] = useState<string>(COLLEGE_CONFIG.CURRENT_SESSION || '2026/2027');
   const [studentRealLevel, setStudentRealLevel] = useState<any>({ level: student.level, semester: 'First' });
 
+  // ===== NEW: CARRYOVER - SAME RULE AS EXAM OFFICER =====
+  const [myCarryovers, setMyCarryovers] = useState<any[]>([]);
+  const [carryoverLoading, setCarryoverLoading] = useState(false);
+
+  const loadMyCarryovers = async () => {
+    setCarryoverLoading(true);
+    try {
+      // 1) Supabase - published + all workflow (same as Exam Officer)
+      const { data } = await supabase.from('student_results_workflow').select('*').eq('matric_no', currentStudentMatric).order('session', { ascending: true });
+      const rows = data || [];
+      // 2) Fallback: localStorage results if Supabase empty
+      const localRows = rows.length === 0 ? resultComputation.filter((r:any)=> (r.matricNo===currentStudentMatric || r.matric_no===currentStudentMatric)).map((r:any)=>({ ...r, matric_no: r.matricNo||r.matric_no, course_code: r.courseCode||r.course_code, course_title: r.courseTitle||r.course_title, total_score: r.score||r.totalScore||r.total_score, grade: gradeSystem(r.score||r.totalScore||0).grade, session: r.session||selectedSession, semester: r.semester||'First' })) : [];
+      const all = rows.length>0 ? rows : localRows;
+      // Group by course, take latest session = current status
+      const latest: Record<string, any> = {};
+      const history: Record<string, any[]> = {};
+      all.forEach((r:any)=>{
+        const k = r.course_code;
+        if(!history[k]) history[k]=[];
+        history[k].push(r);
+        if(!latest[k] || (r.session||'') >= (latest[k].session||'')) latest[k]=r;
+      });
+      const carry = Object.values(latest).filter((r:any)=> (r.grade==='F' || Number(r.total_score||0) < 40)).map((r:any)=>{
+        const hist = history[r.course_code] || [];
+        const failCount = hist.filter((h:any)=> h.grade==='F' || Number(h.total_score||0)<40).length;
+        return { ...r, attempt: failCount, failedSessions: hist.filter((h:any)=> h.grade==='F' || Number(h.total_score||0)<40).map((h:any)=>h.session), isCarryover: true };
+      });
+      setMyCarryovers(carry);
+    } catch(e){ console.log(e); }
+    setCarryoverLoading(false);
+  };
+
+  useEffect(()=>{ loadMyCarryovers(); }, [currentStudentMatric]);
+
   useEffect(() => {
     const loadResults = () => {
       try { setResultComputation(JSON.parse(localStorage.getItem('lcns_results') || '[]')); } catch {}
@@ -288,7 +322,6 @@ export const StudentPortal: React.FC = () => {
         const myLevel = userData?.level || (student as any)?.level || 'ND1';
         const mySem = userData?.current_semester || selectedSemester;
 
-        // ===== STEP 3 FIX - Load Registrar assignments so Student sees Lecturer =====
         const { data: assignmentsData } = await supabase.from('course_assignments').select('*');
         const assignmentsMap: any = {};
         (assignmentsData || []).forEach((a:any)=>{
@@ -327,6 +360,7 @@ export const StudentPortal: React.FC = () => {
       } catch(e){ console.log(e); }
     }
     loadAllBackend();
+    loadMyCarryovers();
 
     const channel = supabase.channel('student-portal-live-'+currentStudentMatric)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => loadAllBackend())
@@ -339,6 +373,7 @@ export const StudentPortal: React.FC = () => {
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => loadAllBackend())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'course_registrations' }, () => loadAllBackend())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'student_results_workflow' }, () => loadMyCarryovers())
       .subscribe();
     return () => { supabase.removeChannel(channel); }
   }, [selectedSemester]);
@@ -366,7 +401,9 @@ export const StudentPortal: React.FC = () => {
       registered_at: new Date().toISOString(),
       status: 'PENDING',
       matric_no: currentStudentMatric,
-      matricNo: currentStudentMatric
+      matricNo: currentStudentMatric,
+      is_carryover: !!course.is_carryover,
+      carryover_from_session: course.carryover_from_session || null,
     };
     const updated = [...registeredCourses, regLocal];
     setRegisteredCourses(updated);
@@ -385,7 +422,8 @@ export const StudentPortal: React.FC = () => {
       session: currentSessionPortal,
       lecturer_name: course.lecturer_name,
       status: 'PENDING',
-      registered_at: new Date().toISOString()
+      registered_at: new Date().toISOString(),
+      is_carryover: !!course.is_carryover,
     };
     const { error } = await supabase.from('course_registrations').insert([regBackend]);
     if(error){
@@ -393,8 +431,22 @@ export const StudentPortal: React.FC = () => {
       alert(`✅ Registered locally! ${regLocal.course_code} - Backend sync later! After Exam Officer + HOD approve, you can print form with their names!`);
     } else {
       setBackendRegistrations([...backendRegistrations, regBackend]);
-      alert(`✅ Registered! ${regBackend.course_code} - ${regBackend.course_title} - Session ${currentSessionPortal} - Waiting for Exam Officer + HOD approval! After approval, Print Approved Form will show their names!`);
+      alert(`✅ Registered! ${regBackend.course_code} - ${regBackend.course_title} - Session ${currentSessionPortal} - ${course.is_carryover ? 'CARRYOVER - Old F kept, new attempt added' : ''} Waiting for Exam Officer + HOD approval!`);
     }
+  };
+
+  // ===== CARRYOVER RE-REGISTER: uses same handleRegisterCourse but marks is_carryover =====
+  const handleRegisterCarryover = async (carry:any) => {
+    const courseLike = {
+      course_code: carry.course_code, code: carry.course_code,
+      course_title: carry.course_title || carry.course_code,
+      title: carry.course_title || carry.course_code,
+      credit_unit: carry.credit_unit || 3, units: carry.credit_unit || 3,
+      lecturer_name: carry.lecturer_name || 'To be assigned by Registrar',
+      level: studentRealLevel.level, semester: carry.semester || studentRealLevel.semester,
+      is_carryover: true, carryover_from_session: carry.session,
+    };
+    await handleRegisterCourse(courseLike);
   };
 
   const handleUnregisterCourse = async (courseCode: string) => {
@@ -547,7 +599,7 @@ export const StudentPortal: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-emerald-800 border-2 border-amber-400 flex items-center justify-center"><User className="w-8 h-8" /></div>
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Student • {studentRealLevel.level} {studentRealLevel.semester} • {studentMatricSafe} • {isResultPublished ? '✅ Published' : '🔒 Awaiting Senate'} • CGPA {myCGPAData.cgpa.toFixed(2)} • Portal: {currentSessionPortal} • Courses: {supabaseCourses.length} Backend • Registered: {registeredCourses.length} • Backend: {backendRegistrations.length}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">Student • {studentRealLevel.level} {studentRealLevel.semester} • {studentMatricSafe} • {isResultPublished ? '✅ Published' : '🔒 Awaiting Senate'} • CGPA {myCGPAData.cgpa.toFixed(2)} • Portal: {currentSessionPortal} • Courses: {supabaseCourses.length} Backend • Registered: {registeredCourses.length} • Backend: {backendRegistrations.length} {myCarryovers.length>0 ? `• 🔴 Carryovers: ${myCarryovers.length}` : ''}</span>
               <h1 className="text-xl sm:text-2xl font-black uppercase mt-1.5">{displayName} - {currentSessionPortal} - {studentRealLevel.level} {studentRealLevel.semester}</h1>
               <p className="text-xs text-emerald-200">Matric: <strong className="text-white">{displayMatric}</strong> • {student.program} • Level: {studentRealLevel.level} {studentRealLevel.semester} Semester (Promoted by Registrar Backend) • CGPA: {myCGPAData.cgpa.toFixed(2)} • {myCGPAData.classification.class} • Available: {availableCourses.length} for {studentRealLevel.level} {studentRealLevel.semester} - Session {currentSessionPortal} • Portal Session from Registrar</p>
             </div>
@@ -575,6 +627,34 @@ export const StudentPortal: React.FC = () => {
         </div>
       </div>
 
+      {/* ===== CARRYOVER BANNER - ALWAYS VISIBLE ===== */}
+      {myCarryovers.length > 0 ? (
+        <div className="bg-red-50 border-2 border-red-400 rounded-3xl p-5 space-y-3">
+          <div className="flex flex-wrap justify-between gap-2">
+            <h3 className="font-black text-red-900 text-base">🔴 MY CARRYOVERS - {myCarryovers.length} COURSE{myCarryovers.length>1?'S':''} - YOU MUST RE-REGISTER THESE</h3>
+            <button onClick={()=>setActiveTab('courses')} className="px-4 py-2 bg-red-700 text-white rounded-xl text-xs font-black">🔁 Go Re-register Now →</button>
+          </div>
+          <p className="text-xs font-bold text-red-800">Old F is NOT deleted. New attempt is added. Latest attempt counts for CGPA. You cannot graduate until you pass all of these.</p>
+          <div className="grid md:grid-cols-2 gap-2">
+            {myCarryovers.map((c:any)=>(
+              <div key={c.course_code} className="bg-white border-2 border-red-200 rounded-2xl p-3 flex justify-between gap-2">
+                <div>
+                  <p className="font-mono font-black text-red-800">{c.course_code} - {c.course_title}</p>
+                  <p className="text-[11px]">Failed in {c.session} - {c.semester} Sem - Total: {c.total_score} - Grade: F - Attempt {c.attempt} - Failed: {(c.failedSessions||[]).join(', ')}</p>
+                  <p className="text-[11px] font-black text-red-700 mt-1">➡️ Re-register {c.course_code} in {currentSessionPortal} as CARRYOVER</p>
+                </div>
+                <button onClick={()=>handleRegisterCarryover(c)} className="shrink-0 px-3 py-2 bg-red-700 text-white rounded-xl text-[11px] font-black self-center">🔁 Re-register</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-3 text-xs font-black text-emerald-800 flex justify-between">
+          <span>✅ No Carryover - You passed all courses so far. Keep it up!</span>
+          <button onClick={loadMyCarryovers} className="underline">Refresh</button>
+        </div>
+      )}
+
       {activeTab === 'transcript' && (
         <div className="space-y-4">
           <OfficialTranscriptPrint matricNo={displayMatric} fullName={displayName} cgpaData={myCGPAData} studentLevel={`${studentRealLevel.level} ${studentRealLevel.semester} - ${currentSessionPortal}`} />
@@ -592,6 +672,15 @@ export const StudentPortal: React.FC = () => {
               {isResultPublished ? <><Unlock size={14}/> ✅ Senate Ratified - {senate.provostName} - {currentSessionPortal}</> : <><Lock size={14}/> 🔒 Not Yet Published - {currentSessionPortal}</>}
             </div>
           </div>
+
+          {/* CARRYOVER IN RESULTS TAB */}
+          {myCarryovers.length>0 && (
+            <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
+              <p className="font-black text-red-900 text-sm">🔴 CARRYOVERS - {myCarryovers.length} - Must pass before graduation</p>
+              <div className="flex flex-wrap gap-2 mt-2">{myCarryovers.map((c:any)=><span key={c.course_code} className="px-3 py-1 bg-white border border-red-300 rounded-full text-[11px] font-black">{c.course_code} - F ({c.total_score}) - {c.session}</span>)}</div>
+            </div>
+          )}
+
           <div className="grid md:grid-cols-4 gap-3">
             <div className="bg-slate-900 text-white rounded-2xl p-4 text-center"><p className="text-[10px] text-slate-400">FIRST SEM GPA - {currentSessionPortal}</p><p className="text-2xl font-black text-amber-400">{myFirstSem.gpa.toFixed(2)}</p></div>
             <div className="bg-slate-900 text-white rounded-2xl p-4 text-center"><p className="text-[10px] text-slate-400">SECOND SEM GPA - {currentSessionPortal}</p><p className="text-2xl font-black text-amber-400">{mySecondSem.gpa.toFixed(2)}</p></div>
@@ -645,6 +734,26 @@ export const StudentPortal: React.FC = () => {
               <button onClick={handlePrintApprovedForm} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> 🖨️ Print Approved Form with Exam Officer + HOD Name - {currentSessionPortal}</button>
             </div>
           </div>
+
+          {/* ===== CARRYOVER RE-REGISTRATION - FIRST IN COURSES TAB ===== */}
+          {myCarryovers.length>0 && (
+            <div className="bg-red-50 border-2 border-red-400 rounded-2xl p-4">
+              <h4 className="font-black text-red-900 text-sm">🔴 RE-REGISTER CARRYOVERS FIRST - {myCarryovers.length} - Session {currentSessionPortal}</h4>
+              <p className="text-[11px] font-bold mt-1">These are NOT new courses. They are courses you failed before. Register them again so Lecturer can enter new score. Old F stays in transcript.</p>
+              <div className="grid md:grid-cols-2 gap-2 mt-3">
+                {myCarryovers.map((c:any)=>{
+                  const already = backendRegistrations.find((rc:any)=> rc.course_code===c.course_code && rc.session===currentSessionPortal) || registeredCourses.find((rc:any)=> (rc.course_code||rc.code)===c.course_code);
+                  return (
+                    <div key={c.course_code} className="bg-white border-2 border-red-200 rounded-xl p-3 flex justify-between gap-2">
+                      <div><p className="font-mono font-black">{c.course_code} - {c.course_title}</p><p className="text-[11px]">Failed {c.session} - Total {c.total_score} - F - Attempt {c.attempt}</p><p className="text-[10px] font-black text-red-700">CARRYOVER - Old F kept</p></div>
+                      {already ? <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 px-2 py-1 rounded-full self-center">✅ Registered - {already.status||'PENDING'}</span> : <button onClick={()=>handleRegisterCarryover(c)} className="px-3 py-2 bg-red-700 text-white rounded-xl text-[11px] font-black self-center">🔁 Re-register Carryover</button>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border-2 border-amber-400 rounded-2xl p-4 text-xs">
             <p className="font-black flex items-center gap-2"><Rocket className="w-4 h-4"/> Backend Status - Session {currentSessionPortal} - Promotion {studentRealLevel.level} {studentRealLevel.semester} - Whole Portal Controlled by Registrar</p>
             <div className="grid grid-cols-3 gap-2 mt-2">
@@ -659,11 +768,12 @@ export const StudentPortal: React.FC = () => {
               {availableCourses.map((c:any)=> {
                 const isRegistered = registeredCourses.find((rc:any)=> (rc.course_code||rc.code) === (c.course_code||c.code)) || backendRegistrations.find((rc:any)=> rc.course_code === (c.course_code||c.code));
                 const backendStatus = backendRegistrations.find((rc:any)=> rc.course_code === (c.course_code||c.code))?.status;
+                const isCarry = myCarryovers.find((x:any)=> x.course_code === (c.course_code||c.code));
                 return (
-                <div key={c.id} className={`border-2 p-4 rounded-2xl ${isRegistered ? 'bg-emerald-50 border-emerald-300' : 'bg-blue-50 border-blue-200'}`}>
+                <div key={c.id} className={`border-2 p-4 rounded-2xl ${isRegistered ? 'bg-emerald-50 border-emerald-300' : isCarry ? 'bg-red-50 border-red-300' : 'bg-blue-50 border-blue-200'}`}>
                   <div className="flex justify-between">
                     <div>
-                      <p className="font-mono font-black text-blue-800">{c.course_code||c.code} — {c.credit_unit||c.units||3}U - Session {c.session||currentSessionPortal}</p>
+                      <p className="font-mono font-black text-blue-800">{c.course_code||c.code} — {c.credit_unit||c.units||3}U - Session {c.session||currentSessionPortal} {isCarry && <span className="ml-1 px-2 py-0.5 bg-red-600 text-white rounded-full text-[10px]">🔴 CARRYOVER</span>}</p>
                       <p className="font-bold text-sm">{c.course_title||c.title}</p>
                       <p className="text-[11px] mt-1">👨‍🏫 Lecturer: <b>{c.lecturer_name||c.lecturerName||'Not Assigned'}</b> | Level: {c.level} | Semester: {c.semester} | Session: {c.session||currentSessionPortal}</p>
                       {backendStatus && <p className="text-[10px] mt-1 font-bold">Status: <span className={`px-1 rounded ${backendStatus==='APPROVED' ? 'bg-green-200' : backendStatus==='APPROVED_BY_EXAM_OFFICER' ? 'bg-yellow-200' : 'bg-red-100'}`}>{backendStatus}</span> | Exam Officer: {backendRegistrations.find((rc:any)=>rc.course_code===(c.course_code||c.code))?.exam_officer_name||'Pending'} | HOD: {backendRegistrations.find((rc:any)=>rc.course_code===(c.course_code||c.code))?.hod_name||'Pending'}</p>}
@@ -691,9 +801,9 @@ export const StudentPortal: React.FC = () => {
                 <thead className="bg-emerald-900 text-white font-bold uppercase"><tr><th className="p-3">Code - Session {currentSessionPortal}</th><th className="p-3">Title</th><th className="p-3 text-center">Units</th><th className="p-3">Lecturer Assigned by Registrar</th><th className="p-3">Level/Sem - Promotion</th><th className="p-3 text-center">Status - Exam Officer + HOD</th><th className="p-3 text-center">Action</th></tr></thead>
                 <tbody className="divide-y">
                   {backendRegistrations.length>0 ? backendRegistrations.map((c:any)=> (
-                    <tr key={c.id} className="hover:bg-slate-50"><td className="p-3 font-mono font-bold text-emerald-900">{c.course_code} - {c.session}</td><td className="p-3 font-bold">{c.course_title}</td><td className="p-3 text-center">{c.credit_unit||3}</td><td className="p-3">{c.lecturer_name}</td><td className="p-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">{c.level}</span> <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">{c.semester}</span></td><td className="p-3 text-center"><span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${c.status==='APPROVED' ? 'text-emerald-700 bg-emerald-100' : c.status==='APPROVED_BY_EXAM_OFFICER' ? 'text-amber-700 bg-amber-100' : 'text-red-700 bg-red-100'}`}><CheckCircle2 className="w-3 h-3"/> {c.status}</span><p className="text-[9px] mt-1">EO: {c.exam_officer_name||'Pending'} | HOD: {c.hod_name||'Pending'}</p></td><td className="p-3 text-center"><button onClick={()=>handleUnregisterCourse(c.course_code)} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">Unregister</button></td></tr>
+                    <tr key={c.id} className="hover:bg-slate-50"><td className="p-3 font-mono font-bold text-emerald-900">{c.course_code} - {c.session} {c.is_carryover && <span className="ml-1 px-1 bg-red-600 text-white rounded text-[9px]">CARRYOVER</span>}</td><td className="p-3 font-bold">{c.course_title}</td><td className="p-3 text-center">{c.credit_unit||3}</td><td className="p-3">{c.lecturer_name}</td><td className="p-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">{c.level}</span> <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">{c.semester}</span></td><td className="p-3 text-center"><span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${c.status==='APPROVED' ? 'text-emerald-700 bg-emerald-100' : c.status==='APPROVED_BY_EXAM_OFFICER' ? 'text-amber-700 bg-amber-100' : 'text-red-700 bg-red-100'}`}><CheckCircle2 className="w-3 h-3"/> {c.status}</span><p className="text-[9px] mt-1">EO: {c.exam_officer_name||'Pending'} | HOD: {c.hod_name||'Pending'}</p></td><td className="p-3 text-center"><button onClick={()=>handleUnregisterCourse(c.course_code)} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">Unregister</button></td></tr>
                   )) : registeredCourses.map((c:any)=> (
-                    <tr key={c.id} className="hover:bg-slate-50"><td className="p-3 font-mono font-bold text-emerald-900">{c.course_code} - {c.session||currentSessionPortal}</td><td className="p-3 font-bold">{c.course_title}</td><td className="p-3 text-center">{c.credit_unit||c.units||3}</td><td className="p-3">{c.lecturer_name}</td><td className="p-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">{c.level}</span> <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">{c.semester}</span></td><td className="p-3 text-center"><span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3"/> {c.status}</span></td><td className="p-3 text-center"><button onClick={()=>handleUnregisterCourse(c.course_code)} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">Unregister</button></td></tr>
+                    <tr key={c.id} className="hover:bg-slate-50"><td className="p-3 font-mono font-bold text-emerald-900">{c.course_code} - {c.session||currentSessionPortal} {c.is_carryover && <span className="ml-1 px-1 bg-red-600 text-white rounded text-[9px]">CARRYOVER</span>}</td><td className="p-3 font-bold">{c.course_title}</td><td className="p-3 text-center">{c.credit_unit||c.units||3}</td><td className="p-3">{c.lecturer_name}</td><td className="p-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-800">{c.level}</span> <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800">{c.semester}</span></td><td className="p-3 text-center"><span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3"/> {c.status}</span></td><td className="p-3 text-center"><button onClick={()=>handleUnregisterCourse(c.course_code)} className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-[10px] font-bold">Unregister</button></td></tr>
                   ))}
                   {backendRegistrations.length===0 && registeredCourses.length===0 && <tr><td colSpan={7} className="p-6 text-center text-slate-500">No courses registered yet — Register courses added by Registrar above! Registrar adds NUR111 {studentRealLevel.level} {studentRealLevel.semester} → You see here! Session {currentSessionPortal}</td></tr>}
                 </tbody>
@@ -705,33 +815,12 @@ export const StudentPortal: React.FC = () => {
             <button onClick={handlePrintApprovedForm} className="px-6 py-3 bg-emerald-800 text-white rounded-xl font-black text-xs flex items-center gap-2"><Printer className="w-4 h-4"/> 🖨️ Print Approved Course Form - Session {currentSessionPortal} - With Exam Officer {backendRegistrations[0]?.exam_officer_name||''} + HOD {backendRegistrations[0]?.hod_name||''} Names</button>
             <div className="bg-blue-50 border-2 border-blue-200 p-3 rounded-xl text-xs flex-1">
               <p className="font-black">FLOW — Registrar → Student → Exam Officer → HOD → Print with Names - Session {currentSessionPortal}:</p>
-              <p>1. Registrar adds NUR111 - Foundations - 3U - {studentRealLevel.level} - {studentRealLevel.semester} Semester - Session {currentSessionPortal} - Lecturer: Emmanuel Gbaorun → Saves to Supabase</p>
-              <p>2. Student ({displayMatric}) {studentRealLevel.level} {studentRealLevel.semester} logs in → Sees NUR111 → Clicks Register! → Status PENDING → Saves to course_registrations table</p>
-              <p>3. Exam Officer steve@gmail.com logs in → Approves → Status APPROVED_BY_EXAM_OFFICER + exam_officer_name = Steve Joy → Student sees Exam Officer name!</p>
-              <p>4. HOD logs in → Approves → Status APPROVED + hod_name = HOD Name → Student can print form with Exam Officer + HOD names reflected!</p>
-              <p>5. Promotion: Registrar promotes {studentRealLevel.level} {studentRealLevel.semester} → Next level → Student sees new level auto! Lecturer sees new semester!</p>
-              <p>6. New Session: Registrar runs 2027/2028 → Whole portal {currentSessionPortal} → 2027/2028 → Student, Lecturer, HOD, Exam Officer, Provost, Bursar all see 2027/2028! Old data kept!</p>
+              <p>1. Registrar adds course + assigns lecturer → 2. Student registers (or re-registers carryover) → 3. Exam Officer approves → 4. HOD approves → 5. Print Approved Form</p>
             </div>
           </div>
-        </div>
-      )}
-
-      {activeTab === 'fees' && (
-        <div className="bg-white rounded-3xl border p-6 sm:p-8 space-y-6"><h3 className="font-bold text-base uppercase">Tuition Fees - {displayName} - Session {currentSessionPortal} - {studentRealLevel.level}</h3><div className="space-y-4">{studentPayments.map((p) => (<div key={p.id} className="p-5 bg-slate-50 rounded-2xl border flex justify-between"><div><span className="font-bold text-sm">{p.feeType} - Session {currentSessionPortal}</span><span className="ml-2 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">PAID</span><div className="text-xs text-slate-500">Receipt: {p.receiptNo}</div></div><span className="text-lg font-black text-emerald-900">₦{p.amount.toLocaleString()}</span></div>))}{studentPayments.length===0 && <p className="text-center text-slate-500 p-8">No fees for session {currentSessionPortal} yet</p>}</div></div>
-      )}
-
-      {activeTab === 'idcard' && (
-        <div className="bg-white rounded-3xl border p-6 sm:p-8"><h3 className="font-bold uppercase">ID Card - {displayName} - Session {currentSessionPortal} - {studentRealLevel.level} {studentRealLevel.semester}</h3><div className="flex justify-center mt-6"><div className="w-full max-w-sm bg-gradient-to-br from-emerald-900 to-emerald-950 text-white rounded-2xl p-6 border-2 border-amber-400"><div className="flex items-center gap-2 border-b border-emerald-700 pb-3"><CollegeLogo size="sm" /><div><h4 className="text-[11px] font-black uppercase">Labe College of Nursing Sciences</h4><span className="text-[9px] text-amber-300 uppercase">Gboko • {studentRealLevel.level} {studentRealLevel.semester} • {currentSessionPortal}</span></div></div><div className="flex items-center gap-4 my-4"><div className="w-24 h-28 bg-emerald-950 border-2 border-white rounded-xl flex flex-col items-center justify-center"><User className="w-12 h-12 text-emerald-400" /></div><div className="space-y-1 text-[11px]"><div><span className="text-[9px] text-emerald-300 block">Full Name:</span><strong className="text-xs uppercase">{displayName}</strong></div><div><span className="text-[9px] text-emerald-300 block">Matric:</span><strong className="text-amber-300">{displayMatric}</strong></div><div><span className="text-[9px] text-emerald-300 block">Level:</span><strong>{studentRealLevel.level} {studentRealLevel.semester} - {currentSessionPortal} - Promoted by Registrar</strong></div><div><span className="text-[9px] text-emerald-300 block">CGPA:</span><strong>{myCGPAData.cgpa.toFixed(2)} - {myCGPAData.classification.class}</strong></div><div><span className="text-[9px] text-emerald-300 block">Registered:</span><strong>{backendRegistrations.length || registeredCourses.length} Courses - {(backendRegistrations.length>0 ? backendRegistrations.reduce((sum:any,c:any)=>sum+(c.credit_unit||3),0) : registeredCourses.reduce((sum:any,c:any)=>sum+(c.credit_unit||3),0))} CU - Session {currentSessionPortal}</strong></div></div></div><div className="text-[8px] text-emerald-300 text-center">Portal Session: {currentSessionPortal} - Controlled by Registrar - Old session data kept!</div></div></div></div>
-      )}
-
-      {activeTab === 'cbt' && (
-        <div className="space-y-4">
-          <div className="bg-amber-50 border-2 border-amber-400 p-2 rounded-xl text-xs font-bold text-center">CBT Exams - Session {currentSessionPortal} - Level {studentRealLevel.level} {studentRealLevel.semester} - Promotion auto updates</div>
-          <ApplicantDashboardCBT applicant={{ name: displayName, fullName: displayName, email: (student as any).email, jamb_no: displayMatric, matricNo: displayMatric, application_number: displayMatric, academic_year: currentSessionPortal, level: studentRealLevel.level, session: currentSessionPortal, current_semester: studentRealLevel.semester }} />
         </div>
       )}
     </div>
   );
 };
-
 export default StudentPortal;
