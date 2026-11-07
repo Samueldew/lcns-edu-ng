@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { StorageService } from '../../services/storage';
 import { Course, Student } from '../../types';
 import {
@@ -10,6 +10,7 @@ import { CourseRegistrationApproval } from './CourseRegistrationApproval';
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { supabase } from '@/lib/supabase';
 import { ApiService } from '../../services/api';
+import { getGradePoint, calculateGPA } from '../../utils/gpa';
 
 export const ExamOfficerDashboard: React.FC = () => {
   const safeCurrentUser = (() => {
@@ -19,7 +20,6 @@ export const ExamOfficerDashboard: React.FC = () => {
     } catch { return null; }
   })();
 
-  // ===== EXAM OFFICER IDENTITY =====
   const currentUser = safeCurrentUser || { id: 'LCNS/2026/EO/001', email: 'steve@gmail.com', role: 'EXAM_OFFICER', fullName: 'Steve Joy', status: 'ACTIVE' };
   const displayName = (currentUser?.fullName || (currentUser as any)?.full_name || 'Steve Joy').toString().toUpperCase();
   const displayEmail = currentUser?.email || 'steve@gmail.com';
@@ -49,12 +49,37 @@ export const ExamOfficerDashboard: React.FC = () => {
   const [supabaseGpa, setSupabaseGpa] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_supabase_gpa_cache') || '[]'); } catch { return []; } });
   const [users, setUsers] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } });
   const [userSearch, setUserSearch] = useState('');
+  const [selectedMatricForGPA, setSelectedMatricForGPA] = useState<string>('ALL');
 
-  // ===== HELPERS - TITLE / CODE / UNIT =====
   const getTitle = (c:any) => c.course_title || c.title || c.name || c.course_name || 'No Title';
   const getCode = (c:any) => c.course_code || c.code || c.course || '';
   const getUnit = (c:any) => c.credit_unit ?? c.unit ?? c.units ?? 3;
   const getLecturer = (c:any) => c.lecturer_name || c.lecturerName || c.lecturer || c.assigned_lecturer || 'Not Assigned Yet';
+
+  // ===== CGPA HELPERS - FIND CORRECT UNIT FOR EACH RESULT =====
+  const getUnitForResult = (r:any) => {
+    if (r.credit_unit ?? r.unit ?? r.units) return Number(r.credit_unit ?? r.unit ?? r.units);
+    const codeToFind = (r.courseCode || r.course_code || r.code || '').toString().toUpperCase().trim();
+    const found = courses.find((c:any) => getCode(c).toString().toUpperCase().trim() === codeToFind);
+    return found ? Number(getUnit(found)) : 3;
+  };
+
+  // ===== GPA PER STUDENT (CGPA = ALL SEMESTERS TOGETHER) =====
+  const gpaByMatric = useMemo(() => {
+    const map: Record<string, any> = {};
+    const grouped: Record<string, any[]> = {};
+    examSubmissions.forEach((r:any) => {
+      const matric = r.matricNo || r.matric_no || 'UNKNOWN';
+      if (!grouped[matric]) grouped[matric] = [];
+      grouped[matric].push({ ...r, credit_unit: getUnitForResult(r) });
+    });
+    Object.keys(grouped).forEach(matric => {
+      map[matric] = calculateGPA(grouped[matric]);
+    });
+    return map;
+  }, [examSubmissions, courses]);
+
+  const uniqueMatrics = useMemo(() => Object.keys(gpaByMatric).sort(), [gpaByMatric]);
 
   const loadVetData = async () => {
     try {
@@ -72,7 +97,6 @@ export const ExamOfficerDashboard: React.FC = () => {
         setUsers(formatted);
         localStorage.setItem('lcns_users', JSON.stringify(formatted));
       }
-      // ===== EXAM OFFICER - LOAD COURSES FROM SUPABASE + REGISTRAR ASSIGNMENTS =====
       try {
         const supCourses = await ApiService.getAllCourses();
         const supAssignments = await ApiService.getAllAssignments();
@@ -109,7 +133,6 @@ export const ExamOfficerDashboard: React.FC = () => {
     alert(`✅ Score corrected to ${editScore} and saved!`);
   };
 
-  // ===== EXAM OFFICER -> FORWARD TO HOD (NOT REGISTRAR) =====
   const handleForwardToRegistrar = () => {
     if(examSubmissions.length === 0) { alert('No results to forward'); return; }
     localStorage.setItem('lcns_exam_forwarded_to_hod', 'true');
@@ -125,7 +148,6 @@ export const ExamOfficerDashboard: React.FC = () => {
   };
 
   const handleReturnToExamOfficer = () => {
-    // Exam Officer returns to Lecturer
     const reason = prompt('Enter reason to return to Lecturer:');
     if(!reason) return;
     localStorage.setItem('lcns_exam_vet_status', 'RETURNED_TO_LECTURER');
@@ -136,17 +158,40 @@ export const ExamOfficerDashboard: React.FC = () => {
     StorageService.logAction(displayEmail, displayRole,'EXAM_OFFICER_RETURN_TO_LECTURER',`Exam Officer ${displayName} returned result to Lecturer: ${reason}`);
     alert(`↩️ Returned to Lecturer. Reason: ${reason}`);
   };
+
+  // ===== FIXED PDF - NOW WITH GRADE, POINT, UNIT, QP, GPA =====
   const downloadMasterPDF = () => {
-    const html = `<html><head><style>body{font-family:Arial; font-size:10px;} table{width:100%; border-collapse:collapse;} th,td{border:1px solid #000; padding:4px; text-align:center;} th{background:#0a4d2e; color:#fff;} .header{text-align:center; border-bottom:3px solid #000;}</style></head><body><div class="header"><h2>LABE COLLEGE - EXAM OFFICER VETTED - ${levelFilter}</h2><p>Exam Officer: ${displayName} | Status: ${vetStatus}</p></div><table><tr><th>Matric</th><th>Name</th><th>Course</th><th>Total</th><th>Grade</th></tr>${examSubmissions.map((r:any)=>{ const score = r.score || r.total_score || 0; const grade = score>=70?'A':score>=60?'B':score>=50?'C':score>=40?'D':'F'; return `<tr><td>${r.matricNo||r.matric_no}</td><td>${r.fullName||''}</td><td>${r.courseCode||r.course_code}</td><td><b>${score}</b></td><td>${grade}</td></tr>`}).join('')}</table></body></html>`;
+    const rows = examSubmissions.map((r:any)=>{
+      const score = Number(r.score ?? r.total_score ?? 0);
+      const unit = getUnitForResult(r);
+      const { grade, point } = getGradePoint(score);
+      const qp = (point * unit).toFixed(1);
+      return `<tr><td>${r.matricNo||r.matric_no}</td><td>${r.fullName||''}</td><td>${r.courseCode||r.course_code}</td><td>${unit}</td><td><b>${score}</b></td><td>${grade}</td><td>${point.toFixed(1)}</td><td>${qp}</td><td>${gpaByMatric[r.matricNo||r.matric_no]?.gpa ?? '-'}</td></tr>`;
+    }).join('');
+    const html = `<html><head><style>body{font-family:Arial; font-size:10px;} table{width:100%; border-collapse:collapse;} th,td{border:1px solid #000; padding:4px; text-align:center;} th{background:#0a4d2e; color:#fff;} .header{text-align:center; border-bottom:3px solid #000;}</style></head><body><div class="header"><h2>LABE COLLEGE - EXAM OFFICER VETTED - ${levelFilter}</h2><p>Exam Officer: ${displayName} | Status: ${vetStatus} | Grading: NBTE 4.0 Scale (A=4.0, AB=3.5, B=3.0, BC=2.5, C=2.0, CD=1.5, D=1.0, F=0)</p></div><table><tr><th>Matric</th><th>Name</th><th>Course</th><th>Unit</th><th>Total</th><th>Grade</th><th>Point</th><th>QP</th><th>CGPA</th></tr>${rows}</table></body></html>`;
     const win = window.open('', '_blank'); if(win){ win.document.write(html); win.document.close(); win.focus(); setTimeout(()=>win.print(), 500); }
   };
+
+  // ===== FIXED EXCEL - NOW WITH GRADE, POINT, UNIT, QP, GPA =====
   const downloadMasterExcel = () => {
-    let csv = 'Matric,Name,Course,Total,Grade\n';
-    examSubmissions.forEach((r:any)=>{ const score = r.score || r.total_score || 0; const grade = score>=70?'A':score>=60?'B':score>=50?'C':score>=40?'D':'F'; csv += `"${r.matricNo||r.matric_no}","${r.fullName||''}","${r.courseCode||r.course_code}","${score}","${grade}"\n`; });
+    let csv = 'Matric,Name,Course,Unit,Total,Grade,GradePoint,QualityPoint,CGPA\n';
+    examSubmissions.forEach((r:any)=>{
+      const score = Number(r.score ?? r.total_score ?? 0);
+      const unit = getUnitForResult(r);
+      const { grade, point } = getGradePoint(score);
+      const qp = point * unit;
+      const cgpa = gpaByMatric[r.matricNo||r.matric_no]?.gpa ?? '';
+      csv += `"${r.matricNo||r.matric_no}","${r.fullName||''}","${r.courseCode||r.course_code}","${unit}","${score}","${grade}","${point}","${qp}","${cgpa}"\n`;
+    });
     const blob = new Blob([csv], { type: 'text/csv' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `ExamOfficer_Master_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
-  const filteredVet = examSubmissions.filter((r:any)=>{ if(!searchVet) return true; const term = searchVet.toLowerCase(); return (r.matricNo||r.matric_no||'').toLowerCase().includes(term) || (r.fullName||'').toLowerCase().includes(term) || (r.courseCode||r.course_code||'').toLowerCase().includes(term); });
+  const filteredVet = examSubmissions.filter((r:any)=>{
+    if(selectedMatricForGPA !== 'ALL' && (r.matricNo||r.matric_no) !== selectedMatricForGPA) return false;
+    if(!searchVet) return true;
+    const term = searchVet.toLowerCase();
+    return (r.matricNo||r.matric_no||'').toLowerCase().includes(term) || (r.fullName||'').toLowerCase().includes(term) || (r.courseCode||r.course_code||'').toLowerCase().includes(term);
+  });
   const filteredStudents = students.filter((s: any) => { if (levelFilter !== 'ALL' && s.level !== levelFilter) return false; if (!searchBiodata) return true; return `${s.fullName} ${s.matricNo}`.toLowerCase().includes(searchBiodata.toLowerCase()); });
   const filteredIndividual = students.filter((s: any) => { if (!searchIndividual) return true; const term = searchIndividual.toLowerCase().trim(); return s.fullName.toLowerCase().includes(term) || s.matricNo.toLowerCase().includes(term); });
   const handleCreateCourse = (e: React.FormEvent) => { e.preventDefault(); if (!code || !title) return; const newCourse: Course = { id: 'crs-' + Date.now(), code: code.toUpperCase(), title, units, level, semester, department: 'Nursing Sciences', lecturerName, }; const updated = [...courses, newCourse]; StorageService.saveCourses(updated); setCourses(updated); StorageService.logAction(displayEmail, displayRole,'ADD_COURSE',`Allocated course ${code}: ${title} to ${lecturerName}`); setCode(''); setTitle(''); setShowAddCourse(false); };
@@ -156,6 +201,9 @@ export const ExamOfficerDashboard: React.FC = () => {
     const t=userSearch.toLowerCase();
     return (u.fullName||'').toLowerCase().includes(t) || (u.matricNumber||u.matric_no||'').toLowerCase().includes(t) || (u.phone||'').toLowerCase().includes(t) || (u.sex||'').toLowerCase().includes(t);
   });
+
+  // GPA for currently filtered student (or overall if ALL)
+  const currentGPA = selectedMatricForGPA === 'ALL' ? null : gpaByMatric[selectedMatricForGPA];
 
   return (
     <div className="space-y-8">
@@ -192,17 +240,22 @@ export const ExamOfficerDashboard: React.FC = () => {
           </div>
           <div className="overflow-x-auto border-2 rounded-xl">
             <table className="w-full text-xs">
-              <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric Number</th><th className="p-3 text-left">Full Name</th><th className="p-2 text-center">Sex</th><th className="p-3 text-left">Phone</th></tr></thead>
+              <thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric Number</th><th className="p-3 text-left">Full Name</th><th className="p-2 text-center">Sex</th><th className="p-3 text-left">Phone</th><th className="p-3 text-center">CGPA</th></tr></thead>
               <tbody>
-                {filteredUsers.map((u:any)=>(
+                {filteredUsers.map((u:any)=>{
+                  const matric = u.matricNumber || u.matric_no;
+                  const g = gpaByMatric[matric];
+                  return (
                   <tr key={u.email} className="border-b hover:bg-amber-50">
-                    <td className="p-3 font-mono font-black text-emerald-800 bg-emerald-50">{u.matricNumber || u.matric_no || '-'}</td>
+                    <td className="p-3 font-mono font-black text-emerald-800 bg-emerald-50">{matric || '-'}</td>
                     <td className="p-3 font-black uppercase">{u.fullName}</td>
                     <td className="p-2 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-black ${u.sex==='FEMALE'?'bg-pink-100 text-pink-800':'bg-blue-100 text-blue-800'}`}>{u.sex || '-'}</span></td>
                     <td className="p-3 font-mono font-bold">{u.phone || '-'}</td>
+                    <td className="p-3 text-center font-black text-emerald-700">{g ? g.gpa.toFixed(2) : '-'}</td>
                   </tr>
-                ))}
-                {filteredUsers.length===0 && <tr><td colSpan={4} className="p-8 text-center font-bold text-slate-500">No students found</td></tr>}
+                  );
+                })}
+                {filteredUsers.length===0 && <tr><td colSpan={5} className="p-8 text-center font-bold text-slate-500">No students found</td></tr>}
               </tbody>
             </table>
           </div>
@@ -214,11 +267,41 @@ export const ExamOfficerDashboard: React.FC = () => {
           <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 p-4 rounded-xl">
             <h2 className="text-lg font-black flex items-center gap-2 text-orange-900"><CheckCircle2 className="w-6 h-6"/> EXAM OFFICER VETTING PANEL — FIRST VETTING</h2>
             <p className="text-xs font-bold mt-1">Flow: Lecturer submits → Exam Officer vets → Forward to HOD → HOD vets → Forward to Registrar → Provost / Senate</p>
+            <p className="text-[11px] font-bold mt-1 text-slate-600">Grading: A (70+) = 4.0 | AB (60-69) = 3.5 | B (50-59) = 3.0 | BC (45-49) = 2.5 | C (40-44) = 2.0 | CD (35-39) = 1.5 | D (30-34) = 1.0 | F (0-29) = 0</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <span className={`px-3 py-1 rounded-full text-xs font-black ${vetStatus==='FORWARDED_TO_HOD'?'bg-green-600 text-white': vetStatus==='RETURNED_TO_LECTURER'?'bg-red-600 text-white':'bg-yellow-400 text-black'}`}>Status: {vetStatus}</span>
               <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-xs font-black">{examSubmissions.length} Records</span>
             </div>
           </div>
+
+          {/* ===== GPA / CGPA SUMMARY BOX ===== */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="bg-emerald-900 text-white p-4 rounded-2xl">
+              <p className="text-[10px] font-bold tracking-widest">SELECT STUDENT FOR GPA</p>
+              <select value={selectedMatricForGPA} onChange={e=>setSelectedMatricForGPA(e.target.value)} className="mt-2 w-full p-2 rounded-lg text-slate-900 text-xs font-black">
+                <option value="ALL">ALL STUDENTS — See CGPA List Below</option>
+                {uniqueMatrics.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              {currentGPA && (
+                <div className="mt-3 bg-white/10 p-3 rounded-xl">
+                  <p className="text-3xl font-black">{currentGPA.gpa.toFixed(2)}</p>
+                  <p className="text-[11px]">GPA / CGPA for {selectedMatricForGPA}</p>
+                  <p className="text-[11px]">Quality Points: {currentGPA.totalPoints.toFixed(1)} / Units: {currentGPA.totalUnits}</p>
+                  <p className="text-[11px]">Courses: {currentGPA.detailed.length} | Formula: QP ÷ Units</p>
+                </div>
+              )}
+            </div>
+            <div className="bg-white border-2 border-emerald-200 p-4 rounded-2xl col-span-2">
+              <p className="text-xs font-black">CGPA LIST — ALL STUDENTS</p>
+              <div className="mt-2 max-h-32 overflow-auto">
+                <table className="w-full text-xs"><thead><tr><th className="text-left p-1">Matric</th><th className="p-1">Courses</th><th className="p-1">QP</th><th className="p-1">Units</th><th className="p-1">CGPA</th></tr></thead><tbody>
+                  {uniqueMatrics.map(m => { const g = gpaByMatric[m]; return <tr key={m} className="border-b"><td className="p-1 font-mono font-bold">{m}</td><td className="p-1 text-center">{g.detailed.length}</td><td className="p-1 text-center">{g.totalPoints.toFixed(1)}</td><td className="p-1 text-center">{g.totalUnits}</td><td className="p-1 text-center font-black text-emerald-700">{g.gpa.toFixed(2)}</td></tr> }) }
+                  {uniqueMatrics.length===0 && <tr><td colSpan={5} className="p-2 text-center text-slate-400">No results yet</td></tr>}
+                </tbody></table>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
             <button onClick={downloadMasterPDF} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> Print PDF</button>
             <button onClick={downloadMasterExcel} className="px-4 py-2.5 bg-green-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> Excel</button>
@@ -226,14 +309,14 @@ export const ExamOfficerDashboard: React.FC = () => {
             <button onClick={handleReturnToExamOfficer} className="px-4 py-2.5 bg-red-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><ArrowLeft className="w-4 h-4"/> Return to Lecturer</button>
           </div>
           <div className="flex items-center gap-2 bg-slate-50 p-3 rounded-xl border"><Search className="w-4 h-4 text-orange-600"/><input value={searchVet} onChange={e=>setSearchVet(e.target.value)} placeholder="Search by Matric, Name, Course" className="flex-1 py-2 text-xs font-bold outline-none bg-transparent"/></div>
-          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-orange-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2">Name</th><th className="p-2">Course</th><th className="p-2">Total</th><th className="p-2">Grade</th><th className="p-2">Manual</th></tr></thead><tbody>{filteredVet.map((r:any, idx:number)=>{ const score = r.score || r.total_score || 0; const grade = score>=70?'A':score>=60?'B':score>=50?'C':score>=40?'D':'F'; const isEditing = editingId === (r.id||r.scoreId||idx.toString()); return (<tr key={idx} className={`border-b ${grade==='F'?'bg-red-50':''}`}><td className="p-2 font-mono font-bold">{r.matricNo||r.matric_no}</td><td className="p-2 font-bold">{r.fullName||''}</td><td className="p-2 font-mono">{r.courseCode||r.course_code}</td><td className="p-2 text-center font-black">{isEditing ? <input type="number" value={editScore} onChange={e=>setEditScore(Number(e.target.value))} className="w-16 border-2 border-blue-500 rounded p-1 text-center"/> : score}</td><td className="p-2 text-center font-bold">{grade}</td><td className="p-2 text-center">{isEditing ? <div className="flex gap-1"><button onClick={()=>handleManualCorrection(r.id||r.scoreId||idx.toString())} className="px-2 py-1 bg-green-600 text-white rounded text-[10px] font-black">Save</button><button onClick={()=>setEditingId(null)} className="px-2 py-1 bg-slate-200 rounded text-[10px]">Cancel</button></div> : <button onClick={()=>{setEditingId(r.id||r.scoreId||idx.toString()); setEditScore(score);}} className="px-2 py-1 bg-amber-500 text-black rounded text-[10px] font-black">Edit</button>}</td></tr>); })}</tbody></table></div>
+          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-orange-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2">Name</th><th className="p-2">Course</th><th className="p-2">Unit</th><th className="p-2">Total</th><th className="p-2">Grade</th><th className="p-2">Point</th><th className="p-2">QP</th><th className="p-2">CGPA</th><th className="p-2">Manual</th></tr></thead><tbody>{filteredVet.map((r:any, idx:number)=>{ const score = Number(r.score ?? r.total_score ?? 0); const unit = getUnitForResult(r); const { grade, point } = getGradePoint(score); const qp = point * unit; const cgpa = gpaByMatric[r.matricNo||r.matric_no]?.gpa; const isEditing = editingId === (r.id||r.scoreId||idx.toString()); return (<tr key={idx} className={`border-b ${grade==='F'?'bg-red-50':''}`}><td className="p-2 font-mono font-bold">{r.matricNo||r.matric_no}</td><td className="p-2 font-bold">{r.fullName||''}</td><td className="p-2 font-mono">{r.courseCode||r.course_code}</td><td className="p-2 text-center">{unit}</td><td className="p-2 text-center font-black">{isEditing ? <input type="number" value={editScore} onChange={e=>setEditScore(Number(e.target.value))} className="w-16 border-2 border-blue-500 rounded p-1 text-center"/> : score}</td><td className="p-2 text-center font-bold">{grade}</td><td className="p-2 text-center">{point.toFixed(1)}</td><td className="p-2 text-center font-bold">{qp.toFixed(1)}</td><td className="p-2 text-center font-black text-emerald-700">{cgpa != null ? cgpa.toFixed(2) : '-'}</td><td className="p-2 text-center">{isEditing ? <div className="flex gap-1"><button onClick={()=>handleManualCorrection(r.id||r.scoreId||idx.toString())} className="px-2 py-1 bg-green-600 text-white rounded text-[10px] font-black">Save</button><button onClick={()=>setEditingId(null)} className="px-2 py-1 bg-slate-200 rounded text-[10px]">Cancel</button></div> : <button onClick={()=>{setEditingId(r.id||r.scoreId||idx.toString()); setEditScore(score);}} className="px-2 py-1 bg-amber-500 text-black rounded text-[10px] font-black">Edit</button>}</td></tr>); })}</tbody></table></div>
         </div>
       )}
 
       {activeTab==='individual_result' && (
         <div className="bg-white rounded-3xl border-2 border-amber-300 p-6 space-y-6">
           <div className="flex flex-wrap gap-2 bg-slate-50 p-3 rounded-xl border"><div className="flex items-center gap-2 flex-1 bg-white border-2 border-amber-400 rounded-xl px-3"><Search className="w-4 h-4 text-amber-600"/><input value={searchIndividual} onChange={e=>setSearchIndividual(e.target.value)} placeholder="Search by Name and Matric No" className="flex-1 py-2.5 text-xs font-black outline-none"/></div></div>
-          {!selectedPrintStudent ? (<div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric + Name</th><th className="p-3">Level</th><th className="p-3 text-center">Print</th></tr></thead><tbody>{filteredIndividual.map((s:any) => (<tr key={s.matricNo} className="border-b hover:bg-amber-50"><td className="p-3"><p className="font-mono font-black text-emerald-800">{s.matricNo}</p><p className="font-black uppercase">{s.fullName}</p></td><td className="p-3 font-bold">{s.level}</td><td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 mx-auto"><Printer className="w-4 h-4"/> Print</button></td></tr>))}</tbody></table></div>) : (<div className="space-y-4"><div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border"><p className="font-black text-sm">Selected: {selectedPrintStudent.fullName} - {selectedPrintStudent.matricNo}</p><button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-black">← Back</button></div><PrintableResultWithLogo matricNo={selectedPrintStudent.matricNo} fullName={selectedPrintStudent.fullName} level={selectedPrintStudent.level} program={selectedPrintStudent.program} results={computationResults.filter((r:any)=> r.matricNo===selectedPrintStudent.matricNo)} currentUserRole="EXAM_OFFICER" currentUserName={displayName} senateApproved={senateInfo.approved} senateDate={senateInfo.date} senateProvost={senateInfo.provost} /></div>)}
+          {!selectedPrintStudent ? (<div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-3 text-left">Matric + Name</th><th className="p-3">Level</th><th className="p-3">CGPA</th><th className="p-3 text-center">Print</th></tr></thead><tbody>{filteredIndividual.map((s:any) => { const g = gpaByMatric[s.matricNo]; return (<tr key={s.matricNo} className="border-b hover:bg-amber-50"><td className="p-3"><p className="font-mono font-black text-emerald-800">{s.matricNo}</p><p className="font-black uppercase">{s.fullName}</p></td><td className="p-3 font-bold">{s.level}</td><td className="p-3 text-center font-black text-emerald-700">{g ? g.gpa.toFixed(2) : '-'}</td><td className="p-3 text-center"><button onClick={()=>setSelectedPrintStudent(s)} className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2 mx-auto"><Printer className="w-4 h-4"/> Print</button></td></tr>) })}</tbody></table></div>) : (<div className="space-y-4"><div className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border"><p className="font-black text-sm">Selected: {selectedPrintStudent.fullName} - {selectedPrintStudent.matricNo} | CGPA: {gpaByMatric[selectedPrintStudent.matricNo]?.gpa?.toFixed(2) ?? '-'}</p><button onClick={()=>setSelectedPrintStudent(null)} className="px-4 py-2 bg-slate-200 rounded-xl text-xs font-black">← Back</button></div><PrintableResultWithLogo matricNo={selectedPrintStudent.matricNo} fullName={selectedPrintStudent.fullName} level={selectedPrintStudent.level} program={selectedPrintStudent.program} results={computationResults.filter((r:any)=> r.matricNo===selectedPrintStudent.matricNo)} currentUserRole="EXAM_OFFICER" currentUserName={displayName} senateApproved={senateInfo.approved} senateDate={senateInfo.date} senateProvost={senateInfo.provost} /></div>)}
         </div>
       )}
 
