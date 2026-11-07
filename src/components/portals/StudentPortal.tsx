@@ -252,7 +252,6 @@ export const StudentPortal: React.FC = () => {
     try { return JSON.parse(localStorage.getItem('lcns_results') || '[]'); } catch { return []; }
   });
 
-  // ===== NEW - COURSES + BACKEND SESSION + PROMOTION + REGISTRATIONS =====
   const [supabaseCourses, setSupabaseCourses] = useState<any[]>([]);
   const [availableCourses, setAvailableCourses] = useState<any[]>([]);
   const [registeredCourses, setRegisteredCourses] = useState<any[]>(() => {
@@ -270,17 +269,14 @@ export const StudentPortal: React.FC = () => {
     return () => { window.removeEventListener('lcns_storage_update', loadResults); window.removeEventListener('storage', loadResults); };
   }, []);
 
-  // ===== LOAD CURRENT SESSION + REAL LEVEL FROM BACKEND + COURSES + REGISTRATIONS =====
   useEffect(() => {
     async function loadAllBackend() {
       try {
-        // 1. Current session whole portal - Registrar controls
         const { data: setting } = await supabase.from('college_settings').select('*').eq('setting_key','CURRENT_SESSION').single();
         const portalSession = setting?.setting_value || COLLEGE_CONFIG.CURRENT_SESSION || '2026/2027';
         setCurrentSessionPortal(portalSession);
         setSelectedSession(portalSession);
 
-        // 2. Real level + semester from users table - After Registrar promotion student sees new level!
         const { data: userData } = await supabase.from('users').select('level, current_semester, matric_no').eq('email', safeCurrentUser?.email || student.email).single();
         if(userData){
           setStudentRealLevel({ level: userData.level || student.level, semester: userData.current_semester || 'First' });
@@ -289,13 +285,31 @@ export const StudentPortal: React.FC = () => {
           }
         }
 
-        // 3. Courses from backend - filtered by my real level + semester + current session
         const myLevel = userData?.level || (student as any)?.level || 'ND1';
         const mySem = userData?.current_semester || selectedSemester;
+
+        // ===== STEP 3 FIX - Load Registrar assignments so Student sees Lecturer =====
+        const { data: assignmentsData } = await supabase.from('course_assignments').select('*');
+        const assignmentsMap: any = {};
+        (assignmentsData || []).forEach((a:any)=>{
+          assignmentsMap[a.course_id] = a.lecturer_name;
+        });
+
         const { data: coursesData } = await supabase.from('courses').select('*').order('course_code');
         if(coursesData && coursesData.length>0){
-          setSupabaseCourses(coursesData);
-          const filtered = coursesData.filter((c:any) => {
+          const coursesWithLecturer = coursesData.map((c:any)=> ({
+            ...c,
+            course_title: c.course_title || c.title,
+            title: c.course_title || c.title,
+            course_code: c.course_code || c.code,
+            code: c.course_code || c.code,
+            credit_unit: c.credit_unit ?? c.unit ?? 3,
+            units: c.credit_unit ?? c.unit ?? 3,
+            lecturer_name: assignmentsMap[c.id] || c.lecturer_name || c.lecturer || 'Not Assigned Yet',
+            lecturerName: assignmentsMap[c.id] || c.lecturer_name || 'Not Assigned Yet',
+          }));
+          setSupabaseCourses(coursesWithLecturer);
+          const filtered = coursesWithLecturer.filter((c:any) => {
             const cLevel = (c.level || '').toUpperCase().replace(/\s/g,'');
             const mLevel = myLevel.toUpperCase().replace(/\s/g,'');
             const levelMatch = cLevel === mLevel || cLevel.includes(mLevel.slice(0,3));
@@ -303,11 +317,10 @@ export const StudentPortal: React.FC = () => {
             const sessionMatch = (c.session === portalSession || c.academic_year === portalSession || !c.session);
             return levelMatch && semMatch && sessionMatch;
           });
-          const fallback = filtered.length>0 ? filtered : coursesData.filter((c:any)=> (c.level||'').toUpperCase().includes(myLevel.toUpperCase().slice(0,2)) && (c.session===portalSession || !c.session));
-          setAvailableCourses(fallback.length>0 ? fallback : coursesData.filter(c=>c.session===portalSession).slice(0,10));
+          const fallback = filtered.length>0 ? filtered : coursesWithLecturer.filter((c:any)=> (c.level||'').toUpperCase().includes(myLevel.toUpperCase().slice(0,2)) && (c.session===portalSession || !c.session));
+          setAvailableCourses(fallback.length>0 ? fallback : coursesWithLecturer.filter(c=>c.session===portalSession).slice(0,10));
         }
 
-        // 4. My registrations from backend - with Exam Officer + HOD approval names
         const { data: regs } = await supabase.from('course_registrations').select('*').eq('matric_no', currentStudentMatric).eq('session', portalSession).order('course_code');
         if(regs) setBackendRegistrations(regs);
 
@@ -315,9 +328,9 @@ export const StudentPortal: React.FC = () => {
     }
     loadAllBackend();
 
-    // Real-time: If Registrar adds course, promotes, or runs new session -> student sees auto!
     const channel = supabase.channel('student-portal-live-'+currentStudentMatric)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, () => loadAllBackend())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'course_assignments' }, () => loadAllBackend())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'college_settings' }, (payload) => {
         if((payload.new as any)?.setting_key === 'CURRENT_SESSION'){
           setCurrentSessionPortal((payload.new as any).setting_value);
@@ -355,12 +368,10 @@ export const StudentPortal: React.FC = () => {
       matric_no: currentStudentMatric,
       matricNo: currentStudentMatric
     };
-    // Save locally
     const updated = [...registeredCourses, regLocal];
     setRegisteredCourses(updated);
     localStorage.setItem(`lcns_course_reg_${currentStudentMatric}`, JSON.stringify(updated));
 
-    // Save to backend - PENDING - Waiting for Exam Officer + HOD approval - Names will reflect on printed form!
     const regBackend: any = {
       id: 'reg-'+Date.now()+'-'+code,
       matric_no: currentStudentMatric,
@@ -426,7 +437,6 @@ export const StudentPortal: React.FC = () => {
       ${toPrint.map((r:any,i:number)=>`<tr><td>${i+1}</td><td><b>${r.course_code}</b></td><td>${r.course_title}</td><td>${r.credit_unit||3}</td><td>${r.lecturer_name||'Not Assigned'}</td><td>${r.level} ${r.semester}</td><td><span class="badge ${r.status==='APPROVED' ? 'approved' : 'pending'}">${r.status||'REGISTERED'}</span></td></tr>`).join('')}
       </table>
       <p><b>Total Courses:</b> ${toPrint.length} | <b>Total Credit Units:</b> ${toPrint.reduce((s:any,c:any)=>s+(c.credit_unit||3),0)} CU | <b>Session:</b> ${currentSessionPortal} | <b>Level:</b> ${studentRealLevel.level} ${studentRealLevel.semester}</p>
-      
       <div class="footer">
         <div class="sign"><p>_________________________</p><p><b>${examOfficerName}</b><br/>Exam Officer<br/>Email: ${approved[0]?.exam_officer_email||''}<br/>${approved[0]?.exam_officer_approved_at ? new Date(approved[0].exam_officer_approved_at).toLocaleDateString() : 'Date: Pending Approval'}</p><p style="font-size:8px;">First Approval - After student registers</p></div>
         <div class="sign"><p>_________________________</p><p><b>${hodName}</b><br/>HOD, Nursing Sciences<br/>Email: ${approved[0]?.hod_email||''}<br/>${approved[0]?.hod_approved_at ? new Date(approved[0].hod_approved_at).toLocaleDateString() : 'Date: Pending Approval'}</p><p style="font-size:8px;">Final Approval - After Exam Officer</p></div>
@@ -582,21 +592,18 @@ export const StudentPortal: React.FC = () => {
               {isResultPublished ? <><Unlock size={14}/> ✅ Senate Ratified - {senate.provostName} - {currentSessionPortal}</> : <><Lock size={14}/> 🔒 Not Yet Published - {currentSessionPortal}</>}
             </div>
           </div>
-
           <div className="grid md:grid-cols-4 gap-3">
             <div className="bg-slate-900 text-white rounded-2xl p-4 text-center"><p className="text-[10px] text-slate-400">FIRST SEM GPA - {currentSessionPortal}</p><p className="text-2xl font-black text-amber-400">{myFirstSem.gpa.toFixed(2)}</p></div>
             <div className="bg-slate-900 text-white rounded-2xl p-4 text-center"><p className="text-[10px] text-slate-400">SECOND SEM GPA - {currentSessionPortal}</p><p className="text-2xl font-black text-amber-400">{mySecondSem.gpa.toFixed(2)}</p></div>
             <div className="bg-emerald-900 text-white rounded-2xl p-4 text-center"><p className="text-[10px] text-emerald-300">CGPA - {currentSessionPortal}</p><p className="text-2xl font-black text-amber-400">{myCGPAData.cgpa.toFixed(2)} / 4.00</p></div>
             <div className={`rounded-2xl p-4 text-center border-2 ${myCGPAData.classification.color}`}><p className="text-[10px] font-bold">CLASS - {currentSessionPortal}</p><p className="text-sm font-black">{myCGPAData.classification.class}</p></div>
           </div>
-
           <div className="flex flex-wrap gap-2">
             <button onClick={downloadResultSlipPDF} className="px-4 py-2 bg-blue-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileText className="w-4 h-4"/> Download Result Slip - {currentSessionPortal}</button>
             <button onClick={downloadTranscriptPDF} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><GraduationCap className="w-4 h-4"/> Download Transcript PDF - {currentSessionPortal}</button>
             <button onClick={exportMyCSV} className="px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> Export CSV - {currentSessionPortal}</button>
             <button onClick={()=>setActiveTab('transcript')} className="px-4 py-2 bg-black text-white rounded-xl text-xs font-black">View Official LABE Transcript - {currentSessionPortal}</button>
           </div>
-
           {!isResultPublished ? (
             <div className="border-4 border-dashed border-amber-300 rounded-3xl p-12 text-center bg-amber-50/50 space-y-4">
               <div className="w-20 h-20 bg-slate-900 text-white rounded-full flex items-center justify-center mx-auto"><Lock className="w-10 h-10"/></div>
@@ -638,7 +645,6 @@ export const StudentPortal: React.FC = () => {
               <button onClick={handlePrintApprovedForm} className="px-4 py-2 bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> 🖨️ Print Approved Form with Exam Officer + HOD Name - {currentSessionPortal}</button>
             </div>
           </div>
-
           <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border-2 border-amber-400 rounded-2xl p-4 text-xs">
             <p className="font-black flex items-center gap-2"><Rocket className="w-4 h-4"/> Backend Status - Session {currentSessionPortal} - Promotion {studentRealLevel.level} {studentRealLevel.semester} - Whole Portal Controlled by Registrar</p>
             <div className="grid grid-cols-3 gap-2 mt-2">
@@ -647,9 +653,8 @@ export const StudentPortal: React.FC = () => {
               <div className="bg-white p-2 rounded-xl border"><p className="font-bold">Course Registrations Backend</p><p className="font-black">{backendRegistrations.length} courses - Status: {backendRegistrations[0]?.status||'None'}</p><p className="text-[10px]">Exam Officer: {backendRegistrations[0]?.exam_officer_name||'Pending'} | HOD: {backendRegistrations[0]?.hod_name||'Pending'}</p></div>
             </div>
           </div>
-
           <div>
-            <h4 className="font-black text-sm flex items-center gap-2"><BookOpen className="w-4 h-4 text-blue-700"/> 📚 Courses Added by Registrar for {studentRealLevel.level} - {studentRealLevel.semester} Semester - Session {currentSessionPortal} - Register Now - {availableCourses.length} Courses from Backend - Lecturer sees new semester!</h4>
+            <h4 className="font-black text-sm flex items-center gap-2"><BookOpen className="w-4 h-4 text-blue-700"/> 📚 Courses Added by Registrar for {studentRealLevel.level} - {studentRealLevel.semester} Semester - Session {currentSessionPortal} - Register Now - {availableCourses.length} Courses from Backend</h4>
             <div className="grid md:grid-cols-2 gap-3 mt-3">
               {availableCourses.map((c:any)=> {
                 const isRegistered = registeredCourses.find((rc:any)=> (rc.course_code||rc.code) === (c.course_code||c.code)) || backendRegistrations.find((rc:any)=> rc.course_code === (c.course_code||c.code));
@@ -676,10 +681,9 @@ export const StudentPortal: React.FC = () => {
                   </div>
                 </div>
               )})}
-              {availableCourses.length===0 && <div className="col-span-2 p-8 text-center border-2 border-dashed rounded-2xl"><p className="font-bold">No courses added yet for {studentRealLevel.level} {studentRealLevel.semester} Semester - Session {currentSessionPortal}</p><p className="text-xs text-slate-500">Registrar will add: e.g., NUR111 - Foundations - 3U - {studentRealLevel.level} - {studentRealLevel.semester} Semester - Session {currentSessionPortal} - Assigned to Nurse Emmanuel Gbaorun → You will see it here for registration! Lecturer sees new semester because you were promoted!</p></div>}
+              {availableCourses.length===0 && <div className="col-span-2 p-8 text-center border-2 border-dashed rounded-2xl"><p className="font-bold">No courses added yet for {studentRealLevel.level} {studentRealLevel.semester} Semester - Session {currentSessionPortal}</p><p className="text-xs text-slate-500">Registrar will add: e.g., NUR111 - Foundations - 3U - {studentRealLevel.level} - {studentRealLevel.semester} Semester - Session {currentSessionPortal} - Assigned to Nurse Emmanuel Gbaorun → You will see it here for registration!</p></div>}
             </div>
           </div>
-
           <div>
             <h4 className="font-black text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-700"/> ✅ My Registered Courses - Backend {backendRegistrations.length} Courses - {backendRegistrations.reduce((sum:any,c:any)=>sum+(c.credit_unit||3),0)} Total CU - Session: {currentSessionPortal} - Approval: Exam Officer + HOD names will show on Print</h4>
             <div className="overflow-x-auto mt-3 border-2 rounded-xl">
@@ -697,7 +701,6 @@ export const StudentPortal: React.FC = () => {
               </table>
             </div>
           </div>
-
           <div className="flex gap-2 flex-wrap">
             <button onClick={handlePrintApprovedForm} className="px-6 py-3 bg-emerald-800 text-white rounded-xl font-black text-xs flex items-center gap-2"><Printer className="w-4 h-4"/> 🖨️ Print Approved Course Form - Session {currentSessionPortal} - With Exam Officer {backendRegistrations[0]?.exam_officer_name||''} + HOD {backendRegistrations[0]?.hod_name||''} Names</button>
             <div className="bg-blue-50 border-2 border-blue-200 p-3 rounded-xl text-xs flex-1">
