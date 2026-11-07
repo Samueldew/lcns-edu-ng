@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getSupabase } from '../../lib/supabase';
 import jsPDF from 'jspdf';
+import { ApiService } from '../../services/api';
 
 export const LecturerDashboard: React.FC = () => {
   const [myCourses, setMyCourses] = useState<any[]>([]);
@@ -25,7 +26,14 @@ export const LecturerDashboard: React.FC = () => {
     questions: [{ id: Date.now().toString(), question_text: '', option_a: '', option_b: '', option_c: '', option_d: '', correct_option: 'A', marks: 10 }]
   });
 
-  const load = () => {
+  // ===== HELPERS - FIX TITLE / CODE / UNIT - Supabase uses course_title, course_code, credit_unit =====
+  const getTitle = (c:any) => c.course_title || c.title || c.name || c.course_name || 'No Title';
+  const getCode = (c:any) => c.course_code || c.code || c.course || '';
+  const getUnit = (c:any) => c.credit_unit ?? c.unit ?? c.units ?? 2;
+  const getLevel = (c:any) => c.level || 'ND1';
+  const getSemester = (c:any) => c.semester || c.sem || 'First Semester';
+
+  const load = async () => {
     try {
       const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
       let user = null;
@@ -35,15 +43,88 @@ export const LecturerDashboard: React.FC = () => {
         user = allUsers.find((u:any)=> ['LECTURER','HOD'].includes(u.role)) || { fullName: 'Nurse Emmanuel Gbaorun', email: 'lecturer@lcns.edu.ng', id: 'lec-1', role:'LECTURER' };
       }
       setCurrentUser(user);
-      const all = JSON.parse(localStorage.getItem('lcns_allocated_courses') || '[]');
-      const mine = all.filter((c:any)=> !user || !user.email ? true : (c.lecturerEmail === user.email || c.lecturerId === user.id || c.lecturer_email === user.email));
-      const display = mine.length > 0 ? mine : all;
+
+      // ===== STEP 2 - LECTURER - LOAD MY ASSIGNED COURSES FROM SUPABASE =====
+      let display: any[] = [];
+      try {
+        if (user?.id) {
+          // 1. Try Supabase course_assignments -> courses join
+          const assigned = await ApiService.getLecturerCourses(user.id);
+          if (assigned && assigned.length > 0) {
+            display = assigned.map((a:any) => {
+              const course = a.courses || a.course || {};
+              return {
+                id: a.course_id || course.id || a.id,
+                course_id: a.course_id,
+                assignment_id: a.id,
+                // NORMALIZED for your UI - Title, Code, Unit
+                title: course.course_title || course.title || 'No Title',
+                course_title: course.course_title || course.title,
+                code: course.course_code || course.code || a.course_code || '',
+                course_code: course.course_code || course.code || a.course_code || '',
+                unit: course.credit_unit ?? course.unit ?? 2,
+                credit_unit: course.credit_unit ?? course.unit ?? 2,
+                level: course.level || a.level || 'ND1',
+                semester: course.semester || a.semester || 'First Semester',
+                session: a.session || '2025/2026',
+                lecturer_email: user.email,
+                lecturer_name: user.fullName || user.full_name,
+              };
+            });
+          }
+        }
+      } catch(e){ console.log('Supabase lecturer courses failed, fallback to localStorage', e); }
+
+      // 2. Fallback: localStorage lcns_lecturer_courses (Registrar also saves here)
+      if (display.length === 0) {
+        const localMap = JSON.parse(localStorage.getItem('lcns_lecturer_courses') || '[]');
+        const allCourses = JSON.parse(localStorage.getItem('lcns_courses') || '[]');
+        const mineLocal = localMap.filter((m:any)=> 
+          !user || !user.email ? true : (m.lecturer_email === user.email || m.lecturer === user.email || m.lecturer_email === user.id || m.lecturer_id === user.id || m.lecturer_name === (user.fullName || user.full_name))
+        );
+        if (mineLocal.length > 0) {
+          display = mineLocal.map((m:any)=>{
+            const full = allCourses.find((c:any)=> (c.course_code===m.course_code || c.code===m.course_code || c.id===m.course_id));
+            return {
+              id: m.course_id || m.course_code,
+              title: m.title || full?.course_title || full?.title || m.course_code,
+              course_title: m.title || full?.course_title || full?.title,
+              code: m.course_code || m.course,
+              course_code: m.course_code || m.course,
+              unit: full?.credit_unit ?? full?.unit ?? m.credit_unit ?? 2,
+              credit_unit: full?.credit_unit ?? full?.unit ?? 2,
+              level: m.level || full?.level || 'ND1',
+              semester: m.semester || full?.semester || 'First Semester',
+              session: m.session || '2025/2026',
+            };
+          });
+        }
+      }
+
+      // 3. Old fallback: lcns_allocated_courses (keep for backward compat)
+      if (display.length === 0) {
+        const all = JSON.parse(localStorage.getItem('lcns_allocated_courses') || '[]');
+        const mine = all.filter((c:any)=> !user || !user.email ? true : (c.lecturerEmail === user.email || c.lecturerId === user.id || c.lecturer_email === user.email));
+        const oldDisplay = mine.length > 0 ? mine : all;
+        display = oldDisplay.map((c:any)=> ({
+          ...c,
+          title: getTitle(c),
+          course_title: getTitle(c),
+          code: getCode(c),
+          course_code: getCode(c),
+          unit: getUnit(c),
+          credit_unit: getUnit(c),
+          level: getLevel(c),
+          semester: getSemester(c),
+        }));
+      }
+
       setMyCourses(display);
       if (display.length > 0 && !selectedCourse) {
-        setSelectedCourse(display[0].code);
-        setSelectedLevel(display[0].level || 'ND1');
+        setSelectedCourse(getCode(display[0]));
+        setSelectedLevel(getLevel(display[0]));
         setSelectedSession(display[0].session || selectedSession);
-        setSelectedSemester(display[0].semester?.includes('Second') ? 'Second Semester' : 'First Semester');
+        setSelectedSemester(getSemester(display[0]).includes('Second') ? 'Second Semester' : 'First Semester');
       }
       const res = JSON.parse(localStorage.getItem('lcns_scores') || '[]');
       setResults(res);
@@ -125,7 +206,7 @@ export const LecturerDashboard: React.FC = () => {
     try {
       const toSave = scores.map(s=>({
         id: `${selectedCourse}-${s.email}-${selectedLevel}-${selectedSession}-${selectedSemester}-${Date.now()}`.replace(/\s/g,''),
-        course_code: selectedCourse, course_title: myCourses.find((c:any)=>c.code===selectedCourse)?.title || selectedCourse,
+        course_code: selectedCourse, course_title: myCourses.find((c:any)=>getCode(c)===selectedCourse)?.title || selectedCourse,
         level: selectedLevel, session: selectedSession, semester: selectedSemester,
         student_email: s.email, student_name: s.fullName, matric_number: s.matricNo,
         assessment: s.assessment, exam: s.exam, total: s.total, grade: getGrade(s.total),
@@ -152,7 +233,7 @@ export const LecturerDashboard: React.FC = () => {
     doc.setFontSize(16); doc.setFont('helvetica','bold'); doc.text('COLLEGE OF NURSING SCIENCES, CATHOLIC DIOCESE OF GBOKO',148,15,{align:'center'});
     doc.setFontSize(13); doc.text('ASSESSMENT SHEET / RESULT SCORESHEET - ONLY REGISTERED STUDENTS',148,22,{align:'center'});
     doc.setFontSize(10); doc.setFont('helvetica','normal');
-    const courseTitle = myCourses.find((c:any)=>c.code===selectedCourse)?.title || selectedCourse;
+    const courseTitle = myCourses.find((c:any)=>getCode(c)===selectedCourse)?.title || selectedCourse;
     doc.text(`Course: ${selectedCourse} - ${courseTitle}`,15,30);
     doc.text(`Level: ${selectedLevel}`,15,35);
     doc.text(`Session: ${selectedSession}`,100,30);
@@ -210,7 +291,18 @@ export const LecturerDashboard: React.FC = () => {
       </div>
 
       {activeTab==='my_courses' && (
-        <div className="grid md:grid-cols-2 gap-4">{myCourses.map((c:any)=>(<div key={c.id} className="border-2 border-emerald-200 rounded-2xl p-5 bg-white shadow-sm"><div className="flex justify-between"><span className="font-mono font-black bg-emerald-50 px-3 py-1 rounded-xl border-2">{c.code}</span><span className="text-[11px] font-black bg-blue-700 text-white px-3 py-1 rounded-full">{c.level} • {c.semester} • {c.session}</span></div><h3 className="font-black text-sm mt-2">{c.title}</h3><button onClick={()=>{setSelectedCourse(c.code); setSelectedLevel(c.level||'ND1'); setSelectedSession(c.session||selectedSession); setSelectedSemester(c.semester?.includes('Second')?'Second Semester':'First Semester'); setActiveTab('scores');}} className="w-full mt-3 py-2.5 bg-emerald-800 text-white rounded-xl text-[11px] font-black">Enter Scores - Only Registered Students</button></div>))}</div>
+        <div className="grid md:grid-cols-2 gap-4">
+          {myCourses.map((c:any)=>(
+            <div key={c.id || getCode(c)} className="border-2 border-emerald-200 rounded-2xl p-5 bg-white shadow-sm">
+              <div className="flex justify-between"><span className="font-mono font-black bg-emerald-50 px-3 py-1 rounded-xl border-2">{getCode(c)}</span><span className="text-[11px] font-black bg-blue-700 text-white px-3 py-1 rounded-full">{getLevel(c)} • {getSemester(c)} • {c.session}</span></div>
+              <h3 className="font-black text-sm mt-2">{getTitle(c)}</h3>
+              <p className="text-xs text-gray-600 mt-1">Credit Unit: <b className="text-gray-900">{getUnit(c)} Units</b> | Code: <b>{getCode(c)}</b></p>
+              <p className="text-xs text-gray-500">Assigned by Registrar • Session: {c.session || selectedSession}</p>
+              <button onClick={()=>{setSelectedCourse(getCode(c)); setSelectedLevel(getLevel(c)); setSelectedSession(c.session||selectedSession); setSelectedSemester(getSemester(c).includes('Second')?'Second Semester':'First Semester'); setActiveTab('scores');}} className="w-full mt-3 py-2.5 bg-emerald-800 text-white rounded-xl text-[11px] font-black">Enter Scores - Only Registered Students</button>
+            </div>
+          ))}
+          {myCourses.length===0 && <div className="md:col-span-2 bg-white p-8 rounded-2xl text-center text-gray-500 text-sm">No courses assigned to you yet.<br/>Registrar needs to assign a course to you.<br/>Ask Registrar to assign from his Assign tab.</div>}
+        </div>
       )}
 
       {activeTab==='scores' && (
@@ -218,7 +310,7 @@ export const LecturerDashboard: React.FC = () => {
           <h3 className="font-black uppercase text-sm">Score Entry - ONLY Students Who Registered {selectedCourse} - {selectedLevel} - {selectedSession}</h3>
           {saved && <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl text-xs font-black text-emerald-800">✅ Saved Online! Only registered students!</div>}
           <div className="grid md:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border-2">
-            <div><label className="text-[10px] font-black">Course *</label><select value={selectedCourse} onChange={e=>setSelectedCourse(e.target.value)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option value="">Select</option>{myCourses.map((c:any)=>(<option key={c.id} value={c.code}>{c.code} - {c.title}</option>))}</select></div>
+            <div><label className="text-[10px] font-black">Course *</label><select value={selectedCourse} onChange={e=>setSelectedCourse(e.target.value)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option value="">Select</option>{myCourses.map((c:any)=>(<option key={c.id || getCode(c)} value={getCode(c)}>{getCode(c)} - {getTitle(c)} - {getUnit(c)} Units</option>))}</select></div>
             <div><label className="text-[10px] font-black">Level *</label><select value={selectedLevel} onChange={e=>setSelectedLevel(e.target.value)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option>ND1</option><option>ND2</option><option>HND1</option><option>HND2</option></select></div>
             <div><label className="text-[10px] font-black">Session *</label><select value={selectedSession} onChange={e=>setSelectedSession(e.target.value)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option>2025/2026</option><option>2026/2027</option></select></div>
             <div><label className="text-[10px] font-black">Semester *</label><select value={selectedSemester} onChange={e=>setSelectedSemester(e.target.value)} className="w-full p-2.5 border-2 rounded-xl text-xs font-bold"><option>First Semester</option><option>Second Semester</option></select></div>
@@ -239,7 +331,7 @@ export const LecturerDashboard: React.FC = () => {
           <h3 className="font-black">Create CBT - Anti-Cheat {newCbt.max_warnings} Warnings</h3>
           <div className="grid md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border-2">
             <input value={newCbt.title} onChange={e=>setNewCbt({...newCbt, title: e.target.value})} placeholder="Title e.g. NSC 101 Test 1" className="p-2.5 border-2 rounded-xl text-xs font-bold"/>
-            <select value={newCbt.course_code} onChange={e=>setNewCbt({...newCbt, course_code: e.target.value})} className="p-2.5 border-2 rounded-xl text-xs font-bold"><option value="">Course</option>{myCourses.map((c:any)=><option key={c.id} value={c.code}>{c.code}</option>)}<option value="GENERAL">GENERAL</option></select>
+            <select value={newCbt.course_code} onChange={e=>setNewCbt({...newCbt, course_code: e.target.value})} className="p-2.5 border-2 rounded-xl text-xs font-bold"><option value="">Course</option>{myCourses.map((c:any)=><option key={c.id || getCode(c)} value={getCode(c)}>{getCode(c)}</option>)}<option value="GENERAL">GENERAL</option></select>
             <input type="number" value={newCbt.duration_minutes} onChange={e=>setNewCbt({...newCbt, duration_minutes: parseInt(e.target.value)||40})} className="p-2.5 border-2 rounded-xl text-xs font-bold"/>
             <button onClick={saveCbtExam} className="px-4 py-2.5 bg-[#0f4c2e] text-white rounded-xl font-black text-xs">💾 SAVE CBT</button>
           </div>
