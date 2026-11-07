@@ -27,7 +27,7 @@ export const ExamOfficerDashboard: React.FC = () => {
 
   const [courses, setCourses] = useState<Course[]>(StorageService.getCourses());
   const [students] = useState<Student[]>(StorageService.getStudents());
-  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'individual_result' | 'vet_result' | 'users' | 'from_lecturer'>('from_lecturer');
+  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'individual_result' | 'vet_result' | 'users' | 'from_lecturer' | 'carryover'>('from_lecturer');
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
@@ -57,6 +57,12 @@ export const ExamOfficerDashboard: React.FC = () => {
   const [workflowSearch, setWorkflowSearch] = useState('');
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<string|null>(null);
+
+  // ===== NEW: CARRYOVER =====
+  const [carryoverMap, setCarryoverMap] = useState<Record<string, any>>({});
+  const [carryoverList, setCarryoverList] = useState<any[]>([]);
+  const [carryoverSearch, setCarryoverSearch] = useState('');
+  const [carryoverFilterCourse, setCarryoverFilterCourse] = useState('ALL');
 
   const getTitle = (c:any) => c.course_title || c.title || c.name || c.course_name || 'No Title';
   const getCode = (c:any) => c.course_code || c.code || c.course || '';
@@ -99,18 +105,60 @@ export const ExamOfficerDashboard: React.FC = () => {
     setWorkflowLoading(false);
   };
 
+  // ===== CARRYOVER: OLD F HISTORY - NEVER DELETE OLD F =====
+  const loadCarryoverHistory = async () => {
+    try {
+      // Get ALL results to find who failed before - old F stays forever
+      const { data, error } = await supabase.from('student_results_workflow').select('*').order('session', { ascending: true });
+      if (error) throw error;
+      const all = data || [];
+      // Map for quick badge: matric|course -> old F sessions
+      const map: Record<string, any> = {};
+      all.forEach((r:any)=>{
+        if (r.grade !== 'F') return;
+        const key = `${r.matric_no}|${r.course_code}`;
+        if(!map[key]) map[key] = { count: 0, sessions: [] };
+        map[key].count += 1;
+        if(!map[key].sessions.includes(r.session)) map[key].sessions.push(r.session);
+      });
+      setCarryoverMap(map);
+      // Build carryover list: latest attempt per matric+course is F = still carryover
+      const latest: Record<string, any> = {};
+      all.forEach((r:any)=>{
+        const k = `${r.matric_no}|${r.course_code}`;
+        if(!latest[k] || r.session >= latest[k].session) latest[k] = r;
+      });
+      const stillCarry = Object.values(latest).filter((r:any)=> r.grade === 'F').map((r:any)=>{
+        const key = `${r.matric_no}|${r.course_code}`;
+        const hist = map[key];
+        return { ...r, attempt: (hist?.count || 1), failedSessions: hist?.sessions || [r.session], isCarryover: true };
+      });
+      setCarryoverList(stillCarry);
+    } catch(e){ console.log('Carryover load failed', e); }
+  };
+
+  const getCarryoverInfo = (matric_no:string, course_code:string, currentSession:string) => {
+    const key = `${matric_no}|${course_code}`;
+    const info = carryoverMap[key];
+    if(!info) return null;
+    const oldSessions = info.sessions.filter((s:string)=> s !== currentSession);
+    if(oldSessions.length === 0) return null;
+    return { attempt: oldSessions.length + 1, failedSessions: oldSessions };
+  };
+
   // Group by course for the list on left
   const workflowGroups = useMemo(() => {
     const map: any = {};
     workflowRows.forEach((r:any)=>{
       const key = `${r.course_code}|${r.level}|${r.session}|${r.semester}`;
-      if(!map[key]) map[key] = { key, course_code: r.course_code, course_title: r.course_title, level: r.level, session: r.session, semester: r.semester, count: 0, pass: 0, fail: 0 };
+      if(!map[key]) map[key] = { key, course_code: r.course_code, course_title: r.course_title, level: r.level, session: r.session, semester: r.semester, count: 0, pass: 0, fail: 0, carry: 0 };
       map[key].count += 1;
       const total = Number(r.total_score ?? 0);
       if (total >= 40) map[key].pass += 1; else map[key].fail += 1;
+      if (getCarryoverInfo(r.matric_no, r.course_code, r.session)) map[key].carry += 1;
     });
     return Object.values(map);
-  }, [workflowRows]);
+  }, [workflowRows, carryoverMap]);
 
   const workflowDetailRows = useMemo(() => {
     if(!selectedWorkflowCourse) return [];
@@ -120,6 +168,20 @@ export const ExamOfficerDashboard: React.FC = () => {
       return (r.matric_no||'').toLowerCase().includes(t) || (r.full_name||'').toLowerCase().includes(t);
     });
   }, [workflowRows, selectedWorkflowCourse, workflowSearch]);
+
+  const filteredCarryovers = useMemo(()=>{
+    return carryoverList.filter((r:any)=>{
+      if(carryoverFilterCourse !== 'ALL' && r.course_code !== carryoverFilterCourse) return false;
+      if(!carryoverSearch) return true;
+      const t = carryoverSearch.toLowerCase();
+      return (r.matric_no||'').toLowerCase().includes(t) || (r.full_name||'').toLowerCase().includes(t) || (r.course_code||'').toLowerCase().includes(t);
+    });
+  }, [carryoverList, carryoverSearch, carryoverFilterCourse]);
+
+  const carryoverCourses = useMemo(()=>{
+    const s = new Set(carryoverList.map((r:any)=> r.course_code));
+    return Array.from(s).sort();
+  }, [carryoverList]);
 
   // ===== EXAM OFFICER APPROVE ONE COURSE -> EXAM_OFFICER_APPROVED -> HOD =====
   const approveWorkflowCourse = async () => {
@@ -132,6 +194,7 @@ export const ExamOfficerDashboard: React.FC = () => {
       setWorkflowStatus(`✅ APPROVED ${course_code} - Sent to HOD!`);
       StorageService.logAction(displayEmail, displayRole,'EXAM_OFFICER_APPROVE',`Exam Officer ${displayName} approved ${course_code} ${levelV} ${sessionV} to HOD`);
       await loadFromLecturer();
+      await loadCarryoverHistory();
       setSelectedWorkflowCourse('');
       setTimeout(()=>setWorkflowStatus(null), 5000);
       window.dispatchEvent(new Event('lcns_storage_update'));
@@ -147,6 +210,7 @@ export const ExamOfficerDashboard: React.FC = () => {
       if(error) throw error;
       setWorkflowStatus(`✅ APPROVED ALL ${workflowRows.length} results - Sent to HOD!`);
       await loadFromLecturer();
+      await loadCarryoverHistory();
       setTimeout(()=>setWorkflowStatus(null), 5000);
       window.dispatchEvent(new Event('lcns_storage_update'));
     } catch(e:any){ setWorkflowStatus('❌ Approve all failed: ' + e.message); }
@@ -208,7 +272,7 @@ export const ExamOfficerDashboard: React.FC = () => {
       } catch(e){ console.log('Exam Officer courses fallback', e); }
     } catch {}
   };
-  useEffect(() => { loadVetData(); loadFromLecturer(); }, []);
+  useEffect(() => { loadVetData(); loadFromLecturer(); loadCarryoverHistory(); }, []);
 
   const handleManualCorrection = (id: string) => {
     const updated = examSubmissions.map((r:any) => r.id === id || r.scoreId === id ? {...r, score: editScore, totalScore: editScore, total_score: editScore} : r);
@@ -295,7 +359,7 @@ export const ExamOfficerDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">EXAM OFFICER • {displayRole} • {displayEmail} • Students: {filteredUsers.length} • Courses: {courses.length}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">EXAM OFFICER • {displayRole} • {displayEmail} • Students: {filteredUsers.length} • Courses: {courses.length} • Carryovers: {carryoverList.length}</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
             <p className="text-xs text-emerald-200">Exam Officer — First Approval for Course Registration — First Vetting for Results — Then HOD — Backend: {users.length}</p>
             {workflowStatus && <div className="mt-3 p-3 bg-emerald-500/20 border border-emerald-400 rounded-xl text-xs font-bold">{workflowStatus}</div>}
@@ -305,7 +369,8 @@ export const ExamOfficerDashboard: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
-        <button onClick={() => { loadFromLecturer(); setActiveTab('from_lecturer'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='from_lecturer'?'bg-purple-700 text-white shadow ring-2 ring-purple-300':'bg-purple-50 border-2 border-purple-400 text-purple-800'}`}><Download className="w-4 h-4"/><span>📥 From Lecturer</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{workflowRows.length}</span></button>
+        <button onClick={() => { loadFromLecturer(); loadCarryoverHistory(); setActiveTab('from_lecturer'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='from_lecturer'?'bg-purple-700 text-white shadow ring-2 ring-purple-300':'bg-purple-50 border-2 border-purple-400 text-purple-800'}`}><Download className="w-4 h-4"/><span>📥 From Lecturer</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{workflowRows.length}</span></button>
+        <button onClick={() => { loadCarryoverHistory(); setActiveTab('carryover'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='carryover'?'bg-red-700 text-white shadow ring-2 ring-red-300':'bg-red-50 border-2 border-red-400 text-red-800'}`}><span>🔴 Carryovers</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{carryoverList.length}</span></button>
         <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='users'?'bg-slate-900 text-white shadow ring-2 ring-amber-300':'bg-slate-50 border-2 border-amber-400 text-slate-800'}`}><Users className="w-4 h-4"/><span>👤 Students - {filteredUsers.length}</span></button>
         <button onClick={() => setActiveTab('vet_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='vet_result'?'bg-orange-600 text-white shadow ring-2 ring-orange-300':'bg-orange-50 border-2 border-orange-400 text-orange-900'}`}><CheckCircle2 className="w-4 h-4"/><span>🔍 EXAM OFFICER VET RESULT</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{examSubmissions.length}</span></button>
         <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Registration — First Approval</span></button>
@@ -316,6 +381,35 @@ export const ExamOfficerDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Result</span></button>
       </div>
 
+      {activeTab==='carryover' && (
+        <div className="bg-white rounded-3xl border-2 border-red-400 p-6 space-y-4">
+          <div className="bg-red-50 border-2 border-red-300 p-4 rounded-xl">
+            <h2 className="text-lg font-black text-red-900">🔴 CARRYOVERS — Latest Attempt is F — Must Re-register Next Year</h2>
+            <p className="text-xs font-bold mt-1">Rule: Old F is NEVER deleted. New attempt is added. Latest attempt counts for CGPA. Student cannot graduate until all carryovers are passed.</p>
+            <p className="text-xs mt-1">Total carryovers: <b>{carryoverList.length}</b> | Students affected: <b>{new Set(carryoverList.map((r:any)=>r.matric_no)).size}</b></p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={loadCarryoverHistory} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black">🔄 Refresh Carryovers</button>
+            <select value={carryoverFilterCourse} onChange={e=>setCarryoverFilterCourse(e.target.value)} className="px-3 py-2.5 border-2 rounded-xl text-xs font-black"><option value="ALL">All Courses</option>{carryoverCourses.map((c:string)=><option key={c} value={c}>{c}</option>)}</select>
+            <div className="flex items-center gap-2 bg-slate-50 border rounded-xl px-3 flex-1 min-w-[200px]"><Search className="w-4 h-4"/><input value={carryoverSearch} onChange={e=>setCarryoverSearch(e.target.value)} placeholder="Search Matric / Name / Course" className="py-2 text-xs font-bold outline-none bg-transparent w-full"/></div>
+          </div>
+          {filteredCarryovers.length===0 && <div className="p-8 text-center text-gray-500 text-sm">✅ No carryovers — all students passed latest attempt.</div>}
+          <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-red-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2 text-left">Name</th><th className="p-2">Course</th><th className="p-2">Failed Session</th><th className="p-2">Total</th><th className="p-2">Attempt</th><th className="p-2">Action Needed</th></tr></thead><tbody>
+            {filteredCarryovers.map((r:any)=>(
+              <tr key={`${r.matric_no}-${r.course_code}`} className="border-b bg-red-50/50">
+                <td className="p-2 font-mono font-bold">{r.matric_no}</td>
+                <td className="p-2 font-bold">{r.full_name}<div><span className="px-2 py-0.5 bg-red-600 text-white rounded-full text-[10px] font-black">🔴 CARRYOVER - Attempt {r.attempt}</span></div></td>
+                <td className="p-2 font-mono font-bold">{r.course_code}<div className="text-[10px] font-normal">{r.course_title}</div></td>
+                <td className="p-2 text-center">{r.session} • {r.semester}</td>
+                <td className="p-2 text-center font-black">{r.total_score} (F)</td>
+                <td className="p-2 text-center font-black">{r.attempt}</td>
+                <td className="p-2 text-center text-[11px] font-bold text-red-700">Re-register {r.course_code} next session</td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        </div>
+      )}
+
       {activeTab==='from_lecturer' && (
         <div className="bg-white rounded-3xl border-2 border-purple-400 p-6 space-y-4">
           <div className="bg-purple-50 border-2 border-purple-300 p-4 rounded-xl">
@@ -324,7 +418,7 @@ export const ExamOfficerDashboard: React.FC = () => {
             <p className="text-xs mt-1">Total waiting: <b>{workflowRows.length} results</b> in <b>{workflowGroups.length} courses</b> | CA + Exam + Total + Grade auto-calculated by Supabase</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={loadFromLecturer} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black">🔄 Refresh From Lecturer</button>
+            <button onClick={()=>{loadFromLecturer(); loadCarryoverHistory();}} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black">🔄 Refresh From Lecturer</button>
             <button onClick={approveAllWorkflow} disabled={workflowRows.length===0} className="px-4 py-2.5 bg-emerald-700 text-white rounded-xl text-xs font-black">✅ APPROVE ALL → Send to HOD ({workflowRows.length})</button>
           </div>
           {workflowLoading && <p className="text-xs font-bold">Loading...</p>}
@@ -336,7 +430,7 @@ export const ExamOfficerDashboard: React.FC = () => {
                 <button key={g.key} onClick={()=>setSelectedWorkflowCourse(g.key)} className={`w-full text-left p-3 rounded-xl border-2 text-xs ${selectedWorkflowCourse===g.key?'bg-purple-700 text-white border-purple-700':'bg-white border-purple-200'}`}>
                   <p className="font-mono font-black">{g.course_code} — {g.course_title}</p>
                   <p>{g.level} • {g.semester} • {g.session} • {g.count} students</p>
-                  <p>✅ Pass: {g.pass} | ❌ Fail: {g.fail}</p>
+                  <p>✅ Pass: {g.pass} | ❌ Fail: {g.fail} | 🔴 Carryovers: {g.carry}</p>
                 </button>
               ))}
             </div>
@@ -349,10 +443,12 @@ export const ExamOfficerDashboard: React.FC = () => {
                     <div className="flex items-center gap-2 bg-slate-50 border rounded-xl px-3 flex-1"><Search className="w-4 h-4"/><input value={workflowSearch} onChange={e=>setWorkflowSearch(e.target.value)} placeholder="Search Matric / Name" className="py-2 text-xs font-bold outline-none bg-transparent w-full"/></div>
                   </div>
                   <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-purple-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2 text-left">Name</th><th className="p-2">CA</th><th className="p-2">Exam</th><th className="p-2">Total</th><th className="p-2">Grade</th><th className="p-2">Point</th><th className="p-2">Action</th></tr></thead><tbody>
-                    {workflowDetailRows.map((r:any)=>(
-                      <tr key={r.id} className={`border-b ${r.grade==='F'?'bg-red-50':''}`}>
+                    {workflowDetailRows.map((r:any)=>{
+                      const co = getCarryoverInfo(r.matric_no, r.course_code, r.session);
+                      return (
+                      <tr key={r.id} className={`border-b ${r.grade==='F'?'bg-red-50': co?'bg-amber-50':''}`}>
                         <td className="p-2 font-mono font-bold">{r.matric_no}</td>
-                        <td className="p-2 font-bold">{r.full_name}</td>
+                        <td className="p-2 font-bold">{r.full_name}{co && <div className="mt-1"><span className="px-2 py-0.5 bg-red-600 text-white rounded-full text-[10px] font-black">🔴 CARRYOVER - Attempt {co.attempt} - Failed: {co.failedSessions.join(', ')}</span></div>}</td>
                         <td className="p-2 text-center">{r.ca_score}</td>
                         <td className="p-2 text-center">{r.exam_score}</td>
                         <td className="p-2 text-center font-black">{r.total_score}</td>
@@ -360,7 +456,8 @@ export const ExamOfficerDashboard: React.FC = () => {
                         <td className="p-2 text-center">{r.grade_point}</td>
                         <td className="p-2 text-center"><button onClick={()=>rejectOneStudent(r)} className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-black">Reject Student</button></td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody></table></div>
                 </>
               )}
