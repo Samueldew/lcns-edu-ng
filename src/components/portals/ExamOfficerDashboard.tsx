@@ -27,7 +27,7 @@ export const ExamOfficerDashboard: React.FC = () => {
 
   const [courses, setCourses] = useState<Course[]>(StorageService.getCourses());
   const [students] = useState<Student[]>(StorageService.getStudents());
-  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'individual_result' | 'vet_result' | 'users'>('course_reg');
+  const [activeTab, setActiveTab] = useState<'courses' | 'biodata' | 'admissions_all' | 'scoresheets' | 'course_reg' | 'individual_result' | 'vet_result' | 'users' | 'from_lecturer'>('from_lecturer');
   const [showAddCourse, setShowAddCourse] = useState(false);
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
@@ -51,12 +51,18 @@ export const ExamOfficerDashboard: React.FC = () => {
   const [userSearch, setUserSearch] = useState('');
   const [selectedMatricForGPA, setSelectedMatricForGPA] = useState<string>('ALL');
 
+  // ===== NEW: FROM LECTURER - WORKFLOW =====
+  const [workflowRows, setWorkflowRows] = useState<any[]>([]);
+  const [selectedWorkflowCourse, setSelectedWorkflowCourse] = useState<string>('');
+  const [workflowSearch, setWorkflowSearch] = useState('');
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [workflowStatus, setWorkflowStatus] = useState<string|null>(null);
+
   const getTitle = (c:any) => c.course_title || c.title || c.name || c.course_name || 'No Title';
   const getCode = (c:any) => c.course_code || c.code || c.course || '';
   const getUnit = (c:any) => c.credit_unit ?? c.unit ?? c.units ?? 3;
   const getLecturer = (c:any) => c.lecturer_name || c.lecturerName || c.lecturer || c.assigned_lecturer || 'Not Assigned Yet';
 
-  // ===== CGPA HELPERS - FIND CORRECT UNIT FOR EACH RESULT =====
   const getUnitForResult = (r:any) => {
     if (r.credit_unit ?? r.unit ?? r.units) return Number(r.credit_unit ?? r.unit ?? r.units);
     const codeToFind = (r.courseCode || r.course_code || r.code || '').toString().toUpperCase().trim();
@@ -64,7 +70,6 @@ export const ExamOfficerDashboard: React.FC = () => {
     return found ? Number(getUnit(found)) : 3;
   };
 
-  // ===== GPA PER STUDENT (CGPA = ALL SEMESTERS TOGETHER) =====
   const gpaByMatric = useMemo(() => {
     const map: Record<string, any> = {};
     const grouped: Record<string, any[]> = {};
@@ -73,13 +78,110 @@ export const ExamOfficerDashboard: React.FC = () => {
       if (!grouped[matric]) grouped[matric] = [];
       grouped[matric].push({ ...r, credit_unit: getUnitForResult(r) });
     });
-    Object.keys(grouped).forEach(matric => {
-      map[matric] = calculateGPA(grouped[matric]);
-    });
+    Object.keys(grouped).forEach(matric => { map[matric] = calculateGPA(grouped[matric]); });
     return map;
   }, [examSubmissions, courses]);
 
   const uniqueMatrics = useMemo(() => Object.keys(gpaByMatric).sort(), [gpaByMatric]);
+
+  // ===== LOAD FROM LECTURER: status = LECTURER_SUBMITTED =====
+  const loadFromLecturer = async () => {
+    setWorkflowLoading(true);
+    try {
+      const { data, error } = await supabase.from('student_results_workflow').select('*').eq('status', 'LECTURER_SUBMITTED').order('course_code').order('matric_no');
+      if (error) throw error;
+      setWorkflowRows(data || []);
+      if (data && data.length > 0 && !selectedWorkflowCourse) {
+        const first = data[0];
+        setSelectedWorkflowCourse(`${first.course_code}|${first.level}|${first.session}|${first.semester}`);
+      }
+    } catch(e:any){ console.log('Load from lecturer failed', e); setWorkflowStatus('❌ Failed to load from Lecturer: ' + e.message); }
+    setWorkflowLoading(false);
+  };
+
+  // Group by course for the list on left
+  const workflowGroups = useMemo(() => {
+    const map: any = {};
+    workflowRows.forEach((r:any)=>{
+      const key = `${r.course_code}|${r.level}|${r.session}|${r.semester}`;
+      if(!map[key]) map[key] = { key, course_code: r.course_code, course_title: r.course_title, level: r.level, session: r.session, semester: r.semester, count: 0, pass: 0, fail: 0 };
+      map[key].count += 1;
+      const total = Number(r.total_score ?? 0);
+      if (total >= 40) map[key].pass += 1; else map[key].fail += 1;
+    });
+    return Object.values(map);
+  }, [workflowRows]);
+
+  const workflowDetailRows = useMemo(() => {
+    if(!selectedWorkflowCourse) return [];
+    return workflowRows.filter((r:any)=> `${r.course_code}|${r.level}|${r.session}|${r.semester}` === selectedWorkflowCourse).filter((r:any)=>{
+      if(!workflowSearch) return true;
+      const t = workflowSearch.toLowerCase();
+      return (r.matric_no||'').toLowerCase().includes(t) || (r.full_name||'').toLowerCase().includes(t);
+    });
+  }, [workflowRows, selectedWorkflowCourse, workflowSearch]);
+
+  // ===== EXAM OFFICER APPROVE ONE COURSE -> EXAM_OFFICER_APPROVED -> HOD =====
+  const approveWorkflowCourse = async () => {
+    if(!selectedWorkflowCourse) return;
+    const [course_code, levelV, sessionV, semesterV] = selectedWorkflowCourse.split('|');
+    if(!confirm(`Approve ALL ${workflowDetailRows.length} students for ${course_code} and send to HOD?`)) return;
+    try {
+      const { error } = await supabase.from('student_results_workflow').update({ status: 'EXAM_OFFICER_APPROVED' }).eq('course_code', course_code).eq('level', levelV).eq('session', sessionV).eq('semester', semesterV).eq('status', 'LECTURER_SUBMITTED');
+      if(error) throw error;
+      setWorkflowStatus(`✅ APPROVED ${course_code} - Sent to HOD!`);
+      StorageService.logAction(displayEmail, displayRole,'EXAM_OFFICER_APPROVE',`Exam Officer ${displayName} approved ${course_code} ${levelV} ${sessionV} to HOD`);
+      await loadFromLecturer();
+      setSelectedWorkflowCourse('');
+      setTimeout(()=>setWorkflowStatus(null), 5000);
+      window.dispatchEvent(new Event('lcns_storage_update'));
+    } catch(e:any){ setWorkflowStatus('❌ Approve failed: ' + e.message); }
+  };
+
+  // ===== EXAM OFFICER APPROVE ALL PENDING =====
+  const approveAllWorkflow = async () => {
+    if(workflowRows.length===0) return;
+    if(!confirm(`Approve ALL ${workflowRows.length} results from Lecturer and send to HOD?`)) return;
+    try {
+      const { error } = await supabase.from('student_results_workflow').update({ status: 'EXAM_OFFICER_APPROVED' }).eq('status', 'LECTURER_SUBMITTED');
+      if(error) throw error;
+      setWorkflowStatus(`✅ APPROVED ALL ${workflowRows.length} results - Sent to HOD!`);
+      await loadFromLecturer();
+      setTimeout(()=>setWorkflowStatus(null), 5000);
+      window.dispatchEvent(new Event('lcns_storage_update'));
+    } catch(e:any){ setWorkflowStatus('❌ Approve all failed: ' + e.message); }
+  };
+
+  // ===== EXAM OFFICER REJECT ONE COURSE -> BACK TO LECTURER =====
+  const rejectWorkflowCourse = async () => {
+    if(!selectedWorkflowCourse) return;
+    const reason = prompt('Enter reason to return to Lecturer (e.g. CA missing for 3 students):');
+    if(!reason) return;
+    const [course_code, levelV, sessionV, semesterV] = selectedWorkflowCourse.split('|');
+    try {
+      const { error } = await supabase.from('student_results_workflow').update({ status: 'REJECTED_BY_EXAM_OFFICER' }).eq('course_code', course_code).eq('level', levelV).eq('session', sessionV).eq('semester', semesterV).eq('status', 'LECTURER_SUBMITTED');
+      if(error) throw error;
+      localStorage.setItem('lcns_exam_return_reason', reason);
+      setWorkflowStatus(`↩️ Returned ${course_code} to Lecturer. Reason: ${reason}`);
+      StorageService.logAction(displayEmail, displayRole,'EXAM_OFFICER_RETURN_TO_LECTURER',`Exam Officer returned ${course_code}: ${reason}`);
+      await loadFromLecturer();
+      setSelectedWorkflowCourse('');
+      setTimeout(()=>setWorkflowStatus(null), 5000);
+      window.dispatchEvent(new Event('lcns_storage_update'));
+    } catch(e:any){ setWorkflowStatus('❌ Reject failed: ' + e.message); }
+  };
+
+  // ===== EXAM OFFICER REJECT ONE STUDENT =====
+  const rejectOneStudent = async (row:any) => {
+    const reason = prompt(`Reject ${row.matric_no} - ${row.full_name}? Enter reason:`);
+    if(!reason) return;
+    try {
+      const { error } = await supabase.from('student_results_workflow').update({ status: 'REJECTED_BY_EXAM_OFFICER' }).eq('id', row.id);
+      if(error) throw error;
+      setWorkflowStatus(`↩️ ${row.matric_no} returned to Lecturer: ${reason}`);
+      await loadFromLecturer();
+    } catch(e:any){ setWorkflowStatus('❌ Reject failed: ' + e.message); }
+  };
 
   const loadVetData = async () => {
     try {
@@ -89,11 +191,7 @@ export const ExamOfficerDashboard: React.FC = () => {
       if(scores && scores.length > 0) setExamSubmissions(scores);
       const { data: allUsers } = await supabase.from('users').select('*').order('created_at', { ascending: false });
       if(allUsers && allUsers.length>0){
-        const formatted = allUsers.map((u:any)=>({
-          id: u.id, email: u.email, fullName: u.full_name||u.fullName, role: u.role, department: u.department,
-          status: u.status||'ACTIVE', phone: u.phone, matricNumber: u.matric_no||u.matric_no, matric_no: u.matric_no||'', staffId: u.staff_id||'',
-          level: u.level||'', createdAt: u.created_at, sex: u.sex||u.gender||'', stateOfOrigin: u.state_of_origin||'',
-        }));
+        const formatted = allUsers.map((u:any)=>({ id: u.id, email: u.email, fullName: u.full_name||u.fullName, role: u.role, department: u.department, status: u.status||'ACTIVE', phone: u.phone, matricNumber: u.matric_no||u.matric_no, matric_no: u.matric_no||'', staffId: u.staff_id||'', level: u.level||'', createdAt: u.created_at, sex: u.sex||u.gender||'', stateOfOrigin: u.state_of_origin||'' }));
         setUsers(formatted);
         localStorage.setItem('lcns_users', JSON.stringify(formatted));
       }
@@ -103,24 +201,14 @@ export const ExamOfficerDashboard: React.FC = () => {
         const map: any = {};
         (supAssignments || []).forEach((a:any)=>{ map[a.course_id] = a.lecturer_name; });
         if (supCourses && supCourses.length > 0) {
-          const withLecturer = supCourses.map((c:any)=> ({
-            ...c,
-            course_title: c.course_title || c.title,
-            title: c.course_title || c.title,
-            course_code: c.course_code || c.code,
-            code: c.course_code || c.code,
-            credit_unit: c.credit_unit ?? c.unit ?? 3,
-            units: c.credit_unit ?? c.unit ?? 3,
-            lecturer_name: map[c.id] || c.lecturer_name || 'Not Assigned Yet',
-            lecturerName: map[c.id] || c.lecturer_name || 'Not Assigned Yet',
-          }));
+          const withLecturer = supCourses.map((c:any)=> ({ ...c, course_title: c.course_title || c.title, title: c.course_title || c.title, course_code: c.course_code || c.code, code: c.course_code || c.code, credit_unit: c.credit_unit ?? c.unit ?? 3, units: c.credit_unit ?? c.unit ?? 3, lecturer_name: map[c.id] || c.lecturer_name || 'Not Assigned Yet', lecturerName: map[c.id] || c.lecturer_name || 'Not Assigned Yet' }));
           setCourses(withLecturer as any);
           localStorage.setItem('lcns_courses', JSON.stringify(withLecturer));
         }
       } catch(e){ console.log('Exam Officer courses fallback', e); }
     } catch {}
   };
-  useEffect(() => { loadVetData(); }, []);
+  useEffect(() => { loadVetData(); loadFromLecturer(); }, []);
 
   const handleManualCorrection = (id: string) => {
     const updated = examSubmissions.map((r:any) => r.id === id || r.scoreId === id ? {...r, score: editScore, totalScore: editScore, total_score: editScore} : r);
@@ -159,7 +247,6 @@ export const ExamOfficerDashboard: React.FC = () => {
     alert(`↩️ Returned to Lecturer. Reason: ${reason}`);
   };
 
-  // ===== FIXED PDF - NOW WITH GRADE, POINT, UNIT, QP, GPA =====
   const downloadMasterPDF = () => {
     const rows = examSubmissions.map((r:any)=>{
       const score = Number(r.score ?? r.total_score ?? 0);
@@ -172,7 +259,6 @@ export const ExamOfficerDashboard: React.FC = () => {
     const win = window.open('', '_blank'); if(win){ win.document.write(html); win.document.close(); win.focus(); setTimeout(()=>win.print(), 500); }
   };
 
-  // ===== FIXED EXCEL - NOW WITH GRADE, POINT, UNIT, QP, GPA =====
   const downloadMasterExcel = () => {
     let csv = 'Matric,Name,Course,Unit,Total,Grade,GradePoint,QualityPoint,CGPA\n';
     examSubmissions.forEach((r:any)=>{
@@ -202,7 +288,6 @@ export const ExamOfficerDashboard: React.FC = () => {
     return (u.fullName||'').toLowerCase().includes(t) || (u.matricNumber||u.matric_no||'').toLowerCase().includes(t) || (u.phone||'').toLowerCase().includes(t) || (u.sex||'').toLowerCase().includes(t);
   });
 
-  // GPA for currently filtered student (or overall if ALL)
   const currentGPA = selectedMatricForGPA === 'ALL' ? null : gpaByMatric[selectedMatricForGPA];
 
   return (
@@ -213,12 +298,14 @@ export const ExamOfficerDashboard: React.FC = () => {
             <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">EXAM OFFICER • {displayRole} • {displayEmail} • Students: {filteredUsers.length} • Courses: {courses.length}</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
             <p className="text-xs text-emerald-200">Exam Officer — First Approval for Course Registration — First Vetting for Results — Then HOD — Backend: {users.length}</p>
+            {workflowStatus && <div className="mt-3 p-3 bg-emerald-500/20 border border-emerald-400 rounded-xl text-xs font-bold">{workflowStatus}</div>}
           </div>
           <button onClick={() => setShowAddCourse(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-md"><Plus className="w-4 h-4"/><span>Allocate New Course</span></button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-xs">
+        <button onClick={() => { loadFromLecturer(); setActiveTab('from_lecturer'); }} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='from_lecturer'?'bg-purple-700 text-white shadow ring-2 ring-purple-300':'bg-purple-50 border-2 border-purple-400 text-purple-800'}`}><Download className="w-4 h-4"/><span>📥 From Lecturer</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{workflowRows.length}</span></button>
         <button onClick={() => setActiveTab('users')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='users'?'bg-slate-900 text-white shadow ring-2 ring-amber-300':'bg-slate-50 border-2 border-amber-400 text-slate-800'}`}><Users className="w-4 h-4"/><span>👤 Students - {filteredUsers.length}</span></button>
         <button onClick={() => setActiveTab('vet_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='vet_result'?'bg-orange-600 text-white shadow ring-2 ring-orange-300':'bg-orange-50 border-2 border-orange-400 text-orange-900'}`}><CheckCircle2 className="w-4 h-4"/><span>🔍 EXAM OFFICER VET RESULT</span><span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">{examSubmissions.length}</span></button>
         <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Registration — First Approval</span></button>
@@ -228,6 +315,60 @@ export const ExamOfficerDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white':'bg-purple-50 border border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 Applicants</span></button>
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Result</span></button>
       </div>
+
+      {activeTab==='from_lecturer' && (
+        <div className="bg-white rounded-3xl border-2 border-purple-400 p-6 space-y-4">
+          <div className="bg-purple-50 border-2 border-purple-300 p-4 rounded-xl">
+            <h2 className="text-lg font-black text-purple-900">📥 Scoresheets From Lecturer — Waiting For Exam Officer</h2>
+            <p className="text-xs font-bold mt-1">Flow: Lecturer SUBMIT → Exam Officer APPROVES → HOD → Registrar → Published</p>
+            <p className="text-xs mt-1">Total waiting: <b>{workflowRows.length} results</b> in <b>{workflowGroups.length} courses</b> | CA + Exam + Total + Grade auto-calculated by Supabase</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={loadFromLecturer} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black">🔄 Refresh From Lecturer</button>
+            <button onClick={approveAllWorkflow} disabled={workflowRows.length===0} className="px-4 py-2.5 bg-emerald-700 text-white rounded-xl text-xs font-black">✅ APPROVE ALL → Send to HOD ({workflowRows.length})</button>
+          </div>
+          {workflowLoading && <p className="text-xs font-bold">Loading...</p>}
+          {workflowGroups.length===0 && !workflowLoading && <div className="p-8 text-center text-gray-500 text-sm">No scoresheet from Lecturer yet.<br/>Lecturer must click SEND TO EXAM OFFICER first.<br/>Check Supabase table <b>student_results_workflow</b> where status = LECTURER_SUBMITTED</div>}
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <p className="text-xs font-black">SELECT COURSE</p>
+              {workflowGroups.map((g:any)=>(
+                <button key={g.key} onClick={()=>setSelectedWorkflowCourse(g.key)} className={`w-full text-left p-3 rounded-xl border-2 text-xs ${selectedWorkflowCourse===g.key?'bg-purple-700 text-white border-purple-700':'bg-white border-purple-200'}`}>
+                  <p className="font-mono font-black">{g.course_code} — {g.course_title}</p>
+                  <p>{g.level} • {g.semester} • {g.session} • {g.count} students</p>
+                  <p>✅ Pass: {g.pass} | ❌ Fail: {g.fail}</p>
+                </button>
+              ))}
+            </div>
+            <div className="md:col-span-2 space-y-3">
+              {selectedWorkflowCourse && (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={approveWorkflowCourse} className="px-4 py-2.5 bg-emerald-700 text-white rounded-xl text-xs font-black">✅ APPROVE THIS COURSE → HOD</button>
+                    <button onClick={rejectWorkflowCourse} className="px-4 py-2.5 bg-red-700 text-white rounded-xl text-xs font-black">↩️ REJECT THIS COURSE → Lecturer</button>
+                    <div className="flex items-center gap-2 bg-slate-50 border rounded-xl px-3 flex-1"><Search className="w-4 h-4"/><input value={workflowSearch} onChange={e=>setWorkflowSearch(e.target.value)} placeholder="Search Matric / Name" className="py-2 text-xs font-bold outline-none bg-transparent w-full"/></div>
+                  </div>
+                  <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-purple-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2 text-left">Name</th><th className="p-2">CA</th><th className="p-2">Exam</th><th className="p-2">Total</th><th className="p-2">Grade</th><th className="p-2">Point</th><th className="p-2">Action</th></tr></thead><tbody>
+                    {workflowDetailRows.map((r:any)=>(
+                      <tr key={r.id} className={`border-b ${r.grade==='F'?'bg-red-50':''}`}>
+                        <td className="p-2 font-mono font-bold">{r.matric_no}</td>
+                        <td className="p-2 font-bold">{r.full_name}</td>
+                        <td className="p-2 text-center">{r.ca_score}</td>
+                        <td className="p-2 text-center">{r.exam_score}</td>
+                        <td className="p-2 text-center font-black">{r.total_score}</td>
+                        <td className="p-2 text-center font-black">{r.grade}</td>
+                        <td className="p-2 text-center">{r.grade_point}</td>
+                        <td className="p-2 text-center"><button onClick={()=>rejectOneStudent(r)} className="px-2 py-1 bg-red-600 text-white rounded text-[10px] font-black">Reject Student</button></td>
+                      </tr>
+                    ))}
+                  </tbody></table></div>
+                </>
+              )}
+              {!selectedWorkflowCourse && workflowGroups.length>0 && <p className="text-xs text-gray-500 p-4">Select a course on the left to vet it.</p>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab==='users' && (
         <div className="bg-white rounded-3xl border-4 border-amber-400 p-6 space-y-4">
@@ -273,8 +414,6 @@ export const ExamOfficerDashboard: React.FC = () => {
               <span className="px-3 py-1 bg-slate-900 text-white rounded-full text-xs font-black">{examSubmissions.length} Records</span>
             </div>
           </div>
-
-          {/* ===== GPA / CGPA SUMMARY BOX ===== */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="bg-emerald-900 text-white p-4 rounded-2xl">
               <p className="text-[10px] font-bold tracking-widest">SELECT STUDENT FOR GPA</p>
@@ -301,7 +440,6 @@ export const ExamOfficerDashboard: React.FC = () => {
               </div>
             </div>
           </div>
-
           <div className="flex flex-wrap gap-2">
             <button onClick={downloadMasterPDF} className="px-4 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-black flex items-center gap-2"><Printer className="w-4 h-4"/> Print PDF</button>
             <button onClick={downloadMasterExcel} className="px-4 py-2.5 bg-green-700 text-white rounded-xl text-xs font-black flex items-center gap-2"><FileSpreadsheet className="w-4 h-4"/> Excel</button>
@@ -331,7 +469,7 @@ export const ExamOfficerDashboard: React.FC = () => {
           <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-900 text-white font-bold"><tr><th className="p-3">Code</th><th className="p-3">Title</th><th className="p-3 text-center">Units</th><th className="p-3">Level</th><th className="p-3">Semester</th><th className="p-3">Lecturer Assigned by Registrar</th></tr></thead><tbody>{courses.map((c:any)=><tr key={c.id} className="border-b"><td className="p-3 font-mono font-bold">{getCode(c)}</td><td className="p-3 font-bold">{getTitle(c)}</td><td className="p-3 text-center font-black">{getUnit(c)}</td><td className="p-3">{c.level}</td><td className="p-3">{c.semester}</td><td className="p-3">{getLecturer(c)}</td></tr>)}</tbody></table></div>
           {courses.length===0 && <p className="p-6 text-center text-gray-500">No courses yet — Admin needs to add courses, Registrar assigns lecturer.</p>}
         </div>
-      ) : activeTab!=='users' && activeTab!=='vet_result' && activeTab!=='individual_result' ? null : null}
+      ) : null}
 
       {showAddCourse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
