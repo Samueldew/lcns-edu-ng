@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StorageService } from '../../services/storage';
 import { Course, Student } from '../../types';
 import {
@@ -9,6 +9,7 @@ import { ScoreSheetViewer } from './ScoreSheetViewer';
 import { CourseRegistrationApproval } from './CourseRegistrationApproval';
 import { PrintableResultWithLogo } from '../common/PrintableResultWithLogo';
 import { supabase } from '@/lib/supabase';
+import { ApiService } from '../../services/api';
 
 export const HODDashboard: React.FC = () => {
   const safeCurrentUser = (() => {
@@ -48,6 +49,12 @@ export const HODDashboard: React.FC = () => {
   const [users, setUsers] = useState<any[]>(() => { try { return JSON.parse(localStorage.getItem('lcns_users') || '[]'); } catch { return []; } });
   const [userSearch, setUserSearch] = useState('');
 
+  // ===== HELPERS - FIX TITLE / CODE / UNIT - Supabase uses course_title, course_code, credit_unit =====
+  const getTitle = (c:any) => c.course_title || c.title || c.name || c.course_name || 'No Title';
+  const getCode = (c:any) => c.course_code || c.code || c.course || '';
+  const getUnit = (c:any) => c.credit_unit ?? c.unit ?? c.units ?? 3;
+  const getLecturer = (c:any) => c.lecturer_name || c.lecturerName || c.lecturer || c.assigned_lecturer || 'Not Assigned Yet';
+
   const loadVetData = async () => {
     try {
       const { data } = await supabase.from('student_gpa_view').select('*');
@@ -64,9 +71,31 @@ export const HODDashboard: React.FC = () => {
         setUsers(formatted);
         localStorage.setItem('lcns_users', JSON.stringify(formatted));
       }
+      // ===== HOD - LOAD COURSES FROM SUPABASE + REGISTRAR ASSIGNMENTS =====
+      try {
+        const supCourses = await ApiService.getAllCourses();
+        const supAssignments = await ApiService.getAllAssignments();
+        const map: any = {};
+        (supAssignments || []).forEach((a:any)=>{ map[a.course_id] = a.lecturer_name; });
+        if (supCourses && supCourses.length > 0) {
+          const withLecturer = supCourses.map((c:any)=> ({
+            ...c,
+            course_title: c.course_title || c.title,
+            title: c.course_title || c.title,
+            course_code: c.course_code || c.code,
+            code: c.course_code || c.code,
+            credit_unit: c.credit_unit ?? c.unit ?? 3,
+            units: c.credit_unit ?? c.unit ?? 3,
+            lecturer_name: map[c.id] || c.lecturer_name || 'Not Assigned Yet',
+            lecturerName: map[c.id] || c.lecturer_name || 'Not Assigned Yet',
+          }));
+          setCourses(withLecturer as any);
+          localStorage.setItem('lcns_courses', JSON.stringify(withLecturer));
+        }
+      } catch(e){ console.log('HOD courses fallback', e); }
     } catch {}
   };
-  React.useEffect(() => { loadVetData(); }, []);
+  useEffect(() => { loadVetData(); }, []);
 
   const handleManualCorrection = (id: string) => {
     const updated = examSubmissions.map((r:any) => r.id === id || r.scoreId === id ? {...r, score: editScore, totalScore: editScore, total_score: editScore} : r);
@@ -84,9 +113,13 @@ export const HODDashboard: React.FC = () => {
     localStorage.setItem('lcns_hod_forwarded_date', new Date().toISOString());
     localStorage.setItem('lcns_hod_vet_status', 'FORWARDED_TO_REGISTRAR');
     localStorage.setItem('lcns_results_hod_vetted', JSON.stringify(examSubmissions));
+    // Also save for Registrar inbox - Registrar reads lcns_results_registrar_inbox
+    localStorage.setItem('lcns_results_registrar_inbox', JSON.stringify(examSubmissions));
+    localStorage.setItem('lcns_hod_forwarded', JSON.stringify(examSubmissions));
     setVetStatus('FORWARDED_TO_REGISTRAR');
     StorageService.logAction(displayEmail, displayRole,'HOD_FORWARD_TO_REGISTRAR',`HOD ${displayName} vetted and forwarded ${examSubmissions.length} results to Registrar`);
     alert(`✅ HOD Vetted OK! Forwarded ${examSubmissions.length} results to Registrar.`);
+    window.dispatchEvent(new Event('lcns_storage_update'));
   };
   const handleReturnToExamOfficer = () => {
     const reason = prompt('Enter reason to return to Exam Officer:');
@@ -114,7 +147,6 @@ export const HODDashboard: React.FC = () => {
   const filteredIndividual = students.filter((s: any) => { if (!searchIndividual) return true; const term = searchIndividual.toLowerCase().trim(); return s.fullName.toLowerCase().includes(term) || s.matricNo.toLowerCase().includes(term); });
   const handleCreateCourse = (e: React.FormEvent) => { e.preventDefault(); if (!code || !title) return; const newCourse: Course = { id: 'crs-' + Date.now(), code: code.toUpperCase(), title, units, level, semester, department: 'Nursing Sciences', lecturerName, }; const updated = [...courses, newCourse]; StorageService.saveCourses(updated); setCourses(updated); StorageService.logAction(displayEmail, displayRole,'ADD_COURSE',`Allocated course ${code}: ${title} to ${lecturerName}`); setCode(''); setTitle(''); setShowAddCourse(false); };
   
-  // PRIVACY: HOD sees ONLY Students + Matric + Name + Sex + Phone - No Password, No Email
   const filteredUsers = users.filter((u:any)=> u.role==='STUDENT').filter((u:any)=>{
     if(!userSearch) return true;
     const t=userSearch.toLowerCase();
@@ -126,9 +158,9 @@ export const HODDashboard: React.FC = () => {
       <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">HOD • {displayRole} • Privacy: Only Matric, Name, Sex, Phone • Students: {filteredUsers.length}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 bg-emerald-800 px-3 py-1 rounded-full">HOD • {displayRole} • Privacy: Only Matric, Name, Sex, Phone • Students: {filteredUsers.length} • Courses: {courses.length}</span>
             <h1 className="text-2xl sm:text-3xl font-black uppercase mt-2">{displayName}</h1>
-            <p className="text-xs text-emerald-200">HOD Students View - Only Matric + Name + Sex + Phone - No Password - Backend: {users.length}</p>
+            <p className="text-xs text-emerald-200">HOD Students View - Only Matric + Name + Sex + Phone - No Password - Backend: {users.length} • Courses from Admin/Registrar: {courses.length}</p>
           </div>
           <button onClick={() => setShowAddCourse(true)} className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-black rounded-xl shadow-md"><Plus className="w-4 h-4"/><span>Allocate New Course</span></button>
         </div>
@@ -140,12 +172,11 @@ export const HODDashboard: React.FC = () => {
         <button onClick={() => setActiveTab('course_reg')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='course_reg'?'bg-blue-700 text-white shadow ring-2 ring-blue-300':'bg-blue-50 border-2 border-blue-400 text-blue-800'}`}><BookOpen className="w-4 h-4"/><span>📚 Course Registration</span></button>
         <button onClick={() => setActiveTab('scoresheets')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='scoresheets'?'bg-emerald-700 text-white shadow ring-2 ring-emerald-300':'bg-emerald-50 border-2 border-emerald-400 text-emerald-800'}`}><Download className="w-4 h-4"/><span>📄 Score Sheets</span></button>
         <button onClick={() => setActiveTab('biodata')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='biodata'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><Users className="w-4 h-4"/><span>👨‍🎓 Biodata</span></button>
-        <button onClick={() => setActiveTab('courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='courses'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><BookOpen className="w-4 h-4"/><span>Courses</span></button>
+        <button onClick={() => setActiveTab('courses')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='courses'?'bg-[#0a4d2e] text-white':'text-slate-600 hover:bg-slate-100'}`}><BookOpen className="w-4 h-4"/><span>Courses - {courses.length}</span></button>
         <button onClick={() => setActiveTab('admissions_all')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold ${activeTab==='admissions_all'?'bg-purple-700 text-white':'bg-purple-50 border border-purple-300 text-purple-800'}`}><GraduationCap className="w-4 h-4"/><span>🎓 Applicants</span></button>
         <button onClick={() => setActiveTab('individual_result')} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black ${activeTab==='individual_result'?'bg-slate-900 text-white shadow ring-2 ring-amber-400':'bg-amber-50 border-2 border-amber-400 text-amber-900'}`}><Printer className="w-4 h-4"/><span>🖨️ Print Result</span></button>
       </div>
 
-      {/* PRIVACY FIXED HOD USERS TAB - ONLY MATRIC, NAME, SEX, PHONE */}
       {activeTab==='users' && (
         <div className="bg-white rounded-3xl border-4 border-amber-400 p-6 space-y-4">
           <div className="flex flex-col md:flex-row justify-between gap-3">
@@ -207,7 +238,11 @@ export const HODDashboard: React.FC = () => {
           <div className="overflow-x-auto border-2 rounded-xl"><table className="w-full text-xs"><thead className="bg-slate-900 text-white"><tr><th className="p-2">Matric</th><th className="p-2">Name</th><th className="p-2">Level</th></tr></thead><tbody>{filteredStudents.map((s:any)=><tr key={s.matricNo} className="border-b"><td className="p-2 font-mono">{s.matricNo}</td><td className="p-2 font-bold">{s.fullName}</td><td className="p-2">{s.level}</td></tr>)}</tbody></table></div>
         </div>
       ) : activeTab==='admissions_all' ? <AdminAdmissionManager currentUser={currentUser} /> : activeTab==='courses' ? (
-        <div className="bg-white rounded-3xl border p-6"><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 font-bold"><tr><th className="p-3">Code</th><th className="p-3">Title</th><th className="p-3">Units</th><th className="p-3">Level</th><th className="p-3">Lecturer</th></tr></thead><tbody>{courses.map((c)=><tr key={c.id} className="border-b"><td className="p-3 font-mono font-bold">{c.code}</td><td className="p-3 font-bold">{c.title}</td><td className="p-3 text-center">{c.units}</td><td className="p-3">{c.level}</td><td className="p-3">{c.lecturerName}</td></tr>)}</tbody></table></div></div>
+        <div className="bg-white rounded-3xl border p-6">
+          <p className="text-xs font-bold mb-3 bg-blue-50 border p-2 rounded">Courses from Admin + Registrar assignments — Title, Code, Unit, Lecturer</p>
+          <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-900 text-white font-bold"><tr><th className="p-3">Code</th><th className="p-3">Title</th><th className="p-3 text-center">Units</th><th className="p-3">Level</th><th className="p-3">Semester</th><th className="p-3">Lecturer Assigned by Registrar</th></tr></thead><tbody>{courses.map((c:any)=><tr key={c.id} className="border-b"><td className="p-3 font-mono font-bold">{getCode(c)}</td><td className="p-3 font-bold">{getTitle(c)}</td><td className="p-3 text-center font-black">{getUnit(c)}</td><td className="p-3">{c.level}</td><td className="p-3">{c.semester}</td><td className="p-3">{getLecturer(c)}</td></tr>)}</tbody></table></div>
+          {courses.length===0 && <p className="p-6 text-center text-gray-500">No courses yet — Admin needs to add courses, Registrar assigns lecturer.</p>}
+        </div>
       ) : activeTab!=='users' && activeTab!=='vet_result' && activeTab!=='individual_result' ? null : null}
 
       {showAddCourse && (
