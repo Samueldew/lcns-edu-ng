@@ -33,6 +33,23 @@ export const LecturerDashboard: React.FC = () => {
   const getLevel = (c:any) => c.level || 'ND1';
   const getSemester = (c:any) => c.semester || c.sem || 'First Semester';
 
+  // ===== STEP 1 ADDED - WORKFLOW HELPERS - Must match student_results_workflow =====
+  const toWorkflowLevel = (lvl: string) => {
+    const m = lvl?.replace(/\s/g, '').match(/^(ND|HND)(\d)$/i);
+    return m ? `${m[1].toUpperCase()} ${m[2]}` : lvl;
+  };
+  const toWorkflowSemester = (sem: string) => {
+    return sem?.includes('Second') ? 'Second' : 'First';
+  };
+  const getCourseInfo = (code: string) => {
+    const c = myCourses.find((x: any) => getCode(x) === code);
+    return {
+      title: c ? getTitle(c) : code,
+      credit_unit: c ? getUnit(c) : 2,
+      department: (c as any)?.department || 'Nursing Sciences',
+    };
+  };
+
   const load = async () => {
     try {
       const keys = ['lcns_erp_current_user', 'lcns-current-user', 'lcns_current_user', 'lcns_user'];
@@ -43,12 +60,9 @@ export const LecturerDashboard: React.FC = () => {
         user = allUsers.find((u:any)=> ['LECTURER','HOD'].includes(u.role)) || { fullName: 'Nurse Emmanuel Gbaorun', email: 'lecturer@lcns.edu.ng', id: 'lec-1', role:'LECTURER' };
       }
       setCurrentUser(user);
-
-      // ===== STEP 2 - LECTURER - LOAD MY ASSIGNED COURSES FROM SUPABASE =====
       let display: any[] = [];
       try {
         if (user?.id) {
-          // 1. Try Supabase course_assignments -> courses join
           const assigned = await ApiService.getLecturerCourses(user.id);
           if (assigned && assigned.length > 0) {
             display = assigned.map((a:any) => {
@@ -57,7 +71,6 @@ export const LecturerDashboard: React.FC = () => {
                 id: a.course_id || course.id || a.id,
                 course_id: a.course_id,
                 assignment_id: a.id,
-                // NORMALIZED for your UI - Title, Code, Unit
                 title: course.course_title || course.title || 'No Title',
                 course_title: course.course_title || course.title,
                 code: course.course_code || course.code || a.course_code || '',
@@ -74,8 +87,6 @@ export const LecturerDashboard: React.FC = () => {
           }
         }
       } catch(e){ console.log('Supabase lecturer courses failed, fallback to localStorage', e); }
-
-      // 2. Fallback: localStorage lcns_lecturer_courses (Registrar also saves here)
       if (display.length === 0) {
         const localMap = JSON.parse(localStorage.getItem('lcns_lecturer_courses') || '[]');
         const allCourses = JSON.parse(localStorage.getItem('lcns_courses') || '[]');
@@ -100,8 +111,6 @@ export const LecturerDashboard: React.FC = () => {
           });
         }
       }
-
-      // 3. Old fallback: lcns_allocated_courses (keep for backward compat)
       if (display.length === 0) {
         const all = JSON.parse(localStorage.getItem('lcns_allocated_courses') || '[]');
         const mine = all.filter((c:any)=> !user || !user.email ? true : (c.lecturerEmail === user.email || c.lecturerId === user.id || c.lecturer_email === user.email));
@@ -118,7 +127,6 @@ export const LecturerDashboard: React.FC = () => {
           semester: getSemester(c),
         }));
       }
-
       setMyCourses(display);
       if (display.length > 0 && !selectedCourse) {
         setSelectedCourse(getCode(display[0]));
@@ -135,28 +143,21 @@ export const LecturerDashboard: React.FC = () => {
 
   useEffect(()=>{ load(); const h = () => load(); window.addEventListener('lcns_storage_update', h); return () => window.removeEventListener('lcns_storage_update', h); }, []);
 
-  // FIXED - LOAD ONLY STUDENTS WHO REGISTERED THIS COURSE - NOT ALL BY LEVEL
   const loadStudentsOfferingCourse = async () => {
     if(!selectedCourse) { setStatus('Select course'); return; }
     try {
       const sb = getSupabase();
       let registeredMatrics: string[] = [];
-
       if(sb){
-        // Try Supabase course_registrations - ONLY REGISTERED
         const { data: regs } = await sb.from('course_registrations').select('matric_no').eq('course_code', selectedCourse).eq('session', selectedSession).eq('semester', selectedSemester);
         if(regs && regs.length>0) registeredMatrics = regs.map((r:any)=>r.matric_no);
       }
-      
-      // Fallback to local course_registrations
       if(registeredMatrics.length===0){
         const localRegs = JSON.parse(localStorage.getItem('lcns_course_registrations') || '[]').filter((r:any)=> r.course_code===selectedCourse && r.session===selectedSession && r.semester===selectedSemester);
         if(localRegs.length>0) registeredMatrics = localRegs.map((r:any)=>r.matric_no);
       }
-
       let filtered:any[] = [];
       if(registeredMatrics.length>0){
-        // ONLY REGISTERED STUDENTS - CORRECT LOGIC
         const allUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
         filtered = allUsers.filter((u:any) => registeredMatrics.includes(u.matricNumber || u.matric_number || u.matric_no) && (u.role==='STUDENT')).map((u:any) => ({
           matricNo: u.matricNumber || u.matric_number || u.matricNo || u.id,
@@ -168,7 +169,6 @@ export const LecturerDashboard: React.FC = () => {
         }));
         setStatus(`✅ Loaded ${filtered.length} students WHO REGISTERED ${selectedCourse} - ${selectedLevel} - ${selectedSession} - ${selectedSemester} - Correct! Not all ${selectedLevel} students`);
       } else {
-        // If no registration data yet (old system) - Fallback to level but warn
         const allUsers = JSON.parse(localStorage.getItem('lcns_users') || '[]');
         filtered = allUsers.filter((u:any) => (u.role === 'STUDENT') && (u.level === selectedLevel)).map((u:any) => ({
           matricNo: u.matricNumber || u.matric_number || u.matricNo || u.id,
@@ -177,14 +177,12 @@ export const LecturerDashboard: React.FC = () => {
         }));
         setStatus(`⚠️ No registration record found for ${selectedCourse} - Showing all ${selectedLevel} students (${filtered.length}) as fallback - But should be ONLY registered students! Implement course_registrations table`);
       }
-
       const existing = results.filter((r:any) => r.course_code === selectedCourse && r.level === selectedLevel && r.session === selectedSession && r.semester === selectedSemester);
       const merged = filtered.map((s:any) => {
         const ex = existing.find((e:any) => e.student_email === s.email || e.matric_number === s.matricNo);
         if(ex) return {...s, assessment: ex.assessment, exam: ex.exam, total: ex.total };
         return s;
       });
-
       setStudentsList(merged);
       setScores(merged);
       setTimeout(()=>setStatus(null), 8000);
